@@ -41,9 +41,7 @@ func SaveKubeConfig(cfg *clientcmdapi.Config) error {
 	if err != nil {
 		return err
 	}
-	_ = os.Mkdir("./var", 0755)
-	_ = os.Mkdir("./var/run", 0755)
-	err = os.Mkdir("./var/run/.kube", 0755)
+	err = os.MkdirAll("./var/run/.kube", 0755)
 	if err != nil {
 		return err
 	}
