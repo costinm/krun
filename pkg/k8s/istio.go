@@ -25,12 +25,15 @@ func (kr *KRun) StartIstioAgent(ns string, proxyConfig string, prefix string) {
 	env = append(env, "XDS_ROOT_CA=SYSTEM")
 	env = append(env, "CA_ROOT_CA=SYSTEM")
 
+	os.MkdirAll(prefix + "/etc/istio/proxy", 0755)
+
 	// Save the istio certificates - for proxyless or app use.
 	os.MkdirAll(prefix + "/var/run/secrets/istio.io", 0755)
 	os.MkdirAll(prefix + "/etc/istio/pod", 0755)
 	if os.Getuid() == 0 {
 		os.Chown(prefix + "/var/run/secrets/istio.io", 1337, 1337)
 		os.Chown(prefix + "/etc/istio/pod", 1337, 1337)
+		os.Chown(prefix + "/etc/istio/proxy", 1337, 1337)
 	}
 	ioutil.WriteFile("/etc/istio/pod/labels", []byte(fmt.Sprintf(`version="v1"
 security.istio.io/tlsMode="istio"
