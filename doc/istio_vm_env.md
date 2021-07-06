@@ -1,31 +1,32 @@
-Tool to get a K8S JWT with a given audience.
-
-Depeding on the kube config, can use:
-- a 'cluster admin' credentials
-- a regular KSA, with RBAC permission to the given KSA
-- a GCP GSA or platform specific identity, with RBAC permission to the KSA
-
-TODO:
-- "-d" - run as a server, periodic refresh
-- create an env mirroring istio-agent expected paths ( XDS CA, etc)
-- labels, etc from WorkloadGroup
-
-# Config 
-
-## VM env
-
-Not used:
-- ISTIO_SERVICE_CIDR=
-- ISTIO_INBOUND_INTERCEPTION_MODE=REDIRECT
+Environment variables used to configure istio VM startup, used by the 
+shell script. A subset will be adopted as 'API' for krun.
 
 Useful:
-- ISTIO_SERVICE=myservice 
+- ISTIO_SERVICE=myservice - used as canonical service name
+- ISTIO_NAMESPACE=default -> POD_NAMESPACE
+- ISTIO_AGENT_FLAGS="--proxyLogLevel debug"
+- ISTIO_CUSTOM_IP_TABLES=false - do not set iptables, even if running as root 
+- CA_ADDR=istiod.istio-system.svc:32018
+
+Not used in KNative/CloudRun mode, with HBONE (single port):
 - ISTIO_INBOUND_PORTS=
 - ISTIO_INBOUND_EXCLUDE_PORTS=
-- ISTIO_NAMESPACE=default -> POD_NAMESPACE
+
+Not used:
+- ISTIO_SERVICE_CIDR - original dst works now
+- ISTIO_INBOUND_INTERCEPTION_MODE=REDIRECT - only one supported
+- All TPROXY related
+- ISTIO_SVC_IP=
+- ISTIO_PILOT_PORT=15005, ISTIO_CP_AUTH=MUTUAL_TLS - replaced by XDS_ADDR
+- ENVOY_PORT, ENVOY_USER - no tests or support for other values
+- ISTIO_LOG_DIR - stdout works now, using pty 
+- ISTIO_BIN_BASE=/usr/local/bin - no support for other values (except test mode)
+- ISTIO_CFG=/var/lib/istio - no support for other values
+- PROV_CERT=/var/run/secrets/istio
+- OUTPUT_CERTS=/var/run/secrets/istio - using metadata server, on by default
+
 
 ```shell
-# Environment variables used to configure istio startup
 
 # Comma separated list of CIDRs used for services. If set, iptables will be run to allow istio
 # sidecar to intercept outbound calls to configured addresses. If not set, outbound istio sidecar
