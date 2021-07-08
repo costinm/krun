@@ -12,12 +12,12 @@ FROM ${BASE}
 COPY --from=fortio /usr/share/fortio /usr/share/fortio
 COPY --from=fortio /usr/bin/fortio /usr/bin/fortio
 
+# TODO: krun to auto-detect, or not use ko
 # Replace bootstrap with a user-specified config
-COPY --chown=1337:1337 envoy_bootstrap_tmpl.json /var/lib/istio/envoy/
+#COPY --chown=1337:1337 envoy_bootstrap_tmpl.json /var/lib/istio/envoy/
 # Or use the default
-#RUN cp /var/run/ko/envoy_bootstrap_hbone.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json
-
-#    chown -R 1337 /etc/istio /var/lib/istio &&
+RUN cp /var/run/ko/envoy_bootstrap_tmpl.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json && \
+    chown -R 1337 /var/lib/istio
 
 ENTRYPOINT ["/ko-app/krun"]
 CMD ["/usr/bin/fortio", "server", "-http-port=8082"]

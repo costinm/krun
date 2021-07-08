@@ -55,3 +55,11 @@ deploy/fortio:
 		fortio \
  		samples/charts/fortio
 
+# Push krun to ghcr.io - the actions will do the same
+push/krun:
+	KO_DOCKER_REPO=ghcr.io/costinm/krun/krun ko publish -B ./
+
+# Build krun image locally.
+local/krun:
+	docker pull gcr.io/istio-testing/proxyv2:latest
+	KO_DOCKER_REPO=ko.local ko publish -B ./

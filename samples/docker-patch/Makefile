@@ -35,6 +35,8 @@ NS=fortio
 
 all: push-fortio deploy-fortio
 
+istio-fortio: patch-fortio deploy-istio-fortio
+
 push-fortio: docker-fortio
 	docker push ${REPO}/fortio:latest
 
@@ -53,6 +55,19 @@ docker-fortio:
 	docker pull ghcr.io/costinm/krun/krun:latest
 	docker build . -f Dockerfile.fortio -t ${REPO}/fortio:latest
 
+# WIP - use the app's base image and add the proxy
+patch-fortio:
+	docker pull ghcr.io/costinm/krun/krun:latest
+	docker build . -f ../Dockerfile.istio-patch \
+       --build-arg NS=fortio \
+       --build-arg APP=cr-fortio \
+       --build-arg BASE=ubuntu \
+       -t ${REPO}/istio-fortio:latest
+
+#       --build-arg BASE=costinm/fortio:latest \
+
+push-istio-fortio: patch-fortio
+	docker push ${REPO}/istio-fortio:latest
 
 # GKE cluster used by cloudrun
 K8S_CLUSTER_ARGS=--set-env-vars="PROJECT=${PROJECT}" \
@@ -85,6 +100,21 @@ deploy-fortio:
  		 --set-env-vars="LABEL_APP=fortio-cr" \
  		  --vpc-connector projects/${PROJECT}/locations/${REGION}/connectors/serverlesscon \
 
+# Deploy the Fortio image with Istio patch
+deploy-istio-fortio:
+	gcloud alpha run deploy istio-fortio \
+		  --platform managed --project ${PROJECT} \
+		  --region ${REGION} \
+          --sandbox=minivm \
+         --allow-unauthenticated \
+         --use-http2 \
+         --port 15009 \
+         --min-instances=1 \
+         --image ${REPO}/istio-fortio:latest \
+ 		  ${K8S_CLUSTER_ARGS} \
+ 		  ${SSH_DEBUG_ARGS} \
+ 		  --vpc-connector projects/${PROJECT}/locations/${REGION}/connectors/serverlesscon \
+
 # Deploy the same thing in asia
 deploy-fortio-asia:
 	gcloud alpha run deploy fortio-asia \
@@ -107,15 +137,10 @@ deploy-fortio-asia:
 
 # SSH to the deployed CloudRun using HBONE
 ssh-fortio:
-	 ssh -F /dev/null -o StrictHostKeyChecking=no \
+	 ssh -v  -F /dev/null -o StrictHostKeyChecking=no \
         -o "UserKnownHostsFile /dev/null" \
  	    -o ProxyCommand='hbone https://fortio-icq63pqnqq-uc.a.run.app:443/_hbone/22' \
      	root@proxybase
-
-dump:
-	 ssh -F /dev/null -o StrictHostKeyChecking=no \
-        -o "UserKnownHostsFile /dev/null" \
- 	    -o ProxyCommand='hbone https://fortio-icq63pqnqq-uc.a.run.app:443/_hbone/22' -- sh curl localhost:15000/config_dump
 
 # Test instance in asia
 ssh-fortio-asia:

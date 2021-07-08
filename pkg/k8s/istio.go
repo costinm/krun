@@ -40,15 +40,28 @@ security.istio.io/tlsMode="istio"
 app="%s"
 service.istio.io/canonical-name="%s"
 `, kr.Name, kr.Name)), 0777)
+
 	env = append(env, "OUTPUT_CERTS=" + prefix + "/var/run/secrets/istio.io/")
 
 	// This would be used if a audience-less JWT was present - not possible with TokenRequest
 	// TODO: add support for passing a long lived 1p JWT in a file, for local run
 	//env = append(env, "JWT_POLICY=first-party-jwt")
 
-
 	if os.Getuid() == 0 { // && kr.Gateway != "" {
-		cmd := exec.Command("/usr/local/bin/pilot-agent", "istio-iptables")
+		// TODO: make the args the default !
+		// pilot-agent istio-iptables -p 15001 -u 1337 -m REDIRECT -i '*' -b "" -x "" -- crash
+
+		//pilot-agent istio-iptables -p 15001 -u 1337 -m REDIRECT -i '10.8.4.0/24' -b "" -x ""
+		cmd := exec.Command("/usr/local/bin/pilot-agent",
+			"istio-iptables",
+			"-p", "15001", // outbound capture port
+			//"-z", "15006", - no inbound interception
+		  "-u", "1337",
+		  "-m", "REDIRECT",
+		  "-i", "10.8.4.0/24", // all outbound captured
+		  "-b", "", // disable all inbound redirection
+		  // "-d", "15090,15021,15020", // exclude specific ports
+		  "-x", "")
 		cmd.Env = env
 		cmd.Dir = "/"
 		cmd.Stdout = os.Stdout
@@ -62,9 +75,11 @@ service.istio.io/canonical-name="%s"
 				log.Println("Error starting iptables", err)
 			}
 		}
+		log.Println("Iptables start done")
 	}
 
 	env = append(env, "ISTIO_META_DNS_CAPTURE=true")
+
 
 	env = append(env, "PROXY_CONFIG=" + proxyConfig)
 
