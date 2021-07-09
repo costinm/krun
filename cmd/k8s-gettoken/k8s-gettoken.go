@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"os"
 
@@ -11,20 +10,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var (
-	aud = flag.String("aud", "istio-ca", "Audience. 'api' for k8s server")
-)
-
+// Minimal tool to get a K8S token with audience.
 func main() {
-	flag.Parse()
-
-	ns := os.Getenv("POD_NAMESPACE")
-	if ns == "" {
-		ns = "default"
-	}
-	ksa := os.Getenv("POD_SERVICE_ACCOUNT")
-	if ksa == "" {
-		ksa = "default"
+	ns := conf("NS", "default")
+	ksa := conf("KSA", "default")
+	aud := conf("AUD", "api")
+	if len(os.Args) > 1 {
+		aud = os.Args[1]
 	}
 
 	clientset, err := k8s.GetK8S()
@@ -33,7 +25,7 @@ func main() {
 	}
 	treq := &authenticationv1.TokenRequest{
 		Spec: authenticationv1.TokenRequestSpec{
-			Audiences: []string{*aud},
+			Audiences: []string{aud},
 		},
 	}
 	if err != nil {
@@ -47,4 +39,11 @@ func main() {
 	fmt.Println(ts.Status.Token)
 }
 
+func conf(key, def string) string {
+	r := os.Getenv(key)
+	if r == "" {
+		return def
+	}
+	return r
+}
 

@@ -18,7 +18,6 @@ local/run-noxds:
 		-e CLUSTER=${CLUSTER} \
 		-e PROJECT=${PROJECT} \
 		-e LOCATION=${LOCATION} \
-		-e CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=/var/run/secrets/google/google.json \
 		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
 		-v ${ADC}:/var/run/secrets/google/google.json:ro \
 		${IMAGE} \
@@ -34,7 +33,6 @@ local/run-xds:
 		-e CLUSTER=${CLUSTER} \
 		-e PROJECT=${PROJECT} \
 		-e LOCATION=${LOCATION} \
-		-e CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=/var/run/secrets/google/google.json \
 		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
 		-v ${ADC}:/var/run/secrets/google/google.json:ro \
 		${IMAGE} \
@@ -45,3 +43,27 @@ local/run-xds-local:
 
 build/docker-local:
 	KO_DOCKER_REPO=ko.local ko publish -B .
+
+## In-cluster
+
+deploy/fortio-mcp:
+	helm upgrade --install \
+		-n fortio-mcp \
+		fortio-mcp \
+ 		samples/charts/fortio
+
+deploy/fortio:
+	helm upgrade --install \
+		-n fortio \
+		fortio \
+ 		samples/charts/fortio
+
+# Push krun to ghcr.io - the actions will do the same
+push/krun:
+	KO_DOCKER_REPO=ghcr.io/costinm/krun/krun ko publish -B ./
+
+# Build krun image locally.
+local/krun:
+	#docker pull gcr.io/wlhe-cr/proxyv2:cloudrun
+	#docker pull gcr.io/istio-testing/proxyv2:latest
+	KO_DOCKER_REPO=ko.local ko publish -B ./

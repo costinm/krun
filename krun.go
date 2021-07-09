@@ -32,10 +32,6 @@ func main() {
 	if name == "" {
 		name = "default"
 	}
-	prefix := "."
-	if os.Getuid() == 0 {
-		prefix = ""
-	}
 
 	k8sClient, err := k8s.GetK8S()
 	if err != nil {
@@ -52,6 +48,10 @@ func main() {
 		kr.Gateway = "ingressgateway"
 	}
 
+	prefix := "."
+	if os.Getuid() == 0 {
+		prefix = ""
+	}
 	for _, kv := range os.Environ() {
 		kvl := strings.SplitN(kv, "=", 2)
 		if strings.HasPrefix(kvl[0], "K8S_SECRET_") {
@@ -74,7 +74,7 @@ func main() {
 		}
 	}
 	if proxyConfig != "" {
-		kr.StartIstioAgent(ns, proxyConfig, prefix)
+		kr.StartIstioAgent(proxyConfig)
 	}
 
 	if kr.Gateway == "" {

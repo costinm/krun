@@ -1,0 +1,23 @@
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: fortio
+spec:
+  selector:
+    matchLabels:
+      app: fortio2
+  mtls:
+    mode: STRICT
+
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: fortio2
+spec:
+  host: fortio2
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL

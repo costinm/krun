@@ -1,4 +1,5 @@
-defaultBaseImage: gcr.io/istio-testing/proxyv2:latest
+#defaultBaseImage: gcr.io/istio-testing/proxyv2:latest
 
-#defaultBaseImage: gcr.io/wlhe-cr/proxybase:latest
+# Modified file
+defaultBaseImage: gcr.io/wlhe-cr/proxyv2:cloudrun
 
