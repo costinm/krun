@@ -61,5 +61,6 @@ push/krun:
 
 # Build krun image locally.
 local/krun:
-	docker pull gcr.io/istio-testing/proxyv2:latest
+	#docker pull gcr.io/wlhe-cr/proxyv2:cloudrun
+	#docker pull gcr.io/istio-testing/proxyv2:latest
 	KO_DOCKER_REPO=ko.local ko publish -B ./

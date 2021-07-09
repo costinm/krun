@@ -33,13 +33,16 @@ ISTIOD_URL?=istiod.${SUBDOMAIN}:443
 
 NS=fortio
 
+# Local build - using ko.local for krun, local docker build
+local/all: push-fortio-local deploy-fortio
+
 all: push-fortio deploy-fortio
+
+all-dns: push-fortio-local deploy-fortio-dns
 
 push-fortio: docker-fortio
 	docker push ${REPO}/fortio:latest
 
-# Local build - using ko.local for krun, local docker build
-local/all: push-fortio-local deploy-fortio
 
 push-fortio-local:
 	(cd ../..; make local/krun)
@@ -85,6 +88,29 @@ deploy-fortio:
  		 --set-env-vars="LABEL_APP=fortio-cr" \
  		  --vpc-connector projects/${PROJECT}/locations/${REGION}/connectors/serverlesscon \
 
+deploy-fortio-dns:
+	$(MAKE) deploy-fortio-custom SUFFIX=-dns EXTRA=--set-env-vars="K8S_DNS=1"
+
+deploy-fortio-custom:
+	gcloud alpha run deploy fortio${SUFFIX} \
+		  --platform managed --project ${PROJECT} \
+		  --region ${REGION} \
+          --sandbox=minivm \
+         --allow-unauthenticated \
+         --use-http2 \
+         --port 15009 \
+         --min-instances=1 \
+         --image ${REPO}/fortio:latest \
+ 		  ${K8S_CLUSTER_ARGS} \
+ 		  ${SSH_DEBUG_ARGS} \
+ 		  ${EXTRA} \
+          --set-env-vars="HTTP_PROXY=127.0.0.1:15080" \
+         --set-env-vars="LABEL_FOO=bar2" \
+         --set-env-vars="POD_NAMESPACE=fortio" \
+ 		 --set-env-vars="POD_NAME=fortio-cr" \
+ 		 --set-env-vars="LABEL_APP=fortio-cr" \
+ 		  --vpc-connector projects/${PROJECT}/locations/${REGION}/connectors/serverlesscon \
+
 # Deploy the same thing in asia
 deploy-fortio-asia:
 	gcloud alpha run deploy fortio-asia \
@@ -110,6 +136,12 @@ ssh-fortio:
 	 ssh -F /dev/null -o StrictHostKeyChecking=no \
         -o "UserKnownHostsFile /dev/null" \
  	    -o ProxyCommand='hbone https://fortio-icq63pqnqq-uc.a.run.app:443/_hbone/22' \
+     	root@proxybase
+
+ssh-fortio-dns:
+	 ssh -F /dev/null -o StrictHostKeyChecking=no \
+        -o "UserKnownHostsFile /dev/null" \
+ 	    -o ProxyCommand='hbone https://fortio-dns-icq63pqnqq-uc.a.run.app:443/_hbone/22' \
      	root@proxybase
 
 dump:
@@ -146,13 +178,20 @@ setupcon-sharedvpc:
 ADC=${HOME}/.config/gcloud/legacy_credentials/${USER}/adc.json
 export ADC
 
+all-docker-fortio:
+	(cd ../..; make local/krun)
+	docker build . -f Dockerfile.fortio \
+		--build-arg BASE=ko.local/krun:latest \
+	-t ${REPO}/fortio:latest
+	$(MAKE) run-docker-fortio
 
 # Local run for the fortio image.
-run-fortio:
+run-docker-fortio:
 	docker run -it --rm \
 		--name fortio \
         -p 9999:15009 \
         -e XDS_ADDR=istiod.wlhe.i.webinf.info:443 \
+                -e K8S_DNS=1 \
                 -e CLUSTER=${CLUSTER} \
                 -e PROJECT=${PROJECT} \
                 -e LOCATION=${LOCATION} \
