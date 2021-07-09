@@ -24,6 +24,9 @@ local/run-noxds:
 		${IMAGE} \
 	   /bin/bash
 
+local/run-kubeconfig:
+	docker run  -e KUBECONFIG=/var/run/kubeconfig -v ${HOME}/.kube/config:/var/run/kubeconfig:ro -it  \
+		ghcr.io/costinm/krun/krun:latest  /bin/bash
 
 local/run-xds:
 	docker run -it --rm \
