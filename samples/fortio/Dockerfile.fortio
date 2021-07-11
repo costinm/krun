@@ -1,5 +1,3 @@
-# Example using 'krun + istio proxy' base image, and adding an app.
-
 
 ARG BASE=ghcr.io/costinm/krun/krun:latest
 

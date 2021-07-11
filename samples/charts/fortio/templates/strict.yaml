@@ -3,11 +3,11 @@
 apiVersion: security.istio.io/v1beta1
 kind: PeerAuthentication
 metadata:
-  name: fortio
+  name: {{ .Values.app }}
 spec:
   selector:
     matchLabels:
-      app: fortio2
+      app: {{ .Values.app }}
   mtls:
     mode: STRICT
 
@@ -15,9 +15,9 @@ spec:
 apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule
 metadata:
-  name: fortio2
+  name: {{ .Values.app }}
 spec:
-  host: fortio2
+  host: {{ .Values.app }}
   trafficPolicy:
     tls:
       mode: ISTIO_MUTUAL

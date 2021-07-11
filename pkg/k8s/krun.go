@@ -26,22 +26,30 @@ type KRun struct {
 
 	// Canonical name for the application.
 	// Will be set as "app" and "service.istio.io/canonical-name" labels
+	//
 	// If not set "default" will be used.
+	// TODO: use service name as default
 	Name string
 
 	// If not empty, will run Istio-agent as a gateway (router instead of sidecar)
 	// with the "istio: $Gateway" label.
 	Gateway string
 
+	// Agent debug config (example dns:debug).
+	// Based on ISTIO_DEBUG
+	AgentDebug string
+
 	// Namespace for the application. The user running the command must have
 	// the appropriate Token, Secret, ConfigMap permissions in the namespace.
 	//
 	// If not set, "default" will be used.
+	// TODO: use the GSA name as default namespace.
 	Namespace string
 
 	// KSA is the k8s service account for getting tokens.
 	//
 	// If not set, "default" will be used.
+	// TODO: use service name as default
 	KSA string
 
 	// Client is the k8s client to use. If not set will be created based on

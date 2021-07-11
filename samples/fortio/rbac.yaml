@@ -1,0 +1,28 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: fortio
+  name: cr-fortio-tokenrequest
+rules:
+  - apiGroups: [""]
+    resources:
+      - "serviceaccounts/token"
+      - "serviceaccounts"
+    #    resourceNames:
+    #      - "default"
+    verbs:
+      - "create"
+      - "get"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: fortio
+  name: cr-fortio-tokenrequest
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cr-fortio-tokenrequest
+subjects:
+  - kind: User
+    name: fortio-default@wlhe-cr.iam.gserviceaccount.com
