@@ -33,11 +33,15 @@ import (
 // TODO: if cluster not specified, list clusters
 // TODO: use hub as well.
 
+
 // SaveKubeConfig saves the KUBECONFIG to ./var/run/.kube/config
 // The assumption is that on a read-only image, /var/run will be
 // writeable and not backed up.
-func SaveKubeConfig(cfg *clientcmdapi.Config) error {
-	cfgjs, err := clientcmd.Write(*cfg)
+func (kr *KRun) SaveKubeConfig() error {
+	if kr.KubeConfig == nil {
+		return nil
+	}
+	cfgjs, err := clientcmd.Write(*kr.KubeConfig)
 	if err != nil {
 		return err
 	}
@@ -64,8 +68,8 @@ func NewKubeConfig() *clientcmdapi.Config {
 	}
 }
 
-// CreateClusterConfig sets a single, default cluster
-func CreateClusterConfig(cfg *clientcmdapi.Config, p, l, clusterName string) error {
+// CreateClusterConfig adds a cluster to the config.
+func (kr *KRun) CreateClusterConfig(p, l, clusterName string) error {
 	ctx := context.Background()
 
 	cl, err := container.NewClusterManagerClient(ctx)
@@ -79,7 +83,13 @@ func CreateClusterConfig(cfg *clientcmdapi.Config, p, l, clusterName string) err
 	if err != nil {
 		return err
 	}
+	return kr.addClusterConfig(c, p, l, clusterName)
+}
 
+func (kr *KRun) addClusterConfig(c *containerpb.Cluster, p, l, clusterName string) error {
+	if kr.KubeConfig == nil {
+		kr.KubeConfig = NewKubeConfig()
+	}
 	caCert, err := base64.StdEncoding.DecodeString(c.MasterAuth.ClusterCaCertificate)
 	if err != nil {
 		return err
@@ -88,16 +98,16 @@ func CreateClusterConfig(cfg *clientcmdapi.Config, p, l, clusterName string) err
 	ctxName := "gke_" + p + "_" + l + "_" + clusterName
 
 	// We need a KUBECONFIG - tools/clientcmd/api/Config object
-	cfg.CurrentContext = ctxName
-	cfg.Contexts[ctxName]= &clientcmdapi.Context {
+	kr.KubeConfig.CurrentContext = ctxName
+	kr.KubeConfig.Contexts[ctxName]= &clientcmdapi.Context {
 				Cluster: ctxName,
 				AuthInfo: ctxName,
 	}
-	cfg.Clusters[ctxName] = &clientcmdapi.Cluster{
+	kr.KubeConfig.Clusters[ctxName] = &clientcmdapi.Cluster{
 				Server: "https://" + c.Endpoint,
 				CertificateAuthorityData: caCert,
 	}
-	cfg.AuthInfos[ctxName] = &clientcmdapi.AuthInfo{
+	kr.KubeConfig.AuthInfos[ctxName] = &clientcmdapi.AuthInfo{
 				AuthProvider: &clientcmdapi.AuthProviderConfig{
 					Name: "gcp",
 				},
@@ -106,7 +116,11 @@ func CreateClusterConfig(cfg *clientcmdapi.Config, p, l, clusterName string) err
 	return nil
 }
 
-func CreateRestConfig(p, l, clusterName string) (*rest.Config, error) {
+// CreateRestConfig will create a k8s client for the project, location and cluster
+//
+// If cluster name is missing, will list projects in the same location, and pick
+// the first project with mesh_id label.
+func (kr *KRun) CreateRestConfig(p, l, clusterName string) (*rest.Config, error) {
 	ctx := context.Background()
 
 	cl, err := container.NewClusterManagerClient(ctx)
@@ -121,6 +135,13 @@ func CreateRestConfig(p, l, clusterName string) (*rest.Config, error) {
 		return nil, err
 	}
 
+	kr.clusters = append(kr.clusters, c)
+
+	kr.addClusterConfig(c, p, l, clusterName)
+	return kr.restConfigForCluster(c)
+}
+
+func (kr *KRun) restConfigForCluster(c *containerpb.Cluster) (*rest.Config, error) {
 	caCert, err := base64.StdEncoding.DecodeString(c.MasterAuth.ClusterCaCertificate)
 	if err != nil {
 		return nil, err
@@ -156,8 +177,11 @@ func ProjectNumber(p string) string {
 	return strconv.Itoa(int(pdata.ProjectNumber))
 }
 
-func AllHub(kcfg *clientcmdapi.Config, project string, defCluster string, label string, meshID string) error {
+func (kr *KRun) AllHub(project string, defCluster string, label string, meshID string) error {
 	ctx := context.Background()
+	if kr.KubeConfig == nil {
+		kr.KubeConfig = NewKubeConfig()
+	}
 
 	cl, err := gkehub.NewGkeHubMembershipClient(ctx)
 	if err != nil {
@@ -184,30 +208,33 @@ func AllHub(kcfg *clientcmdapi.Config, project string, defCluster string, label 
 		mna := strings.Split(r.Name, "/")
 		mn := mna[len(mna)-1]
 		ctxName := "connectgateway_" + project + "_"  + mn
-		kcfg.Contexts[ctxName] = &clientcmdapi.Context {
+		kr.KubeConfig.Contexts[ctxName] = &clientcmdapi.Context {
 			Cluster:  ctxName,
 			AuthInfo: ctxName,
 		}
-		kcfg.Clusters[ctxName] = &clientcmdapi.Cluster {
+		kr.KubeConfig.Clusters[ctxName] = &clientcmdapi.Cluster {
 			Server: fmt.Sprintf("https://connectgateway.googleapis.com/v1beta1/projects/%s/memberships/%s",
 				pn, mn),
 		}
-		kcfg.AuthInfos[ctxName] = &clientcmdapi.AuthInfo{
+		kr.KubeConfig.AuthInfos[ctxName] = &clientcmdapi.AuthInfo{
 			AuthProvider: &clientcmdapi.AuthProviderConfig{
 				Name: "gcp",
 			},
 		}
 
 		if mn == defCluster {
-			kcfg.CurrentContext = ctxName
+			kr.KubeConfig.CurrentContext = ctxName
 		}
 
 	}
 	return nil
 }
 
-func AllClusters(kcfg *clientcmdapi.Config, project string, defCluster string, label string, meshID string) error {
+func (kr *KRun) AllClusters(project string, defCluster string, label string, meshID string) error {
 	ctx := context.Background()
+	if kr.KubeConfig == nil {
+		kr.KubeConfig = NewKubeConfig()
+	}
 
 	cl, err := container.NewClusterManagerClient(ctx)
 	if err != nil {
@@ -222,11 +249,12 @@ func AllClusters(kcfg *clientcmdapi.Config, project string, defCluster string, l
 	}
 
 	for _, c := range clusters.Clusters {
-		if label != "ALL" {
+		if label != "" {
 			if c.ResourceLabels[label] != meshID {
 				continue
 			}
 		}
+		kr.clusters = append(kr.clusters, c)
 
 		caCert, err := base64.StdEncoding.DecodeString(c.MasterAuth.ClusterCaCertificate)
 		if err != nil {
@@ -250,21 +278,21 @@ func AllClusters(kcfg *clientcmdapi.Config, project string, defCluster string, l
 		ctxName := "gke_" + project + "_" + c.Location + "_" + c.Name
 
 		// We need a KUBECONFIG - tools/clientcmd/api/Config object
-		kcfg.Contexts[ctxName] = &clientcmdapi.Context {
+		kr.KubeConfig.Contexts[ctxName] = &clientcmdapi.Context {
 					Cluster:  ctxName,
 					AuthInfo: ctxName,
 				}
-		kcfg.Clusters[ctxName] = &clientcmdapi.Cluster {
+		kr.KubeConfig.Clusters[ctxName] = &clientcmdapi.Cluster {
 					Server:                   "https://" + c.Endpoint,
 					CertificateAuthorityData: caCert,
 				}
-		kcfg.AuthInfos[ctxName] = &clientcmdapi.AuthInfo{
+		kr.KubeConfig.AuthInfos[ctxName] = &clientcmdapi.AuthInfo{
 			AuthProvider: &clientcmdapi.AuthProviderConfig{
 				Name: "gcp",
 			},
 		}
 		if c.Name == defCluster {
-			kcfg.CurrentContext = ctxName
+			kr.KubeConfig.CurrentContext = ctxName
 		}
 	}
 	return nil

@@ -14,8 +14,8 @@ COPY --from=fortio /usr/bin/fortio /usr/bin/fortio
 # Replace bootstrap with a user-specified config
 #COPY --chown=1337:1337 envoy_bootstrap_tmpl.json /var/lib/istio/envoy/
 # Or use the default
-RUN cp /var/run/ko/envoy_bootstrap_tmpl.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json && \
-    chown -R 1337 /var/lib/istio
+#RUN cp /var/run/ko/envoy_bootstrap_tmpl.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json && \
+#    chown -R 1337 /var/lib/istio
 
 ENTRYPOINT ["/ko-app/krun"]
 CMD ["/usr/bin/fortio", "server", "-http-port=8082"]

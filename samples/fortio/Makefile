@@ -55,7 +55,7 @@ all: image push deploy
 push: image
 	docker push ${REPO}/fortio:latest
 
-pull/base:
+pull:
 	docker pull ghcr.io/costinm/krun/krun:latest # Get latest
 
 # Build the image using the proxy as base
@@ -86,16 +86,9 @@ deploy:
  		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)" \
  		  --vpc-connector projects/${PROJECT}/locations/${REGION}/connectors/serverlesscon \
 
-deploy/dns:
-	$(MAKE) deploy SUFFIX=-dns EXTRA=--set-env-vars="K8S_DNS=1"
-
-# Deploy the same thing in asia
-deploy/asia:
-	$(MAKE) deploy SUFFIX=asia REGION=asia-northeast1
-
 # SSH to the deployed CloudRun using HBONE
 # SUFFIX can be used for the other variants
-ssh/fortio:
+ssh:
 	 ssh -F /dev/null -o StrictHostKeyChecking=no \
         -o "UserKnownHostsFile /dev/null" \
  	    -o ProxyCommand='hbone https://fortio${SUFFIX}-icq63pqnqq-uc.a.run.app:443/_hbone/22' \
@@ -105,6 +98,19 @@ config_dump:
 	 ssh -F /dev/null -o StrictHostKeyChecking=no \
         -o "UserKnownHostsFile /dev/null" \
  	    -o ProxyCommand='hbone https://fortio${SUFFIX}-icq63pqnqq-uc.a.run.app:443/_hbone/22' -- sh curl localhost:15000/config_dump
+
+###########################################
+
+setup-gsa:
+	gcloud iam service-accounts create fortio-default \
+      --display-name "Service account associated with fortio k8s namespace"
+	gcloud projects add-iam-policy-binding \
+            ${PROJECT} \
+            --member="serviceAccount:fortio-default@${PROJECT}.iam.gserviceaccount.com" \
+            --role="roles/container.clusterViewer"
+
+logs:
+	gcloud logging read 'resource.type = "project" OR resource.type = "cloud_run_revision"'
 
 setupcon-sharedvpc:
 	gcloud services enable vpcaccess.googleapis.com
@@ -129,7 +135,7 @@ ADC=${HOME}/.config/gcloud/legacy_credentials/${USER}/adc.json
 export ADC
 
 # Local build - using ko.local for krun, local docker build
-local/all: image run/docker
+run: image run/docker
 
 
 # Run the image in a local docker container, using a service account file
@@ -160,4 +166,11 @@ ssh/docker:
  		-o StrictHostKeyChecking=no \
  		-o ProxyCommand='hbone http://127.0.0.1:9999/_hbone/22'  \
      		root@proxybase
+
+deploy/dns:
+	$(MAKE) deploy SUFFIX=-dns EXTRA=--set-env-vars="K8S_DNS=1"
+
+# Deploy the same thing in asia
+deploy/asia:
+	$(MAKE) deploy SUFFIX=asia REGION=asia-northeast1
 

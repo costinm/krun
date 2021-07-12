@@ -7,32 +7,31 @@
 # USER - User logged in gcloud, used to find adc for local tests
 -include .local.mk
 
+# Github actions use this.
 KO_DOCKER_REPO?=ghcr.io/costinm/krun/krun
 export KO_DOCKER_REPO
 
+# For testing/dev in local docker
 ADC?=${HOME}/.config/gcloud/legacy_credentials/${USER}/adc.json
 export ADC
 
 IMAGE=ghcr.io/costinm/krun/krun:latest
-#IMAGE?=ko.local/krun:latest
 
-# Push krun - the github action on push will do the same
+# Push krun - the github action on push will do the same.
+# This is the fastest way to push krun - permission required to KO_DOCKER_REPO
 push/krun:
 	ko publish -B ./
 
-# Update base images, for build/krun ( local build )
-pull:
-	# Custom build
-	docker pull gcr.io/wlhe-cr/proxyv2:cloudrun
-	#docker pull gcr.io/istio-testing/proxyv2:latest
+# Build and tag krun image locally, will be used in the next phase and for
+# local testing.
+build: build/krun
 
-
-# Build and tag krun image locally.
 build/krun:	KO_IMAGE=$(shell ko publish -L -B ./)
 build/krun:
 	docker tag ${KO_IMAGE} ko.local/krun:latest
 	docker tag ${KO_IMAGE} ${IMAGE}
 
+################# Testing / local dev #################
 
 # Run krun in a docker image, get a shell - no pilot agent or envoy sidecar, since
 # XDS_ADDR is not set.
@@ -58,21 +57,29 @@ docker/run-xds-adc:
 		${IMAGE} \
 		/bin/bash
 
-local/run-xds-local:
-	IMAGE=ko.local/krun:latest $(MAKE) local/run-xds
 
+fortio/all: build
+	(cd samples/fortio; make image push deploy)
 
-fortio/all: build/krun
-	(cd samples/fortio; make push deploy)
-
+# Fortio with custom KSA (just deploy)
 ksa:
 	(cd samples/fortio; make deploy SUFFIX=2 EXTRA=--service-account=fortio-default)
 
 ## Cluster setup for samples and testing
-
 deploy/k8s-fortio:
 	helm upgrade --install \
 		-n fortio \
 		fortio \
  		samples/charts/fortio
 
+# Update base images, for build/krun ( local build )
+pull:
+	# Custom build
+	docker pull gcr.io/wlhe-cr/proxyv2:cloudrun
+	#docker pull gcr.io/istio-testing/proxyv2:latest
+
+# Get deps
+deps:
+	curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+	chmod +x kubectl
+	# TODO: helm, ko

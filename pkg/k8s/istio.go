@@ -92,6 +92,7 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 	// and simpler !
 	env = append(env, "XDS_ROOT_CA=SYSTEM")
 	env = append(env, "CA_ROOT_CA=SYSTEM")
+	env = append(env, "POD_NAMESPACE=" + kr.Namespace)
 
 	os.MkdirAll(prefix + "/etc/istio/proxy", 0755)
 
@@ -124,10 +125,14 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 	env = append(env, "ISTIO_META_DNS_CAPTURE=true")
 	env = append(env, "DNS_PROXY_ADDR=localhost:53")
 
-
-	if _, err := os.Stat(prefix + "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json"); os.IsNotExist(err) {
-		// TODO: also check real /var/lib - and possibly $ISTIO_SRC/...
-		env = append(env, "BOOTSTRAP_XDS_AGENT=true")
+	// If set, let istiod generate bootstrap
+	bootstrapIstiod := os.Getenv("BOOTSTRAP_XDS_AGENT")
+	if bootstrapIstiod == "" {
+		if _, err := os.Stat(prefix + "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json"); os.IsNotExist(err) {
+			os.MkdirAll(prefix + "/var/lib/istio/envoy/", 0755)
+			ioutil.WriteFile(prefix + "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json",
+				[]byte(EnvoyBootstrapTmpl), 0755)
+		}
 	}
 
 	cmd := kr.agentCommand()
@@ -173,6 +178,7 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 		if err != nil {
 			log.Println("Failed to start ", cmd, err)
 		}
+		kr.agentCmd = cmd
 		if stdout != nil {
 			go func() {
 				io.Copy(os.Stdout, stdout)
@@ -182,11 +188,20 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 		if err != nil {
 			log.Println("Wait err ", err)
 		}
-
-		os.Exit(0)
+		kr.Exit(0)
 	}()
 
 	// TODO: wait for agent to be ready
+}
+
+func (kr *KRun) Exit(code int) {
+	if kr.agentCmd != nil && kr.agentCmd.Process != nil {
+		kr.agentCmd.Process.Kill()
+	}
+	if kr.appCmd != nil && kr.appCmd.Process != nil {
+		kr.appCmd.Process.Kill()
+	}
+	os.Exit(code)
 }
 
 func (kr *KRun) initLabelsFile() {

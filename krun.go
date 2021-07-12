@@ -20,9 +20,17 @@ func cfg(name, def string) string {
 }
 
 func main() {
-	// Init default values.
-	//
+	kr := &k8s.KRun{}
+
+	k8sClient, err := kr.GetK8S()
+	if err != nil {
+		panic(err)
+	}
+
 	ns := os.Getenv("POD_NAMESPACE")
+	if ns == "" {
+		ns = os.Getenv("K8S_NS")
+	}
 	if ns == "" {
 		ns = "default"
 	}
@@ -34,16 +42,9 @@ func main() {
 	if name == "" {
 		name = "default"
 	}
+	kr.Name = name
+	kr.Namespace = ns
 
-	k8sClient, err := k8s.GetK8S()
-	if err != nil {
-		panic(err)
-	}
-
-	kr := &k8s.KRun{
-		Name: name,
-		Namespace: ns,
-	}
 	// example dns:debug
 	kr.AgentDebug = cfg("XDS_AGENT_DEBUG", "")
 
@@ -96,9 +97,8 @@ func main() {
 		kr.StartIstioAgent(proxyConfig)
 	}
 
-	if kr.Gateway == "" {
-		kr.StartApp()
-	}
+	// TODO: wait for ready
+	kr.StartApp()
 
 	select{}
 }

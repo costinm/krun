@@ -59,19 +59,21 @@ func main() {
 	meshID := os.Getenv("MESH_ID")
 	meshIDLabel := "mesh_id"
 
-	cfg := k8s.NewKubeConfig()
 
+	kr := &k8s.KRun{}
 	if meshID == "" {
 	  // if location is specified, create a single-cluster config.
-		err := k8s.CreateClusterConfig(cfg, gcpProj, location, cluster)
+		err := kr.CreateClusterConfig(gcpProj, location, cluster)
 		if err != nil {
 			panic(err)
 		}
 	} else {
-		k8s.AllHub(cfg, gcpProj, cluster, meshIDLabel, meshID)
-		k8s.AllClusters(cfg, gcpProj, cluster, meshIDLabel, meshID)
+		kr.AllHub(gcpProj, cluster, meshIDLabel, meshID)
+		kr.AllClusters(gcpProj, cluster, meshIDLabel, meshID)
 	}
-	err := k8s.SaveKubeConfig(cfg)
+	err := kr.SaveKubeConfig()
+
+	cfg := kr.KubeConfig
 	if err != nil {
 		panic(err)
 	}
