@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"syscall"
 
 	"github.com/creack/pty"
 )
@@ -141,14 +142,11 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 		os.MkdirAll("/etc/istio/proxy", 777)
 		os.Chown("/etc/istio/proxy", 1337, 1337)
 
-		// No longer needed, patched agent to run as root
-		//if os.Getenv("K8S_DNS") == "" {
-		//	cmd.SysProcAttr = &syscall.SysProcAttr{}
-		//	cmd.SysProcAttr.Credential = &syscall.Credential{
-		//		Uid: 1337,
-		//		Gid: 1337,
-		//	}
-		//}
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+		cmd.SysProcAttr.Credential = &syscall.Credential{
+			Uid: 0,
+			Gid: 1337,
+		}
 		pty, tty, err := pty.Open()
 		if err != nil {
 			log.Println("Error opening pty ", err)

@@ -65,12 +65,16 @@ image:
 		--build-arg BASE=ko.local/krun:latest \
 		-t ${REPO}/fortio:latest
 
+SANDBOX?=--sandbox=minivm
+
 # Deploy to cloudrun
+#
+#
 deploy:
 	gcloud alpha run deploy fortio${SUFFIX} \
 		  --platform managed --project ${PROJECT} \
-		  --region ${REGION} \
-          --sandbox=minivm \
+		  --service-account k8s-${NS} \
+		  --region ${REGION} ${SANDBOX} \
          --allow-unauthenticated \
          --use-http2 \
          --port 15009 \
@@ -85,6 +89,11 @@ deploy:
  		 --set-env-vars="LABEL_APP=fortio-cr" \
  		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)" \
  		  --vpc-connector projects/${PROJECT}/locations/${REGION}/connectors/serverlesscon \
+
+# WIP - using gvisor and whitebox
+deploy-gvisor:
+	$(MAKE) deploy SUFFIX=-gvisor SANDBOX=""
+
 
 # SSH to the deployed CloudRun using HBONE
 # SUFFIX can be used for the other variants
@@ -101,16 +110,30 @@ config_dump:
 
 ###########################################
 
+# Run first, to create the permissions
+setup: setup-gsa setup-rbac
+
 setup-gsa:
-	gcloud iam service-accounts create fortio-default \
-      --display-name "Service account associated with fortio k8s namespace"
-	gcloud projects add-iam-policy-binding \
+	gcloud --project ${PROJECT} iam service-accounts create k8s-${NS} \
+      --display-name "Service account with access to ${NS} k8s namespace"
+	gcloud --project ${PROJECT} projects add-iam-policy-binding \
             ${PROJECT} \
-            --member="serviceAccount:fortio-default@${PROJECT}.iam.gserviceaccount.com" \
+            --member="serviceAccount:k8s-${NS}@${PROJECT}.iam.gserviceaccount.com" \
             --role="roles/container.clusterViewer"
 
-logs:
+setup-rbac:
+	cat rbac.yaml | NS=${NS} envsubst  | kubectl apply -f -
+
+logs-project:
 	gcloud logging read 'resource.type = "project" OR resource.type = "cloud_run_revision"'
+
+# textPayload:SyncAddress --limit=50 --format=json
+logs:
+	#gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.location = "us-central1" AND resource.labels.service_name="fortio${SUFFIX}"'
+	gcloud --project ${PROJECT} logging read \
+		--format "csv(resource.labels.service_name,textPayload)" \
+		--freshness 1h \
+ 		'resource.type="cloud_run_revision" AND resource.labels.location = "us-central1" AND resource.labels.service_name="fortio-gvisor"'
 
 setupcon-sharedvpc:
 	gcloud services enable vpcaccess.googleapis.com
