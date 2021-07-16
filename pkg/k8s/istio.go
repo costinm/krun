@@ -129,10 +129,23 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 	// If set, let istiod generate bootstrap
 	bootstrapIstiod := os.Getenv("BOOTSTRAP_XDS_AGENT")
 	if bootstrapIstiod == "" {
-		if _, err := os.Stat(prefix + "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json"); os.IsNotExist(err) {
+		if _, err := os.Stat(prefix + "/var/lib/istio/envoy/hbone_tmpl.json"); os.IsNotExist(err) {
 			os.MkdirAll(prefix + "/var/lib/istio/envoy/", 0755)
-			ioutil.WriteFile(prefix + "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json",
+			err = ioutil.WriteFile(prefix + "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json",
 				[]byte(EnvoyBootstrapTmpl), 0755)
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			custom, err := ioutil.ReadFile(prefix + "/var/lib/istio/envoy/hbone_tmpl.json")
+			if err != nil {
+				panic(err) // no point continuing
+			}
+			err = ioutil.WriteFile(prefix + "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json",
+				[]byte(custom), 0755)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 
@@ -230,7 +243,7 @@ func (kr *KRun) runIptablesSetup(env []string) {
 		//"-z", "15006", - no inbound interception
 		"-u", "1337",
 		"-m", "REDIRECT",
-		"-i", "10.0.0.0/8", // all outbound captured
+		"-i",  "10.0.0.0/8", // all outbound captured
 		"-b", "", // disable all inbound redirection
 		// "-d", "15090,15021,15020", // exclude specific ports
 		"-x", "")

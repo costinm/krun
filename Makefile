@@ -57,13 +57,20 @@ docker/run-xds-adc:
 		${IMAGE} \
 		/bin/bash
 
+push/fortio:
+	(cd samples/fortio; make image push)
 
-fortio/all: build
-	(cd samples/fortio; make image push deploy)
+all/fortio: build push/fortio deploy/fortio
+
+# Build krun, fortio patched image, deploy for fortio2.
+all/fortio2: build push/fortio deploy/fortio2
 
 # Fortio with custom KSA (just deploy)
-ksa:
+deploy/fortio2:
 	(cd samples/fortio; make deploy SUFFIX=2 EXTRA=--service-account=fortio-default)
+
+deploy/fortio:
+	(cd samples/fortio; make deploy)
 
 ## Cluster setup for samples and testing
 deploy/k8s-fortio:

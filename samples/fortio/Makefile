@@ -73,7 +73,6 @@ SANDBOX?=--sandbox=minivm
 deploy:
 	gcloud alpha run deploy fortio${SUFFIX} \
 		  --platform managed --project ${PROJECT} \
-		  --service-account k8s-${NS} \
 		  --region ${REGION} ${SANDBOX} \
          --allow-unauthenticated \
          --use-http2 \
@@ -133,7 +132,7 @@ logs:
 	gcloud --project ${PROJECT} logging read \
 		--format "csv(resource.labels.service_name,textPayload)" \
 		--freshness 1h \
- 		'resource.type="cloud_run_revision" AND resource.labels.location = "us-central1" AND resource.labels.service_name="fortio-gvisor"'
+ 		'resource.type="cloud_run_revision" AND resource.labels.location = "us-central1" AND resource.labels.service_name="fortio${SUFFIX}"'
 
 setupcon-sharedvpc:
 	gcloud services enable vpcaccess.googleapis.com
