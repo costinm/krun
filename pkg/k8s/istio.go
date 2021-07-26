@@ -41,20 +41,50 @@ func resolvConfForRoot()  {
 	log.Println("Adjusted resolv.conf")
 }
 
+func (kr *KRun) agentCommand() *exec.Cmd {
+	// From the template:
+
+	//- proxy
+	//- sidecar
+	//- --domain
+	//- $(POD_NAMESPACE).svc.{{ .Values.global.proxy.clusterDomain }}
+	//- --proxyLogLevel={{ annotation .ObjectMeta `sidecar.istio.io/logLevel` .Values.global.proxy.logLevel }}
+	//- --proxyComponentLogLevel={{ annotation .ObjectMeta `sidecar.istio.io/componentLogLevel` .Values.global.proxy.componentLogLevel }}
+	//- --log_output_level={{ annotation .ObjectMeta `sidecar.istio.io/agentLogLevel` .Values.global.logging.level }}
+	//{{- if .Values.global.sts.servicePort }}
+	//- --stsPort={{ .Values.global.sts.servicePort }}
+	//{{- end }}
+	//{{- if .Values.global.logAsJson }}
+	//- --log_as_json
+	//{{- end }}
+	//{{- if gt .EstimatedConcurrency 0 }}
+	//- --concurrency
+	//- "{{ .EstimatedConcurrency }}"
+	//{{- end -}}
+	//{{- if .Values.global.proxy.lifecycle }}
+	args := []string{"proxy"}
+	if kr.Gateway != "" {
+		args = append(args,"router")
+	} else {
+		args = append(args,"sidecar")
+	}
+	args = append(args, "--domain")
+	args = append(args, kr.Namespace +".svc.cluster.local")
+	if kr.AgentDebug != "" {
+		args = append(args,	"--log_output_level=" + kr.AgentDebug)
+	}
+	return exec.Command("/usr/local/bin/pilot-agent", args...)
+}
 
 // StartIstioAgent creates the env and starts istio agent.
 // If running as root, will also init iptables and change UID to 1337.
 func (kr *KRun) StartIstioAgent(proxyConfig string) {
 	// /dev/stdout is rejected - it is a pipe.
 	// https://github.com/envoyproxy/envoy/issues/8297#issuecomment-620659781
-	ns := kr.Namespace
 	prefix := "."
 	if os.Getuid() == 0 {
 		prefix = ""
-		if os.Getenv("K8S_DNS") != "" {
-			log.Println("=============== DNS ===============")
-			resolvConfForRoot()
-		}
+		resolvConfForRoot()
 	}
 
 	env := os.Environ()
@@ -63,6 +93,7 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 	// and simpler !
 	env = append(env, "XDS_ROOT_CA=SYSTEM")
 	env = append(env, "CA_ROOT_CA=SYSTEM")
+	env = append(env, "POD_NAMESPACE=" + kr.Namespace)
 
 	os.MkdirAll(prefix + "/etc/istio/proxy", 0755)
 
@@ -74,87 +105,61 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 		os.Chown(prefix + "/etc/istio/pod", 1337, 1337)
 		os.Chown(prefix + "/etc/istio/proxy", 1337, 1337)
 	}
-	ioutil.WriteFile("/etc/istio/pod/labels", []byte(fmt.Sprintf(`version="v1"
-security.istio.io/tlsMode="istio"
-app="%s"
-service.istio.io/canonical-name="%s"
-`, kr.Name, kr.Name)), 0777)
 
-	env = append(env, "OUTPUT_CERTS=" + prefix + "/var/run/secrets/istio.io/")
+	kr.initLabelsFile()
+
+	env = append(env, "OUTPUT_CERTS="+prefix+"/var/run/secrets/istio.io/")
+	env = append(env, "PROXY_CONFIG="+proxyConfig)
 
 	// This would be used if a audience-less JWT was present - not possible with TokenRequest
 	// TODO: add support for passing a long lived 1p JWT in a file, for local run
 	//env = append(env, "JWT_POLICY=first-party-jwt")
 
-	if os.Getuid() == 0 { // && kr.Gateway != "" {
-		// TODO: make the args the default !
-		// pilot-agent istio-iptables -p 15001 -u 1337 -m REDIRECT -i '*' -b "" -x "" -- crash
+	if os.Getuid() == 0 { //&& kr.Gateway != "" {
+		kr.runIptablesSetup(env)
+		log.Println("iptables done ", kr.Gateway)
+	} else {
+		log.Println("No iptables")
+	}
 
-		//pilot-agent istio-iptables -p 15001 -u 1337 -m REDIRECT -i '10.8.4.0/24' -b "" -x ""
-		cmd := exec.Command("/usr/local/bin/pilot-agent",
-			"istio-iptables",
-			"-p", "15001", // outbound capture port
-			//"-z", "15006", - no inbound interception
-		  "-u", "1337",
-		  "-m", "REDIRECT",
-		  "-i", "10.0.0.0/8", // all outbound captured
-		  "-b", "", // disable all inbound redirection
-		  // "-d", "15090,15021,15020", // exclude specific ports
-		  "-x", "")
-		cmd.Env = env
-		cmd.Dir = "/"
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Start()
-		if err != nil {
-			log.Println("Error starting iptables", err)
-		} else {
-			err = cmd.Wait()
+	// Currently broken in iptables - use whitebox interception, but still run it
+	env = append(env, "ISTIO_META_DNS_CAPTURE=true")
+	env = append(env, "DNS_PROXY_ADDR=localhost:53")
+
+	// If set, let istiod generate bootstrap
+	bootstrapIstiod := os.Getenv("BOOTSTRAP_XDS_AGENT")
+	if bootstrapIstiod == "" {
+		if _, err := os.Stat(prefix + "/var/lib/istio/envoy/hbone_tmpl.json"); os.IsNotExist(err) {
+			os.MkdirAll(prefix + "/var/lib/istio/envoy/", 0755)
+			err = ioutil.WriteFile(prefix + "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json",
+				[]byte(EnvoyBootstrapTmpl), 0755)
 			if err != nil {
-				log.Println("Error starting iptables", err)
+				panic(err)
+			}
+		} else {
+			custom, err := ioutil.ReadFile(prefix + "/var/lib/istio/envoy/hbone_tmpl.json")
+			if err != nil {
+				panic(err) // no point continuing
+			}
+			err = ioutil.WriteFile(prefix + "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json",
+				[]byte(custom), 0755)
+			if err != nil {
+				panic(err)
 			}
 		}
-		log.Println("Iptables start done")
 	}
 
-	env = append(env, "ISTIO_META_DNS_CAPTURE=true")
-
-
-	env = append(env, "PROXY_CONFIG=" + proxyConfig)
-
-	if _, err := os.Stat(prefix + "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json"); os.IsNotExist(err) {
-		// TODO: also check real /var/lib - and possibly $ISTIO_SRC/...
-		env = append(env, "BOOTSTRAP_XDS_AGENT=true")
-	}
-
-
-	var cmd *exec.Cmd
-	if kr.Gateway != "" {
-		ioutil.WriteFile("/etc/istio/pod/labels", []byte(`version=v1-cloudrun
-security.istio.io/tlsMode="istio"
-istio="ingressgateway"
-`), 0777)
-		cmd = exec.Command("/usr/local/bin/pilot-agent", "proxy", "router", "--domain", ns+".svc.cluster.local")
-	} else {
-		cmd = exec.Command("/usr/local/bin/pilot-agent", "proxy",
-			"sidecar",
-			"--domain", ns+".svc.cluster.local",
-			"--log_output_level=dns:debug",)
-	}
+	cmd := kr.agentCommand()
 	var stdout io.ReadCloser
 	if os.Getuid() == 0 {
 		os.MkdirAll("/etc/istio/proxy", 777)
 		os.Chown("/etc/istio/proxy", 1337, 1337)
 
-		if os.Getenv("K8S_DNS") == "" {
-			cmd.SysProcAttr = &syscall.SysProcAttr{}
-			cmd.SysProcAttr.Credential = &syscall.Credential{
-				Uid: 1337,
-				Gid: 1337,
-			}
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+		cmd.SysProcAttr.Credential = &syscall.Credential{
+			Uid: 0,
+			Gid: 1337,
 		}
-		//cmd.SysProcAttr.Setsid = true
-		//cmd.SysProcAttr.Setctty = true
 		pty, tty, err := pty.Open()
 		if err != nil {
 			log.Println("Error opening pty ", err)
@@ -177,13 +182,14 @@ istio="ingressgateway"
 	cmd.Env = env
 
 	cmd.Stderr = os.Stderr
-	os.MkdirAll(prefix + "/var/lib/istio/envoy/", 0700)
+	os.MkdirAll(prefix+"/var/lib/istio/envoy/", 0700)
 	go func() {
 		log.Println("Starting istio agent with ", cmd.Env)
 		err := cmd.Start()
 		if err != nil {
 			log.Println("Failed to start ", cmd, err)
 		}
+		kr.agentCmd = cmd
 		if stdout != nil {
 			go func() {
 				io.Copy(os.Stdout, stdout)
@@ -193,11 +199,67 @@ istio="ingressgateway"
 		if err != nil {
 			log.Println("Wait err ", err)
 		}
-
-		os.Exit(0)
+		kr.Exit(0)
 	}()
 
-
 	// TODO: wait for agent to be ready
+}
+
+func (kr *KRun) Exit(code int) {
+	if kr.agentCmd != nil && kr.agentCmd.Process != nil {
+		kr.agentCmd.Process.Kill()
+	}
+	if kr.appCmd != nil && kr.appCmd.Process != nil {
+		kr.appCmd.Process.Kill()
+	}
+	os.Exit(code)
+}
+
+func (kr *KRun) initLabelsFile() {
+	if kr.Gateway != "" {
+		ioutil.WriteFile("/etc/istio/pod/labels", []byte(
+				`version=v1-cloudrun
+security.istio.io/tlsMode="istio"
+istio="ingressgateway"
+`), 0777)
+	} else {
+		ioutil.WriteFile("/etc/istio/pod/labels", []byte(fmt.Sprintf(
+			`version="v1"
+security.istio.io/tlsMode="istio"
+app="%s"
+service.istio.io/canonical-name="%s"
+`, kr.Name, kr.Name)), 0777)
+	}
+}
+
+func (kr *KRun) runIptablesSetup(env []string) {
+	// TODO: make the args the default !
+	// pilot-agent istio-iptables -p 15001 -u 1337 -m REDIRECT -i '*' -b "" -x "" -- crash
+
+	//pilot-agent istio-iptables -p 15001 -u 1337 -m REDIRECT -i '10.8.4.0/24' -b "" -x ""
+	cmd := exec.Command("/usr/local/bin/pilot-agent",
+		"istio-iptables",
+		"-p", "15001", // outbound capture port
+		//"-z", "15006", - no inbound interception
+		"-u", "1337",
+		"-m", "REDIRECT",
+		"-i",  "10.0.0.0/8", // all outbound captured
+		"-b", "", // disable all inbound redirection
+		// "-d", "15090,15021,15020", // exclude specific ports
+		"-x", "")
+	cmd.Env = env
+	cmd.Dir = "/"
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Start()
+	if err != nil {
+		log.Println("Error starting iptables", err)
+	} else {
+		err = cmd.Wait()
+		if err != nil {
+			log.Println("Error starting iptables", err)
+		}
+	}
+	log.Println("Iptables start done")
 }
 

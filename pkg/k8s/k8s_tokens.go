@@ -13,12 +13,18 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func (kt *KRun) Refresh() {
-	for aud, f := range kt.Aud2File {
-		InitToken(kt.Client, kt.Namespace, kt.KSA, aud, f)
+func (kr *KRun) Refresh() {
+	for aud, f := range kr.Aud2File {
+		InitToken(kr.Client, kr.Namespace, kr.KSA, aud, f)
+	}
+	for k, v := range kr.Secrets2Dirs {
+		initSecret(kr.Client, kr.Namespace, k, v)
+	}
+	for k, v := range kr.CM2Dirs {
+		initCM(kr.Client, kr.Namespace, k, v)
 	}
 
-	time.AfterFunc(30 * time.Minute, kt.Refresh)
+	time.AfterFunc(30 * time.Minute, kr.Refresh)
 }
 
 func InitToken(client *kubernetes.Clientset, ns string, ksa string, audience string, s2 string) error {

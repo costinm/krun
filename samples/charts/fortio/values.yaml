@@ -1,1 +1,10 @@
-domain: svc.i.webinf.info
+
+# Include a Sidecar resource, restricting to same namespace
+sidecar: false
+
+# Used as app and canonical service label, as well as 'service'
+app: fortio
+
+# Set to 1000m for normal load tests. 10m for small clusters.
+proxyCPU: 10m
+appCPU: 10m

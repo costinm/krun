@@ -19,7 +19,8 @@ func main() {
 		aud = os.Args[1]
 	}
 
-	clientset, err := k8s.GetK8S()
+	kr := &k8s.KRun{}
+	clientset, err := kr.GetK8S()
 	if err != nil {
 		panic(err)
 	}
