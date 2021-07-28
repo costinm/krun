@@ -69,7 +69,9 @@ gcloud --project ${PROJECT_ID} projects add-iam-policy-binding \
 ```
 
 5. Bind the GSA to a KSA
-
+   You can grant additional permissions if the CloudRun service is using the K8S ApiServer. To keep things simple, we
+   associate with the 'default' KSA in the namespace.
+   
 ```shell 
 
 cat samples/fortio/rbac.yaml | envsubst | kubectl apply -f -
@@ -94,7 +96,9 @@ docker push ${IMAGE}
 ## Deploy the image to CloudRun
 
 WARNING: WIP to eliminate this step - either on Thetis side or using a ConfigMap in cluster ( where other settings 
-can be defined )
+can be defined ).
+Also POD_NAMESPACE, POD_NAME can be derived from the cloudrun service - for example using a default naming scheme.
+
 
 ```shell
 
@@ -102,7 +106,7 @@ export MCP_ADDR="$(kubectl get mutatingwebhookconfiguration istiod-asm-managed -
 
 ```
 
-
+Deploy the service:
 
 
 ```shell
@@ -128,7 +132,26 @@ gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
          
 ```
 
+### Configuration options 
 
+Configuration is based on environment variables and metadata server. 
+
+We expect a GKE cluster in the same project with the CloudRun service. CLUSTER_NAME and CLUSTER_LOCATION allow 
+finding the cluster. The init steps grant the GSA running the service (minimal) access to the cluster. 
+
+POD_NAMESPACE and POD_NAME (TODO: use shorter names) map the CloudRun service to the equivalent of a k8s pod, 
+in the given namespace. You can specify additional labels to be used by Istio for config generation - in Istio
+configs associate with workloads using label selectors.
+
+The MCP_ADDR is a temporary requirement - will be replaced with an automated mechanism.
+
+Currently 'sandbox=minivm' is required for iptables. It is possible to run the same thing in gvisor, usign the 
+istio agent http proxy.
+
+'--use-http2' and '--port 15009' are required for using the 'hbone' port multiplexing. The app is still expected to
+run on port 8080. It is also possible to not set the flags and use the normal CloudRun ingress - debugging will not
+be possible. '--allow-unauthenticated' is also only needed if tunnel mode - where mTLS is expected for authentication
+(WIP). 
 
 # Test the image
 
@@ -142,7 +165,7 @@ services. So fortio, fortio.fortio, fortio.fortio.svc.cluster.local also work.
 
 # Debugging
 
-By adding `--set-env-vars="SSH_AUTH=$(shell cat ~/.ssh/id_ecdsa.pub)"` you enable a built-in ssh server that will
+By adding `--set-env-vars="SSH_AUTH=$(cat ~/.ssh/id_ecdsa.pub)"` you enable a built-in ssh server that will
 allow connections using your local ssh key. Make sure `ssh-keygen -t ecdsa` was run if the file is missing.
 
 You can ssh into the service and forward ports - like envoy admin port - using:
