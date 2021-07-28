@@ -23,7 +23,7 @@ import (
 // Init klog.InitFlags from an env (to avoid messing with the CLI of the app)
 func init() {
 	fs := &flag.FlagSet{}
-	kf := strings.Split(os.Getenv("KLOG_FLAGS")," ")
+	kf := strings.Split(os.Getenv("KLOG_FLAGS"), " ")
 	fs.Parse(kf)
 	klog.InitFlags(fs)
 }
@@ -42,6 +42,14 @@ func RegionFromMetadata() (string, error) {
 
 func ProjectFromMetadata() (string, error) {
 	v, err := queryMetadata("http://metadata.google.internal/computeMetadata/v1/project/project-id")
+	if err != nil {
+		return "", err
+	}
+	return v, nil
+}
+
+func ProjectNumberFromMetadata() (string, error) {
+	v, err := queryMetadata("http://metadata.google.internal/computeMetadata/v1/project/numeric-project-id")
 	if err != nil {
 		return "", err
 	}
@@ -109,92 +117,46 @@ func (kr *KRun) InitInCluster() error {
 }
 
 func (kr *KRun) InitGCP() error {
-	gcpProj := ""
-	location := ""
-	cluster := os.Getenv("CLUSTER")
-	if cluster == "" {
-		cluster = os.Getenv("K8S_CLUSTER")
-	}
-	// projects/my-project/locations/my-location/clusters/my-cluster
-	if strings.HasPrefix(cluster, "projects/") {
-		plc :=strings.Split(cluster, "/")
-		gcpProj = plc[1]
-		location = plc[3]
-		cluster = plc[5]
-	}
+	// Get all clusters, including hub - attempt to find the cluster.
+	//kr.AllHub(gcpProj, cluster, "", "")
+	t0 := time.Now()
+	if kr.ClusternName == "" {
+		// WIP - list all clusters and attempt to find one in the same region.
+		// TODO: connect to cluster, find istiod - and keep trying until a working
+		// one is found ( fallback )
 
-	var err error
-	if gcpProj == "" {
-		gcpProj = os.Getenv("PROJECT")
-	}
-	if gcpProj == "" {
-		gcpProj = os.Getenv("PROJECT_ID")
-	}
-	if gcpProj == "" {
-		gcpProj = os.Getenv("K8S_PROJECT")
-	}
-	if gcpProj == "" {
-		gcpProj, err = ProjectFromMetadata()
-		if err != nil {
-			// TODO: only if we detect we are supposed to have metadata
-			return errors.New("No metadata or explicit project" + err.Error())
-		}
-	}
-	if location == "" {
-		location = os.Getenv("LOCATION")
-	}
-	if location == "" {
-		location = os.Getenv("K8S_LOCATION")
-	}
-	if location == "" {
-		location, err = RegionFromMetadata()
-		if err != nil {
-			return errors.New("No location" + err.Error())
-		}
-	}
+		// ~500ms
+		kr.AllClusters(kr.ProjectId, "", "", "")
+		//log.Println("Get all clusters ", time.Since(t0))
 
-	if location != "" {
-		// Get all clusters, including hub - attempt to find the cluster.
-		//kr.AllHub(gcpProj, cluster, "", "")
-		t0 := time.Now()
-		if cluster == "" {
-			// WIP - list all clusters and attempt to find one in the same region.
-			// TODO: connect to cluster, find istiod - and keep trying until a working
-			// one is found ( fallback )
-
-			// ~500ms
-			kr.AllClusters(gcpProj, cluster, "", "")
-			//log.Println("Get all clusters ", time.Since(t0))
-
-			for _, c := range kr.clusters {
-				if strings.HasPrefix(c.Location, location) {
-					log.Println("------- Found ", c)
-					rc, err := kr.restConfigForCluster(c)
-					if err != nil {
-						continue
-					}
-					kr.Client, err = kubernetes.NewForConfig(rc)
-					if err != nil {
-						continue
-					}
-					break
+		for _, c := range kr.clusters {
+			if strings.HasPrefix(c.Location, kr.ClusterLocation) {
+				log.Println("------- Found ", c)
+				rc, err := kr.restConfigForCluster(c)
+				if err != nil {
+					continue
 				}
+				kr.Client, err = kubernetes.NewForConfig(rc)
+				if err != nil {
+					continue
+				}
+				break
 			}
-		} else {
-			// ~400 ms
-			rc, err := kr.CreateRestConfig(gcpProj, location, cluster)
-			if err != nil {
-				return err
-			}
-			kr.Client, err = kubernetes.NewForConfig(rc)
-			if err != nil {
-				return err
-			}
-			log.Println("Get 1 cluster ", time.Since(t0))
 		}
-		kr.SaveKubeConfig()
-
+	} else {
+		// ~400 ms
+		rc, err := kr.CreateRestConfig(kr.ProjectId, kr.ClusterLocation, kr.ClusternName)
+		if err != nil {
+			return err
+		}
+		kr.Client, err = kubernetes.NewForConfig(rc)
+		if err != nil {
+			return err
+		}
+		log.Println("Get 1 cluster ", time.Since(t0))
 	}
+
+	kr.SaveKubeConfig()
 
 	return nil
 }

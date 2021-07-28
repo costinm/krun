@@ -89,8 +89,72 @@ export IMAGE=gcr.io/${PROJECT_ID}/fortio-cr:latest
 docker push ${IMAGE}
 ```
 
+
+
 ## Deploy the image to CloudRun
+
+WARNING: WIP to eliminate this step - either on Thetis side or using a ConfigMap in cluster ( where other settings 
+can be defined )
 
 ```shell
 
+export MCP_ADDR="$(kubectl get mutatingwebhookconfiguration istiod-asm-managed -ojson | jq .webhooks[0].clientConfig.url -r | cut -d'/' -f3)"
+
+```
+
+
+
+
+```shell
+export CLOUDRUN_SERVICE=fortio-asm-cr
+export CLOUDRUN_REGION=us-central1
+
+gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
+          --platform managed 
+          --project ${PROJECT_ID} \
+          --region ${CLOUDRUN_REGION} \
+          --sandbox=minivm \
+          --allow-unauthenticated \
+          --use-http2 \
+          --port 15009 \
+          --image ${IMAGE} \
+          --vpc-connector projects/${PROJECT_ID}/locations/${CLOUDRUN_REGION}/connectors/serverlesscon
+         --set-env-vars="CLUSTER_NAME=asm-cr" \
+         --set-env-vars="CLUSTER_LOCATION=us-central1-c" \
+         --set-env-vars="ISTIO_META_CLOUDRUN_ADDR=${MCP_ADDR}" \
+         --set-env-vars="POD_NAMESPACE=fortio" \
+         --set-env-vars="POD_NAME=fortio-cr" \
+         --set-env-vars="LABEL_APP=fortio-cr"
+         
+```
+
+
+
+# Test the image
+
+The fortio example is accessible on the cloudrun URL as /fortio/ - in the UI enter 
+
+"http://fortio.fortio.svc:8080" and you should see the results for testing the connection to the in-cluster app.
+
+In general, the CloudRun applications can use any K8S service name - including shorter version for same-namespace 
+services. So fortio, fortio.fortio, fortio.fortio.svc.cluster.local also work.
+
+
+# Debugging
+
+By adding `--set-env-vars="SSH_AUTH=$(shell cat ~/.ssh/id_ecdsa.pub)"` you enable a built-in ssh server that will
+allow connections using your local ssh key. Make sure `ssh-keygen -t ecdsa` was run if the file is missing.
+
+You can ssh into the service and forward ports - like envoy admin port - using:
+
+```shell
+
+# Compile the proxy command
+go install ./cmd/hbonec
+
+# Set with your own service URL
+export SERVICE_URL=https://fortio-asm-cr-icq63pqnqq-uc.a.run.app:443
+
+ssh -F /dev/null -o StrictHostKeyChecking=no -o "UserKnownHostsFile /dev/null" \
+    -o ProxyCommand='hbone ${SERVICE_URL}/_hbone/22' root@proxy
 ```

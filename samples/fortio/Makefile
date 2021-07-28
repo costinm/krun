@@ -8,8 +8,9 @@
 
 # GKE cluster used
 PROJECT_ID?=wlhe-cr
+PROJECT_NUMBER?=$(shell gcloud projects describe ${PROJECT_ID} --format="value(projectNumber)")
 CLUSTER_LOCATION?=us-central1-c
-CLUSTER_NAME?=istio
+CLUSTER_NAME?=asm-cr
 
 # Region where CR will be deployed
 REGION?=us-central1
@@ -46,8 +47,11 @@ K8S_CLUSTER_ARGS=--set-env-vars="PROJECT=${PROJECT_ID}" \
         		 --set-env-vars="XDS_ADDR=${ISTIOD_URL}"
 
 # Enable the built-in sshd server, with cert auth
-SSH_DEBUG_ARGS=--set-env-vars="SSH_CA=sshca.${SUBDOMAIN}:443" \
-               --set-env-vars="SSH_AUTH=$(shell cat ~/.ssh/id_ecdsa.pub)" \
+SSH_DEBUG_ARGS=--set-env-vars="SSH_AUTH=$(shell cat ~/.ssh/id_ecdsa.pub)"
+
+# If the SSH CA is installed, this will also provide server authentication, you can
+# remove "-o StrictHostKeyChecking=no -o "UserKnownHostsFile /dev/null""
+#--set-env-vars="SSH_CA=sshca.${SUBDOMAIN}:443" \
 
 
 # Create fortio+proxy image, deploy to CloudRun
@@ -60,13 +64,34 @@ push: image
 image:
 	docker build . -t ${IMAGE}
 
+# For gvisor: add
+# --set-env-vars="HTTP_PROXY=127.0.0.1:15080"
 
 SANDBOX?=--sandbox=minivm
 
 # Deploy to cloudrun
-#
-#
 deploy:
+	gcloud alpha run deploy fortio-${CLUSTER_NAME}${SUFFIX} \
+		  --platform managed --project ${PROJECT_ID} \
+		  --region ${REGION} ${SANDBOX} \
+         --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
+         --allow-unauthenticated \
+         --use-http2 \
+         --port 15009 \
+         --min-instances=1 \
+         --image ${IMAGE} \
+         --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}" \
+         --set-env-vars="CLUSTER_NAME=${CLUSTER_NAME}" \
+         --set-env-vars="XDS_ADDR=staging-meshconfig.sandbox.googleapis.com:443" \
+         --set-env-vars="ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443" \
+          ${SSH_DEBUG_ARGS} ${EXTRA} \
+         --set-env-vars="POD_NAMESPACE=fortio" \
+ 		 --set-env-vars="POD_NAME=fortio-cr" \
+ 		 --set-env-vars="LABEL_APP=fortio-cr" \
+ 		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
+
+# WIP - will need additional setup for exposing Istiod on a ILB or gateway with certs.
+deploy/oss:
 	gcloud alpha run deploy fortio-${CLUSTER_NAME}${SUFFIX} \
 		  --platform managed --project ${PROJECT_ID} \
 		  --region ${REGION} ${SANDBOX} \
@@ -78,43 +103,12 @@ deploy:
  		  ${K8S_CLUSTER_ARGS} \
  		  ${SSH_DEBUG_ARGS} ${EXTRA} \
           --set-env-vars="HTTP_PROXY=127.0.0.1:15080" \
-         --set-env-vars="LABEL_FOO=bar2" \
          --set-env-vars="POD_NAMESPACE=fortio" \
  		 --set-env-vars="POD_NAME=fortio-cr" \
  		 --set-env-vars="LABEL_APP=fortio-cr" \
  		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)" \
  		  --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
 
-deploy/mcp:
-	gcloud alpha run deploy fortio-${CLUSTER_NAME}${SUFFIX} \
-		  --platform managed --project ${PROJECT_ID} \
-		  --region ${REGION} ${SANDBOX} \
-         --allow-unauthenticated \
-         --use-http2 \
-         --port 15009 \
-         --min-instances=1 \
-         --image ${IMAGE} \
- 		 --set-env-vars="PROJECT=${PROJECT_ID}" \
-         --set-env-vars="LOCATION=${CLUSTER_LOCATION}" \
-         --set-env-vars="CLUSTER=${CLUSTER_NAME}" \
-         --set-env-vars="XDS_ADDR=staging-meshconfig.sandbox.googleapis.com:443" \
-         --set-env-vars="JWT_POLICY=third-party-jwt" \
-         --set-env-vars="PILOT_CERT_PROVIDER=system" \
-         --set-env-vars="CA_ADDR=meshca.googleapis.com:443" \
-         --set-env-vars="TRUST_DOMAIN=${PROJECT_ID}.svc.id.goog" \
-         --set-env-vars="CA_ROOT_CA=/etc/ssl/certs/ca-certificates.crt" \
-         --set-env-vars="XDS_AUTH_PROVIDER=gcp" \
-         --set-env-vars="ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443" \
-         --set-env-vars="ISTIO_META_CLUSTER_ID=cn-wlhe-cr-us-central1-c-asm-cr" \
-         --set-env-vars="XDS_ROOT_CA=/etc/ssl/certs/ca-certificates.crt" \
- 		  ${SSH_DEBUG_ARGS} ${EXTRA} \
-          --set-env-vars="HTTP_PROXY=127.0.0.1:15080" \
-         --set-env-vars="LABEL_FOO=bar2" \
-         --set-env-vars="POD_NAMESPACE=fortio" \
- 		 --set-env-vars="POD_NAME=fortio-cr" \
- 		 --set-env-vars="LABEL_APP=fortio-cr" \
- 		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)" \
- 		  --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
 
 # WIP - using gvisor and whitebox
 deploy-gvisor:
@@ -127,8 +121,8 @@ pull:
 # SSH to the deployed CloudRun using HBONE
 # SUFFIX can be used for the other variants
 ssh:
-	 ssh -F /dev/null -o StrictHostKeyChecking=no \
-        -o "UserKnownHostsFile /dev/null" \
+	 ssh -F /dev/null \
+        -o StrictHostKeyChecking=no -o "UserKnownHostsFile /dev/null" \
  	    -o ProxyCommand='hbone https://fortio${SUFFIX}-icq63pqnqq-uc.a.run.app:443/_hbone/22' \
      	root@proxybase
 
@@ -190,44 +184,37 @@ run/docker:
 		--name fortio \
         -p 9999:15009 \
         -e XDS_ADDR=istiod.wlhe.i.webinf.info:443 \
-                -e K8S_DNS=1 \
-                -e CLUSTER=${CLUSTER_NAME} \
-                -e PROJECT=${PROJECT_ID} \
-                -e LOCATION=${CLUSTER_LOCATION} \
-                -e POD_NAMESPACE=fortio \
-                -e POD_NAME=fortio-cr \
-                -e LABEL_APP=fortio-cr \
-                -e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
-                -v ${ADC}:/var/run/secrets/google/google.json:ro \
-                ${IMAGE} \
-                /bin/bash
+		-e CLUSTER_NAME=${CLUSTER_NAME} \
+		-e PROJECT_ID=${PROJECT_ID} \
+		-e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
+		-e POD_NAMESPACE=fortio \
+		-e POD_NAME=fortio-cr _NAME\
+		-e LABEL_APP=fortio-cr \
+		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
+		-v ${ADC}:/var/run/secrets/google/google.json:ro \
+		${IMAGE} \
+		/bin/bash
 
 
 run/docker-mcp:
 	docker run -it --rm \
 		--name fortio \
         -p 9999:15009 \
-                -e K8S_DNS=1 \
-                -e CLUSTER=${CLUSTER_NAME} \
-                -e PROJECT=${PROJECT_ID} \
-                -e LOCATION=${CLUSTER_LOCATION} \
-         -e XDS_ADDR=staging-meshconfig.sandbox.googleapis.com:443 \
-         -e JWT_POLICY=third-party-jwt \
-         -e PILOT_CERT_PROVIDER=system \
-         -e CA_ADDR=meshca.googleapis.com:443 \
-         -e TRUST_DOMAIN=${PROJECT_ID}.svc.id.goog \
-         -e CA_ROOT_CA=/etc/ssl/certs/ca-certificates.crt \
-         -e XDS_AUTH_PROVIDER=gcp \
-         -e ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443 \
-         -e ISTIO_META_CLUSTER_ID=cn-wlhe-cr-us-central1-c-asm-cr \
-         -e XDS_ROOT_CA=/etc/ssl/certs/ca-certificates.crt \
-                -e POD_NAMESPACE=fortio \
-                -e POD_NAME=fortio-cr \
-                -e LABEL_APP=fortio-cr \
-                -e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
-                -v ${ADC}:/var/run/secrets/google/google.json:ro \
-                ${IMAGE} \
-                /bin/bash
+		-e CLUSTER_NAME=${CLUSTER_NAME} \
+		-e PROJECT_ID=${PROJECT_ID} \
+		-e PROJECT_NUMBER=${PROJECT_NUMBER} \
+        -e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
+        -e XDS_ADDR=staging-meshconfig.sandbox.googleapis.com:443 \
+        -e ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443 \
+         \
+		-e POD_NAMESPACE=fortio \
+		-e POD_NAME=fortio-cr \
+		-e LABEL_APP=fortio-cr \
+		\
+		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
+		-v ${ADC}:/var/run/secrets/google/google.json:ro \
+		${IMAGE} \
+		/bin/bash
 
 # Will run 'krun' - to debug krun use
 #        --entrypoint /bin/sh
@@ -239,9 +226,6 @@ ssh/docker:
  		-o StrictHostKeyChecking=no \
  		-o ProxyCommand='hbone http://127.0.0.1:9999/_hbone/22'  \
      		root@proxybase
-
-deploy/dns:
-	$(MAKE) deploy SUFFIX=-dns EXTRA=--set-env-vars="K8S_DNS=1"
 
 # Deploy the same thing in asia
 deploy/asia:

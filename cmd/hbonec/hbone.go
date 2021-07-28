@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -37,6 +38,7 @@ func main() {
 	url := flag.Arg(0)
 
 	if *port != "" {
+		fmt.Println("Listening on ", *port, " for ", url)
 		l, err := net.Listen("tcp", *port)
 		if err != nil {
 			panic(err)
@@ -47,7 +49,7 @@ func main() {
 				panic(err)
 			}
 			go func() {
-				err := hbone.HboneCat(http.DefaultClient,*tls,  url, a, a)
+				err := hbone.HboneCat(http.DefaultClient, url, a, a)
 				if err != nil {
 					log.Println(err)
 				}
@@ -55,7 +57,8 @@ func main() {
 		}
 	}
 
-	err := hbone.HboneCat(http.DefaultClient, *tls, url, os.Stdin, os.Stdout)
+	fmt.Println("Connecting to ", url)
+	err := hbone.HboneCat(http.DefaultClient, url, os.Stdin, os.Stdout)
 	if err != nil {
 		log.Fatal(err)
 	}

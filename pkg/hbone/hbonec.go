@@ -1,6 +1,7 @@
 package hbone
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -9,9 +10,10 @@ import (
 
 // HboneCat copies stdin/stdout to a HBONE stream - without mTLS
 // This is primarily used for testing and debug using SSH
-func HboneCat(ug *http.Client, urlOrHost string, tls string, stdin io.ReadCloser, stdout io.WriteCloser) error {
+func HboneCat(ug *http.Client, urlOrHost string, stdin io.ReadCloser, stdout io.WriteCloser) error {
 	i, o := io.Pipe()
 
+	fmt.Println("Connecting to ", urlOrHost)
 	if !strings.HasPrefix(urlOrHost, "https://") {
 		h, p, err  := net.SplitHostPort(urlOrHost)
 		if err != nil {
@@ -20,8 +22,11 @@ func HboneCat(ug *http.Client, urlOrHost string, tls string, stdin io.ReadCloser
 		urlOrHost = "https://" + h + "/_hbone/" + p
 	}
 
-	r, _ := http.NewRequest("POST", urlOrHost, i)
-	res, err := ug.Transport.RoundTrip(r)
+	r, err := http.NewRequest("POST", urlOrHost, i)
+	if err != nil {
+		return err
+	}
+	res, err := ug.Do(r)
 	if err != nil {
 		return err
 	}
@@ -44,8 +49,11 @@ func HboneCatmTLS(ug *http.Client, urlOrHost string, auth *Auth, stdin io.ReadCl
 		urlOrHost = "https://" + h + "/_hbone/" + p
 	}
 
-	r, _ := http.NewRequest("POST", urlOrHost, i)
-	res, err := ug.Transport.RoundTrip(r)
+	r, err := http.NewRequest("POST", urlOrHost, i)
+	if err != nil {
+		return err
+	}
+	res, err := ug.Do(r)
 	if err != nil {
 		return err
 	}

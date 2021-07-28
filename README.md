@@ -54,3 +54,27 @@ The SA must have the correct IAM permissions.
 
 This also works for GKE Connect Gateway, for private or non-GKE clusters registered in the hub.
 
+# Configuration options and defaults
+
+## K8S Cluster
+
+krun uses environment variables to identify the K8S cluster to associate with.
+
+- PROJECT_ID
+- CLUSTER_LOCATION
+- CLUSTER_NAME
+
+Alternatively, it can use 
+
+- KUBECONFIG 
+- ${HOME}/.kube/config
+
+For authentication it can use the metadata server or GOOGLE_APPLICATION_CREDENTIALS
+
+# Local debugging
+
+When running on a local docker, since metadata server is not available we need to specify a larger set of configs:
+
+- PROJECT_ID, PROJECT_NUMBER, CLUSTER_LOCATION, CLUSTER_NAME
+- GOOGLE_APPLICATION_CREDENTIALS
+- 

@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 
 	"github.com/creack/pty"
@@ -94,6 +95,7 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 	// If using a private CA - add it's root to the docker images, everything will be consistent
 	// and simpler !
 	env = append(env, "XDS_ROOT_CA=SYSTEM")
+	env = append(env, "PILOT_CERT_PROVIDER=system")
 	env = append(env, "CA_ROOT_CA=SYSTEM")
 	env = append(env, "POD_NAMESPACE=" + kr.Namespace)
 
@@ -127,6 +129,29 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 	// Currently broken in iptables - use whitebox interception, but still run it
 	env = append(env, "ISTIO_META_DNS_CAPTURE=true")
 	env = append(env, "DNS_PROXY_ADDR=localhost:53")
+
+	// MCP config
+	env = append(env, fmt.Sprintf("GKE_CLUSTER_URL=https://container.googleapis.com/v1/projects/%s/locations/%s/clusters/%s",
+		kr.ProjectId, kr.ClusterLocation, kr.ClusternName))
+	env = append(env, fmt.Sprintf("GCP_METADATA=%s|%s|%s|%s",
+		kr.ProjectId, kr.ProjectNumber, kr.ClusternName, kr.ClusterLocation ))
+	env = append(env, "XDS_ADDR=" + kr.XDSAddr)
+	//env = append(env, "CA_ROOT_CA=/etc/ssl/certs/ca-certificates.crt")
+	env = append(env, "XDS_AUTH_PROVIDER=gcp")
+	//env = append(env, "XDS_ROOT_CA=/etc/ssl/certs/ca-certificates.crt")
+	env = append(env, "JWT_POLICY=third-party-jwt")
+
+	if strings.Contains(kr.XDSAddr, "meshconfig") && strings.Contains(kr.XDSAddr, "googleapis.com") {
+		env = append(env, "CA_ADDR=meshca.googleapis.com:443")
+	}
+	env = append(env, "TRUST_DOMAIN=" + kr.TrustDomain)
+
+	// WIP: automate getting the CR addr (or have Thetis handle it)
+	// For example by reading a configmap in cluster
+	//--set-env-vars="ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443" \
+
+	env = append(env, fmt.Sprintf("ISTIO_META_CLUSTER_ID=cn-%s-%s-%s",
+		kr.ProjectId, kr.ClusterLocation, kr.ClusternName ))
 
 	// If set, let istiod generate bootstrap
 	bootstrapIstiod := os.Getenv("BOOTSTRAP_XDS_AGENT")
