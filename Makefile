@@ -1,7 +1,7 @@
 
 # Must define:
 # CLUSTER
-# PROJECT
+# PROJECT_ID
 # LOCATION
 # SUBDOMAIN - for now we require Istiod to use an ACME cert and proper domain ('external istiod' style)
 # USER - User logged in gcloud, used to find adc for local tests
@@ -15,7 +15,7 @@ export KO_DOCKER_REPO
 ADC?=${HOME}/.config/gcloud/legacy_credentials/${USER}/adc.json
 export ADC
 
-IMAGE=ghcr.io/costinm/krun/krun:latest
+KRUN_IMAGE=ghcr.io/costinm/krun/krun:latest
 
 # Push krun - the github action on push will do the same.
 # This is the fastest way to push krun - permission required to KO_DOCKER_REPO
@@ -26,10 +26,13 @@ push/krun:
 # local testing.
 build: build/krun
 
-build/krun:	KO_IMAGE=$(shell ko publish -L -B ./)
+#build/krun:
 build/krun:
-	docker tag ${KO_IMAGE} ko.local/krun:latest
-	docker tag ${KO_IMAGE} ${IMAGE}
+	KO_IMAGE=$(shell ko publish -L -B ./) $(MAKE) docker/tag
+
+docker/tag:
+	docker tag ${KO_IMAGE} ko.local/krun:latest && \
+	docker tag ${KO_IMAGE} ${KRUN_IMAGE}
 
 ################# Testing / local dev #################
 
@@ -38,11 +41,11 @@ build/krun:
 docker/run-noxds:
 	docker run -it --rm \
 		-e CLUSTER=${CLUSTER} \
-		-e PROJECT=${PROJECT} \
-		-e LOCATION=${LOCATION} \
+		-e PROJECT=${PROJECT_ID} \
+		-e LOCATION=${CLUSTER_LOCATION} \
 		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
 		-v ${ADC}:/var/run/secrets/google/google.json:ro \
-		${IMAGE} \
+		${KRUN_IMAGE} \
 	   /bin/bash
 
 # Run in local docker, using ADC for auth
@@ -50,11 +53,11 @@ docker/run-xds-adc:
 	docker run -it --rm \
 		-e XDS_ADDR=istiod.wlhe.i.webinf.info:443 \
 		-e CLUSTER=${CLUSTER} \
-		-e PROJECT=${PROJECT} \
-		-e LOCATION=${LOCATION} \
+		-e PROJECT=${PROJECT_ID} \
+		-e LOCATION=${CLUSTER_LOCATION} \
 		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
 		-v ${ADC}:/var/run/secrets/google/google.json:ro \
-		${IMAGE} \
+		${KRUN_IMAGE} \
 		/bin/bash
 
 push/fortio:

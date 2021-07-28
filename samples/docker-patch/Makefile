@@ -3,7 +3,7 @@ ISTIOD?=$(shell cd ../..; pwd)
 -include ${ISTIOD}/.local.mk
 
 # GKE cluster used
-PROJECT=wlhe-cr
+PROJECT_ID=wlhe-cr
 LOCATION=us-central1-c
 CLUSTER=istio
 
@@ -70,7 +70,7 @@ push-istio-fortio: patch-fortio
 	docker push ${REPO}/istio-fortio:latest
 
 # GKE cluster used by cloudrun
-K8S_CLUSTER_ARGS=--set-env-vars="PROJECT=${PROJECT}" \
+K8S_CLUSTER_ARGS=--set-env-vars="PROJECT=${PROJECT_ID}" \
                  --set-env-vars="LOCATION=${LOCATION}" \
                  --set-env-vars="CLUSTER=${CLUSTER}" \
         		 --set-env-vars="XDS_ADDR=${ISTIOD_URL}"
@@ -83,7 +83,7 @@ cr/fortio: push-fortio-local deploy-fortio
 
 deploy-fortio:
 	gcloud alpha run deploy fortio \
-		  --platform managed --project ${PROJECT} \
+		  --platform managed --project ${PROJECT_ID} \
 		  --region ${REGION} \
           --sandbox=minivm \
          --allow-unauthenticated \
@@ -98,12 +98,12 @@ deploy-fortio:
          --set-env-vars="POD_NAMESPACE=fortio" \
  		 --set-env-vars="POD_NAME=fortio-cr" \
  		 --set-env-vars="LABEL_APP=fortio-cr" \
- 		  --vpc-connector projects/${PROJECT}/locations/${REGION}/connectors/serverlesscon \
+ 		  --vpc-connector PROJECT_IDs/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
 
 # Deploy the Fortio image with Istio patch
 deploy-istio-fortio:
 	gcloud alpha run deploy istio-fortio \
-		  --platform managed --project ${PROJECT} \
+		  --platform managed --PROJECT_ID ${PROJECT_ID} \
 		  --region ${REGION} \
           --sandbox=minivm \
          --allow-unauthenticated \
@@ -113,12 +113,12 @@ deploy-istio-fortio:
          --image ${REPO}/istio-fortio:latest \
  		  ${K8S_CLUSTER_ARGS} \
  		  ${SSH_DEBUG_ARGS} \
- 		  --vpc-connector projects/${PROJECT}/locations/${REGION}/connectors/serverlesscon \
+ 		  --vpc-connector PROJECT_IDs/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
 
 # Deploy the same thing in asia
 deploy-fortio-asia:
 	gcloud alpha run deploy fortio-asia \
-		  --platform managed --project ${PROJECT} \
+		  --platform managed --PROJECT_ID ${PROJECT_ID} \
 		  --region asia-northeast1 \
 		  --sandbox=minivm \
          --allow-unauthenticated \
@@ -179,7 +179,7 @@ run-fortio:
         -p 9999:15009 \
         -e XDS_ADDR=istiod.wlhe.i.webinf.info:443 \
                 -e CLUSTER=${CLUSTER} \
-                -e PROJECT=${PROJECT} \
+                -e PROJECT=${PROJECT_ID} \
                 -e LOCATION=${LOCATION} \
                 -e CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE=/var/run/secrets/google/google.json \
                 -e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
@@ -189,7 +189,7 @@ run-fortio:
 
 #        -e XDS_ADDR=istiod.wlhe.i.webinf.info:443 \
 #               -e CLUSTER=${CLUSTER} \
-#                -e PROJECT=${PROJECT} \
+#                -e PROJECT=${PROJECT_ID} \
 #                -e LOCATION=${LOCATION} \
 #                -e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
 #

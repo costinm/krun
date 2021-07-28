@@ -263,52 +263,6 @@
         }
       },
       {
-        "name": "local_tcp_8082",
-        "connect_timeout": "2s",
-        "load_assignment": {
-          "cluster_name": "local_tcp_8082",
-          "endpoints": [
-            {
-              "lb_endpoints": [
-                {
-                  "endpoint": {
-                    "address": {
-                      "socket_address": {
-                        "address": "127.0.0.1",
-                        "port_value": 8082
-                      }
-                    }
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      },
-      {
-        "name": "local_tcp_5201",
-        "connect_timeout": "2s",
-        "load_assignment": {
-          "cluster_name": "local_tcp_5201",
-          "endpoints": [
-            {
-              "lb_endpoints": [
-                {
-                  "endpoint": {
-                    "address": {
-                      "socket_address": {
-                        "address": "127.0.0.1",
-                        "port_value": 5201
-                      }
-                    }
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      },
-      {
         "name": "sds-grpc",
         "type": "STATIC",
         "http2_protocol_options": {},
@@ -506,7 +460,7 @@
                               "prefix": "/",
                             },
                             "route": {
-                              "cluster": "local_tcp_8082"
+                              "cluster": "local_tcp_8080"
                             }
                           }
                         ]

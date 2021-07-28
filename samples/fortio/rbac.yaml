@@ -32,4 +32,4 @@ roleRef:
   name: remote-xds-default
 subjects:
   - kind: User
-    name: k8s-${NS}@wlhe-cr.iam.gserviceaccount.com
+    name: k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com

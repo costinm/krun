@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/costinm/krun/pkg/hbone"
 	"github.com/costinm/krun/pkg/k8s"
 )
 
@@ -77,7 +78,11 @@ func main() {
 			kr.Aud2File[kvl[0][10:]] =  prefix + kvl[1]
 		}
 	}
-	kr.Aud2File["istio-ca"] = prefix + "/var/run/secrets/tokens/istio-token"
+	aud := os.Getenv("TRUST_DOMAIN")
+	if aud == "" {
+		aud = os.Getenv("PROJECT") + ".svc.id.goog"
+	}
+	kr.Aud2File[aud] = prefix + "/var/run/secrets/tokens/istio-token"
 	kr.Aud2File["api"] = prefix + "/var/run/secrets/kubernetes.io/serviceaccount/token"
 
 	if kr.KSA == "" {
@@ -85,20 +90,28 @@ func main() {
 	}
 
 	kr.Refresh()
-
-	proxyConfig := os.Getenv("PROXY_CONFIG")
-	if proxyConfig == "" {
-		xdsAddr := os.Getenv("XDS_ADDR")
-		if xdsAddr != "" {
-			proxyConfig = fmt.Sprintf(`{"discoveryAddress": "%s"}`, xdsAddr)
-		}
-	}
-	if proxyConfig != "" {
+	xdsAddr := os.Getenv("XDS_ADDR")
+	log.Println("============== Starting with ", xdsAddr, aud)
+	if xdsAddr != "" {
+		proxyConfig := fmt.Sprintf(`{"discoveryAddress": "%s"}`, xdsAddr)
 		kr.StartIstioAgent(proxyConfig)
 	}
 
-	// TODO: wait for ready
 	kr.StartApp()
+
+	// TODO: wait for app and proxy ready
+	hb := &hbone.HBone{
+
+	}
+	err = hb.Init()
+	if err != nil {
+		panic(err)
+	}
+
+	err = hb.Start(":14009")
+	if err != nil {
+		panic(err)
+	}
 
 	select{}
 }

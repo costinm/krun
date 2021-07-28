@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -73,6 +74,7 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 	if kr.AgentDebug != "" {
 		args = append(args,	"--log_output_level=" + kr.AgentDebug)
 	}
+	args = append(args, "--stsPort=15463")
 	return exec.Command("/usr/local/bin/pilot-agent", args...)
 }
 
@@ -249,17 +251,20 @@ func (kr *KRun) runIptablesSetup(env []string) {
 		"-x", "")
 	cmd.Env = env
 	cmd.Dir = "/"
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	so := &bytes.Buffer{}
+	se := &bytes.Buffer{}
+	cmd.Stdout = so
+	cmd.Stderr = se
 	err := cmd.Start()
 	if err != nil {
-		log.Println("Error starting iptables", err)
+		log.Println("Error starting iptables", err, so.String(), "stderr:", se.String())
 	} else {
 		err = cmd.Wait()
 		if err != nil {
-			log.Println("Error starting iptables", err)
+			log.Println("Error starting iptables", err, so.String(), "stderr:", se.String())
 		}
 	}
+	// TODO: make the stdout/stderr available in a debug endpoint
 	log.Println("Iptables start done")
 }
 
