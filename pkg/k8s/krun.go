@@ -67,7 +67,7 @@ type KRun struct {
 
 	ProjectId       string
 	ProjectNumber   string
-	ClusternName    string
+	ClusterName     string
 	ClusterLocation string
 
 	MCPAddr string
@@ -77,26 +77,39 @@ type KRun struct {
 	TrustDomain string
 }
 
-func NewFromEnv() *KRun {
-	kr := &KRun{}
+func (kr *KRun) InitFromEnv() *KRun {
 
-	ns := os.Getenv("POD_NAMESPACE")
-	if ns == "" {
-		ns = os.Getenv("K8S_NS")
+	if kr.KSA == "" {
+		kr.KSA = os.Getenv("WORKLOAD_SERVICE_ACCOUNT")
 	}
-	if ns == "" {
-		ns = "default"
+
+	if kr.KSA == "" {
+		kr.KSA = "default"
 	}
-	ksa := os.Getenv("SERVICE_ACCOUNT")
-	if ksa == "" {
-		ksa = "default"
+
+	if kr.Namespace == "" {
+		kr.Namespace = os.Getenv("WORKLOAD_NAMESPACE")
 	}
-	name := os.Getenv("LABEL_APP")
-	if name == "" {
-		name = "default"
+	if kr.Name == "" {
+		kr.Name = os.Getenv("WORKLOAD_NAME")
 	}
-	kr.Name = name
-	kr.Namespace = ns
+
+	ks := os.Getenv("K_SERVICE")
+	if kr.Namespace == "" {
+		// TODO: revision--NS-NAME-SUFFIX
+		parts := strings.Split(ks, "-")
+		kr.Namespace = parts[0]
+		if len(parts) > 1 {
+			kr.Name = parts[1]
+		}
+	}
+
+	if kr.Namespace == "" {
+		kr.Namespace = "default"
+	}
+	if kr.Name == "" {
+		kr.Name = kr.Namespace
+	}
 
 	kr.Aud2File = map[string]string{}
 	prefix := "."
@@ -135,8 +148,8 @@ func NewFromEnv() *KRun {
 		kr.KSA = "default"
 	}
 
-	if kr.ClusternName == "" {
-		kr.ClusternName = os.Getenv("CLUSTER_NAME")
+	if kr.ClusterName == "" {
+		kr.ClusterName = os.Getenv("CLUSTER_NAME")
 	}
 
 

@@ -120,7 +120,7 @@ func (kr *KRun) InitGCP() error {
 	// Get all clusters, including hub - attempt to find the cluster.
 	//kr.AllHub(gcpProj, cluster, "", "")
 	t0 := time.Now()
-	if kr.ClusternName == "" {
+	if kr.ClusterName == "" {
 		// WIP - list all clusters and attempt to find one in the same region.
 		// TODO: connect to cluster, find istiod - and keep trying until a working
 		// one is found ( fallback )
@@ -145,7 +145,7 @@ func (kr *KRun) InitGCP() error {
 		}
 	} else {
 		// ~400 ms
-		rc, err := kr.CreateRestConfig(kr.ProjectId, kr.ClusterLocation, kr.ClusternName)
+		rc, err := kr.CreateRestConfig(kr.ProjectId, kr.ClusterLocation, kr.ClusterName)
 		if err != nil {
 			return err
 		}

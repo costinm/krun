@@ -13,7 +13,8 @@ import (
 var initDebug func(run *k8s.KRun)
 
 func main() {
-	kr := k8s.NewFromEnv()
+	kr := &k8s.KRun{}
+	kr.InitromEnv()
 
 	k8sClient, err := kr.GetK8S()
 	if err != nil {

@@ -2,9 +2,12 @@
 
 ## Installation 
 
+### Project and cluster setup
+
 1. Install ASM ( managed )
 
-https://cloud.google.com/service-mesh/docs/scripted-install/gke-install
+See [Install docs](https://cloud.google.com/service-mesh/docs/scripted-install/gke-install) for ASM, make sure
+all requirements are met. For googlers make sure the project is allowed to use 'allow-unauthenticated'.
 
 
 ```shell
@@ -21,8 +24,7 @@ chmod +x install_asm
 
 
 
-
-2. Install CloudRun connector (once per project)
+2. Install CloudRun connector
 
 ``` 
 	gcloud services enable --project ${PROJECT_ID} vpcaccess.googleapis.com
@@ -36,22 +38,11 @@ chmod +x install_asm
 
 ```
 
-3. Deploy an in-cluster application
+### Namespace setup 
 
-```
-gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
+The steps can be run by a user or service account with namespace permissions in K8S and CR deploy permission.
 
-kubectl create ns fortio
-kubectl label namespace fortio istio-injection- istio.io/rev=asm-managed-rapid --overwrite
-
-helm upgrade --install \
-		-n fortio \
-		fortio \
- 		samples/charts/fortio
-
-```
-
-4. Create a google service account for the CloudRun app (once per project)
+1. Create a google service account for the CloudRun app (once per namespace)
 
 
 ```shell
@@ -68,19 +59,21 @@ gcloud --project ${PROJECT_ID} projects add-iam-policy-binding \
 
 ```
 
-5. Bind the GSA to a KSA
+2. Bind the GSA to a KSA
    You can grant additional permissions if the CloudRun service is using the K8S ApiServer. To keep things simple, we
    associate with the 'default' KSA in the namespace.
-   
-```shell 
 
-cat samples/fortio/rbac.yaml | envsubst | kubectl apply -f -
+```shell 
+export PROJECT_ID=wlhe-cr
+export NS=fortio 
+
+cat manifests/rbac.yaml | envsubst | kubectl apply -f -
 
 ```
 
-## Build a docker image containing the app and the sidecar
+### Build a docker image containing the app and the sidecar
 
-samples/fortio/Dockerfile contains an example Dockerfile, with comments. 
+samples/fortio/Dockerfile contains an example Dockerfile, with comments.
 
 You can build the app with the normal docker command:
 
@@ -93,11 +86,11 @@ docker push ${IMAGE}
 
 
 
-## Deploy the image to CloudRun
+### Deploy the image to CloudRun
 
-WARNING: WIP to eliminate this step - either on Thetis side or using a ConfigMap in cluster ( where other settings 
+WARNING: WIP to eliminate this step - either on Thetis side or using a ConfigMap in cluster ( where other settings
 can be defined ).
-Also POD_NAMESPACE, POD_NAME can be derived from the cloudrun service - for example using a default naming scheme.
+Also WORKLOAD_NAMESPACE, WORKLOAD_NAME can be derived from the cloudrun service - for example using a default naming scheme.
 
 
 ```shell
@@ -126,20 +119,48 @@ gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
          --set-env-vars="CLUSTER_NAME=asm-cr" \
          --set-env-vars="CLUSTER_LOCATION=us-central1-c" \
          --set-env-vars="ISTIO_META_CLOUDRUN_ADDR=${MCP_ADDR}" \
-         --set-env-vars="POD_NAMESPACE=fortio" \
-         --set-env-vars="POD_NAME=fortio-cr" \
+         --set-env-vars="WORKLOAD_NAMESPACE=fortio" \
+         --set-env-vars="WORKLOAD_NAME=fortio-cr" \
          --set-env-vars="LABEL_APP=fortio-cr"
          
 ```
 
-### Configuration options 
+### Testing
+
+1. Deploy an in-cluster application
+
+```
+gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
+
+kubectl create ns fortio
+kubectl label namespace fortio istio-injection- istio.io/rev=asm-managed-rapid --overwrite
+
+helm upgrade --install \
+		-n fortio \
+		fortio \
+ 		samples/charts/fortio
+
+```
+
+
+2. Use the CloudRun service to connect to the in-cluster workload. Use the CR service URL with /fortio/ path to
+access the UI of the app.
+
+In the UI, use "http://fortio.fortio.svc:8080" and you should see the results for testing the connection to the 
+in-cluster app.
+
+In general, the CloudRun applications can use any K8S service name - including shorter version for same-namespace
+services. So fortio, fortio.fortio, fortio.fortio.svc.cluster.local also work.
+
+
+## Configuration options 
 
 Configuration is based on environment variables and metadata server. 
 
 We expect a GKE cluster in the same project with the CloudRun service. CLUSTER_NAME and CLUSTER_LOCATION allow 
 finding the cluster. The init steps grant the GSA running the service (minimal) access to the cluster. 
 
-POD_NAMESPACE and POD_NAME (TODO: use shorter names) map the CloudRun service to the equivalent of a k8s pod, 
+WORKLOAD_NAMESPACE and WORKLOAD_NAME (TODO: use shorter names) map the CloudRun service to the equivalent of a k8s pod, 
 in the given namespace. You can specify additional labels to be used by Istio for config generation - in Istio
 configs associate with workloads using label selectors.
 
@@ -153,14 +174,6 @@ run on port 8080. It is also possible to not set the flags and use the normal Cl
 be possible. '--allow-unauthenticated' is also only needed if tunnel mode - where mTLS is expected for authentication
 (WIP). 
 
-# Test the image
-
-The fortio example is accessible on the cloudrun URL as /fortio/ - in the UI enter 
-
-"http://fortio.fortio.svc:8080" and you should see the results for testing the connection to the in-cluster app.
-
-In general, the CloudRun applications can use any K8S service name - including shorter version for same-namespace 
-services. So fortio, fortio.fortio, fortio.fortio.svc.cluster.local also work.
 
 
 # Debugging

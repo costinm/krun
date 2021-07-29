@@ -132,9 +132,9 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 
 	// MCP config
 	env = append(env, fmt.Sprintf("GKE_CLUSTER_URL=https://container.googleapis.com/v1/projects/%s/locations/%s/clusters/%s",
-		kr.ProjectId, kr.ClusterLocation, kr.ClusternName))
+		kr.ProjectId, kr.ClusterLocation, kr.ClusterName))
 	env = append(env, fmt.Sprintf("GCP_METADATA=%s|%s|%s|%s",
-		kr.ProjectId, kr.ProjectNumber, kr.ClusternName, kr.ClusterLocation ))
+		kr.ProjectId, kr.ProjectNumber, kr.ClusterName, kr.ClusterLocation ))
 	env = append(env, "XDS_ADDR=" + kr.XDSAddr)
 	//env = append(env, "CA_ROOT_CA=/etc/ssl/certs/ca-certificates.crt")
 	env = append(env, "XDS_AUTH_PROVIDER=gcp")
@@ -151,7 +151,7 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 	//--set-env-vars="ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443" \
 
 	env = append(env, fmt.Sprintf("ISTIO_META_CLUSTER_ID=cn-%s-%s-%s",
-		kr.ProjectId, kr.ClusterLocation, kr.ClusternName ))
+		kr.ProjectId, kr.ClusterLocation, kr.ClusterName))
 
 	// If set, let istiod generate bootstrap
 	bootstrapIstiod := os.Getenv("BOOTSTRAP_XDS_AGENT")

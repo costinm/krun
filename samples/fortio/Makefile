@@ -85,8 +85,8 @@ deploy:
          --set-env-vars="XDS_ADDR=staging-meshconfig.sandbox.googleapis.com:443" \
          --set-env-vars="ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443" \
           ${SSH_DEBUG_ARGS} ${EXTRA} \
-         --set-env-vars="POD_NAMESPACE=fortio" \
- 		 --set-env-vars="POD_NAME=fortio-cr" \
+         --set-env-vars="WORKLOAD_NAMESPACE=fortio" \
+ 		 --set-env-vars="WORKLOAD_NAME=fortio-cr" \
  		 --set-env-vars="LABEL_APP=fortio-cr" \
  		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
 
@@ -103,8 +103,8 @@ deploy/oss:
  		  ${K8S_CLUSTER_ARGS} \
  		  ${SSH_DEBUG_ARGS} ${EXTRA} \
           --set-env-vars="HTTP_PROXY=127.0.0.1:15080" \
-         --set-env-vars="POD_NAMESPACE=fortio" \
- 		 --set-env-vars="POD_NAME=fortio-cr" \
+         --set-env-vars="WORKLOAD_NAMESPACE=fortio" \
+ 		 --set-env-vars="WORKLOAD_NAME=fortio-cr" \
  		 --set-env-vars="LABEL_APP=fortio-cr" \
  		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)" \
  		  --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
@@ -187,8 +187,8 @@ run/docker:
 		-e CLUSTER_NAME=${CLUSTER_NAME} \
 		-e PROJECT_ID=${PROJECT_ID} \
 		-e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
-		-e POD_NAMESPACE=fortio \
-		-e POD_NAME=fortio-cr _NAME\
+		-e WORKLOAD_NAMESPACE=fortio \
+		-e WORKLOAD_NAME=fortio-cr _NAME\
 		-e LABEL_APP=fortio-cr \
 		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
 		-v ${ADC}:/var/run/secrets/google/google.json:ro \
@@ -207,8 +207,8 @@ run/docker-mcp:
         -e XDS_ADDR=staging-meshconfig.sandbox.googleapis.com:443 \
         -e ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443 \
          \
-		-e POD_NAMESPACE=fortio \
-		-e POD_NAME=fortio-cr \
+		-e WORKLOAD_NAMESPACE=fortio \
+		-e WORKLOAD_NAME=fortio-cr \
 		-e LABEL_APP=fortio-cr \
 		\
 		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \

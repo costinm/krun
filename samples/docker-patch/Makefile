@@ -95,8 +95,8 @@ deploy-fortio:
  		  ${SSH_DEBUG_ARGS} \
          --set-env-vars="HTTP_PROXY=127.0.0.1:15080" \
          --set-env-vars="LABEL_FOO=bar2" \
-         --set-env-vars="POD_NAMESPACE=fortio" \
- 		 --set-env-vars="POD_NAME=fortio-cr" \
+         --set-env-vars="WORKLOAD_NAMESPACE=fortio" \
+ 		 --set-env-vars="WORKLOAD_NAME=fortio-cr" \
  		 --set-env-vars="LABEL_APP=fortio-cr" \
  		  --vpc-connector PROJECT_IDs/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
 
@@ -129,8 +129,8 @@ deploy-fortio-asia:
          --min-instances=1 \
          --image ${REPO}/fortio:latest \
          --set-env-vars="HTTP_PROXY=127.0.0.1:15080" \
-         --set-env-vars="POD_NAMESPACE=fortio" \
- 		 --set-env-vars="POD_NAME=fortio-cr" \
+         --set-env-vars="WORKLOAD_NAMESPACE=fortio" \
+ 		 --set-env-vars="WORKLOAD_NAME=fortio-cr" \
          --set-env-vars="LABEL_APP=fortio-cr" \
 
  		  #--vpc-connector projects/wlhe-cr/locations/us-central1/connectors/serverlesscon \
