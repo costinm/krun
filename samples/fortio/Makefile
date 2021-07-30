@@ -8,7 +8,6 @@
 
 # GKE cluster used
 PROJECT_ID?=wlhe-cr
-PROJECT_NUMBER?=$(shell gcloud projects describe ${PROJECT_ID} --format="value(projectNumber)")
 CLUSTER_LOCATION?=us-central1-c
 CLUSTER_NAME?=asm-cr
 
@@ -39,12 +38,6 @@ ISTIOD_URL?=istiod.${SUBDOMAIN}:443
 
 # Namespace to attach to.
 NS=fortio
-
-# GKE cluster used by cloudrun
-K8S_CLUSTER_ARGS=--set-env-vars="PROJECT=${PROJECT_ID}" \
-                 --set-env-vars="LOCATION=${CLUSTER_LOCATION}" \
-                 --set-env-vars="CLUSTER=${CLUSTER_NAME}" \
-        		 --set-env-vars="XDS_ADDR=${ISTIOD_URL}"
 
 # Enable the built-in sshd server, with cert auth
 SSH_DEBUG_ARGS=--set-env-vars="SSH_AUTH=$(shell cat ~/.ssh/id_ecdsa.pub)"
@@ -77,17 +70,12 @@ deploy:
          --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
          --allow-unauthenticated \
          --use-http2 \
-         --port 15009 \
+         --port 14009 \
          --min-instances=1 \
          --image ${IMAGE} \
          --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}" \
          --set-env-vars="CLUSTER_NAME=${CLUSTER_NAME}" \
-         --set-env-vars="XDS_ADDR=staging-meshconfig.sandbox.googleapis.com:443" \
-         --set-env-vars="ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443" \
           ${SSH_DEBUG_ARGS} ${EXTRA} \
-         --set-env-vars="WORKLOAD_NAMESPACE=fortio" \
- 		 --set-env-vars="WORKLOAD_NAME=fortio-cr" \
- 		 --set-env-vars="LABEL_APP=fortio-cr" \
  		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
 
 # WIP - will need additional setup for exposing Istiod on a ILB or gateway with certs.
@@ -118,13 +106,15 @@ deploy-gvisor:
 pull:
 	docker pull ghcr.io/costinm/krun/krun:latest # Get latest
 
+SVC?=https://fortio${CLUSTER_NAME}${SUFFIX}-icq63pqnqq-uc.a.run.app:443
+
 # SSH to the deployed CloudRun using HBONE
 # SUFFIX can be used for the other variants
 ssh:
-	 ssh -F /dev/null \
+	 ssh -F /dev/null -v \
         -o StrictHostKeyChecking=no -o "UserKnownHostsFile /dev/null" \
- 	    -o ProxyCommand='hbone https://fortio${SUFFIX}-icq63pqnqq-uc.a.run.app:443/_hbone/22' \
-     	root@proxybase
+ 	    -o ProxyCommand='hbone ${SVC}/_hbone/22' \
+     	root@proxybase ${SSH_ARGS}
 
 config_dump:
 	 ssh -F /dev/null -o StrictHostKeyChecking=no \
@@ -145,7 +135,7 @@ setup-gsa:
             --role="roles/container.clusterViewer"
 
 setup-rbac:
-	cat rbac.yaml | NS=${NS} envsubst  | kubectl apply -f -
+	cat ../../manifests/rbac.yaml | NS=${NS} envsubst  | kubectl apply -f -
 
 logs-project:
 	gcloud logging read 'resource.type = "project" OR resource.type = "cloud_run_revision"'
@@ -166,68 +156,4 @@ setupcon-sharedvpc:
     --subnet-project ${PROJECT_ID} \
     --min-instances 2 \
     --max-instances 10 \
-
-
-###################################################
-# Running and testing in local docker
-GSA?=${USER}
-ADC=${HOME}/.config/gcloud/legacy_credentials/${GSA}/adc.json
-export ADC
-
-# Local build - using ko.local for krun, local docker build
-run: image run/docker
-
-
-# Run the image in a local docker container, using a service account file
-run/docker:
-	docker run -it --rm \
-		--name fortio \
-        -p 9999:15009 \
-        -e XDS_ADDR=istiod.wlhe.i.webinf.info:443 \
-		-e CLUSTER_NAME=${CLUSTER_NAME} \
-		-e PROJECT_ID=${PROJECT_ID} \
-		-e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
-		-e WORKLOAD_NAMESPACE=fortio \
-		-e WORKLOAD_NAME=fortio-cr _NAME\
-		-e LABEL_APP=fortio-cr \
-		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
-		-v ${ADC}:/var/run/secrets/google/google.json:ro \
-		${IMAGE} \
-		/bin/bash
-
-
-run/docker-mcp:
-	docker run -it --rm \
-		--name fortio \
-        -p 9999:15009 \
-		-e CLUSTER_NAME=${CLUSTER_NAME} \
-		-e PROJECT_ID=${PROJECT_ID} \
-		-e PROJECT_NUMBER=${PROJECT_NUMBER} \
-        -e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
-        -e XDS_ADDR=staging-meshconfig.sandbox.googleapis.com:443 \
-        -e ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443 \
-         \
-		-e WORKLOAD_NAMESPACE=fortio \
-		-e WORKLOAD_NAME=fortio-cr \
-		-e LABEL_APP=fortio-cr \
-		\
-		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
-		-v ${ADC}:/var/run/secrets/google/google.json:ro \
-		${IMAGE} \
-		/bin/bash
-
-# Will run 'krun' - to debug krun use
-#        --entrypoint /bin/sh
-
-
-# SSH into the local docker (for testing ssh - docker exec is more convenient )
-ssh/docker:
-	 ssh -F /dev/null -o "UserKnownHostsFile /dev/null" \
- 		-o StrictHostKeyChecking=no \
- 		-o ProxyCommand='hbone http://127.0.0.1:9999/_hbone/22'  \
-     		root@proxybase
-
-# Deploy the same thing in asia
-deploy/asia:
-	$(MAKE) deploy SUFFIX=asia REGION=asia-northeast1
 

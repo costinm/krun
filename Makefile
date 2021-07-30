@@ -26,6 +26,9 @@ push/krun:
 # local testing.
 build: build/krun
 
+images: build
+	(cd samples/fortio; make image)
+
 #build/krun:
 build/krun:
 	KO_IMAGE=$(shell ko publish -L -B ./) $(MAKE) docker/tag

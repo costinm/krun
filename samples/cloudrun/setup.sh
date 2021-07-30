@@ -7,6 +7,7 @@ export REGION=${REGION:-us-central1}
 
 export NS=${NS:-fortio}
 
+# Example command to create a regular cluster.
 function create_cluster() {
 
   cloud beta container --project "${PROJECT_ID}" clusters create \
@@ -44,6 +45,8 @@ function create_cluster() {
 
 }
 
+# WIP: using an autopilot cluster for configurations. Note that only gateways can run right now inside the
+# autopilot - other workloads should be in regular clusters (iptables)
 function create_cluster_autopilot() {
   gcloud beta container --project "${PROJECT_ID}" clusters create-auto \
     "${CLUSTER_NAME}" --region "${CLUSTER_LOCATION}" \
@@ -52,6 +55,10 @@ function create_cluster_autopilot() {
     --subnetwork "projects/${PROJECT_ID}/regions/${REGION}/subnetworks/default" \
     --cluster-ipv4-cidr "/17" \
     --services-ipv4-cidr "/22"
+
+  gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
+  kubectl create ns istio-system
+
 }
 
 function setup_asm() {
@@ -85,7 +92,7 @@ function setup_namespace() {
               --member="serviceAccount:k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com" \
               --role="roles/container.clusterViewer"
 
-  cat samples/fortio/rbac.yaml | envsubst | kubectl apply -f -
+  cat manifests/rbac.yaml | envsubst | kubectl apply -f -
 }
 
 function setup_fortio() {

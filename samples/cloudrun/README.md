@@ -2,10 +2,9 @@
 
 ## Installation 
 
-### Project and cluster setup
+### Cluster setup
 
-1. Install ASM ( managed )
-
+1. Install Managed ASM in the GKE config cluster
 See [Install docs](https://cloud.google.com/service-mesh/docs/scripted-install/gke-install) for ASM, make sure
 all requirements are met. For googlers make sure the project is allowed to use 'allow-unauthenticated'.
 
@@ -24,19 +23,21 @@ chmod +x install_asm
 
 
 
-2. Install CloudRun connector
+2. Allow read access to mesh config:
 
-``` 
-	gcloud services enable --project ${PROJECT_ID} vpcaccess.googleapis.com
-	gcloud compute networks vpc-access connectors create serverlesscon \
-    --project ${PROJECT_ID} \
-    --region ${REGION} \
-    --subnet default \
-    --subnet-project ${PROJECT_ID} \
-    --min-instances 2 \
-    --max-instances 10 
+```shell 
+
+kubectl apply -f manifests/mcp-rbac.yaml
 
 ```
+
+### Connector setup
+
+For each region where GKE and CloudRun will be used, [install CloudRun connector](https://cloud.google.com/vpc/docs/configure-serverless-vpc-access)
+Using the UI is usually easier - it does require a /28 range to be specified.
+You can call the connector 'serverlesscon' - the name will be used
+when deploying the CloudRun service.
+
 
 ### Namespace setup 
 
@@ -88,19 +89,9 @@ docker push ${IMAGE}
 
 ### Deploy the image to CloudRun
 
-WARNING: WIP to eliminate this step - either on Thetis side or using a ConfigMap in cluster ( where other settings
-can be defined ).
-Also WORKLOAD_NAMESPACE, WORKLOAD_NAME can be derived from the cloudrun service - for example using a default naming scheme.
 
-
-```shell
-
-export MCP_ADDR="$(kubectl get mutatingwebhookconfiguration istiod-asm-managed -ojson | jq .webhooks[0].clientConfig.url -r | cut -d'/' -f3)"
-
-```
-
-Deploy the service:
-
+<!--
+WIP - Deploy the service, using the defaults. Namespace is extracted from the service name, the cluster is auto-detected:
 
 ```shell
 export CLOUDRUN_SERVICE=fortio-asm-cr
@@ -116,12 +107,28 @@ gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
           --port 15009 \
           --image ${IMAGE} \
           --vpc-connector projects/${PROJECT_ID}/locations/${CLOUDRUN_REGION}/connectors/serverlesscon
+         
+```
+-->
+
+Deploy the service, with explicit configuration:
+
+```shell
+export CLOUDRUN_SERVICE=fortio-cloudrun
+export CLOUDRUN_REGION=us-central1
+
+gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
+          --platform managed 
+          --project ${PROJECT_ID} \
+          --region ${CLOUDRUN_REGION} \
+          --sandbox=minivm \
+          --allow-unauthenticated \
+          --use-http2 \
+          --port 15009 \
+          --image ${IMAGE} \
+          --vpc-connector projects/${PROJECT_ID}/locations/${CLOUDRUN_REGION}/connectors/serverlesscon
          --set-env-vars="CLUSTER_NAME=asm-cr" \
          --set-env-vars="CLUSTER_LOCATION=us-central1-c" \
-         --set-env-vars="ISTIO_META_CLOUDRUN_ADDR=${MCP_ADDR}" \
-         --set-env-vars="WORKLOAD_NAMESPACE=fortio" \
-         --set-env-vars="WORKLOAD_NAME=fortio-cr" \
-         --set-env-vars="LABEL_APP=fortio-cr"
          
 ```
 
@@ -157,8 +164,14 @@ services. So fortio, fortio.fortio, fortio.fortio.svc.cluster.local also work.
 
 Configuration is based on environment variables and metadata server. 
 
-We expect a GKE cluster in the same project with the CloudRun service. CLUSTER_NAME and CLUSTER_LOCATION allow 
-finding the cluster. The init steps grant the GSA running the service (minimal) access to the cluster. 
+- CLUSTER_NAME - name of the config cluster, required. 
+- CLUSTER_LOCATION - location of the GKE config cluster. Optional if 
+  the cluster is regional and in same region with the CloudRun service.
+- PROJECT_ID - project of the config cluster - optional, defaults to same
+project.
+
+
+
 
 WORKLOAD_NAMESPACE and WORKLOAD_NAME (TODO: use shorter names) map the CloudRun service to the equivalent of a k8s pod, 
 in the given namespace. You can specify additional labels to be used by Istio for config generation - in Istio

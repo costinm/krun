@@ -26,6 +26,8 @@ type KRun struct {
 
 	// Address of the XDS server. If not specified, MCP is used.
 	XDSAddr string
+	// MCPAddr, extracted from cluster
+	MCPAddr string
 
 	// Canonical name for the application.
 	// Will be set as "app" and "service.istio.io/canonical-name" labels
@@ -69,8 +71,6 @@ type KRun struct {
 	ProjectNumber   string
 	ClusterName     string
 	ClusterLocation string
-
-	MCPAddr string
 
 	agentCmd    *exec.Cmd
 	appCmd      *exec.Cmd
@@ -175,10 +175,6 @@ func (kr *KRun) InitFromEnv() *KRun {
 	if kr.XDSAddr == "" {
 		kr.XDSAddr = os.Getenv("XDS_ADDR")
 	}
-	if kr.XDSAddr == "" {
-		kr.XDSAddr = "meshconfig.googleapis.com:443"
-	}
-
 	// Advanced options
 
 	// example dns:debug

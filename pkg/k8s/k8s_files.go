@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -39,3 +40,28 @@ func initCM(k8sClient *kubernetes.Clientset,  ns string, name string, path strin
 	}
 }
 
+func (kr *KRun) InitIstio() {
+	// TODO: find default tag, label, etc.
+	// Current code is written for MCP, use XDS_ADDR explicitly
+	// otherwise.
+	s, err :=  kr.Client.CoreV1().ConfigMaps("istio-system").Get(context.Background(),
+		"istio-asm-managed", metav1.GetOptions{})
+	if err != nil {
+		//
+		panic(err)
+	}
+	meshCfg := s.Data["mesh"]
+	kr.XDSAddr = meshCfgGet(meshCfg, "discoveryAddress")
+	kr.MCPAddr = meshCfgGet(meshCfg, "ISTIO_META_CLOUDRUN_ADDR")
+}
+
+func meshCfgGet(meshCfg string, key string) string {
+	start1 := strings.Index(meshCfg, key)
+	val := meshCfg[start1+len(key)+1:]
+	s0 := strings.Index(val, "\"")
+	e0 := strings.Index(val[s0+1:], "\"")
+	mcpAddr := val[s0+1: s0+e0+1]
+	log.Println("Start, end ", start1, s0, e0, mcpAddr)
+	return mcpAddr
+
+}

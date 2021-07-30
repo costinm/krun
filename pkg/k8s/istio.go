@@ -146,6 +146,10 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 	}
 	env = append(env, "TRUST_DOMAIN=" + kr.TrustDomain)
 
+	if strings.Contains(kr.XDSAddr, "meshconfig") {
+		env = append(env, "ISTIO_META_CLOUDRUN_ADDR=" + kr.MCPAddr)
+	}
+
 	// WIP: automate getting the CR addr (or have Thetis handle it)
 	// For example by reading a configmap in cluster
 	//--set-env-vars="ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443" \

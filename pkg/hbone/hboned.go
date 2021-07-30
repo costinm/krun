@@ -3,7 +3,6 @@ package hbone
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -21,8 +20,6 @@ type HBone struct {
 
 	h2Server *http2.Server
 	listener net.Listener
-	// template, used for TLS connections and the host ID
-	TLSConfig *tls.Config
 	Cert *tls.Certificate
 }
 
@@ -53,6 +50,7 @@ func (hb *HBone) Init() error {
 	if err != nil {
 		return err
 	}
+	hb.h2Server = &http2.Server{}
 
 	return nil
 }
@@ -119,32 +117,34 @@ func (hac *HBoneAcceptedConn) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	// TCP proxy for SSH ( no mTLS, SSH has its own equivalent)
 	if r.RequestURI ==  "/_hbone/22" {
-		hac.hb.HandleTCPProxy(w, r.Body, "localhost:15022")
-	}
+		err := hac.hb.HandleTCPProxy(w, r.Body, "localhost:15022")
+		log.Println("hbone proxy done ", r.RequestURI, err)
 
-	// Create a stream, used for proxy with caching.
-	conf := hac.hb.TLSConfig.Clone()
-	conf.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-		log.Println("XXXX Istio mTLS verificaton goes here ")
-		return nil
-	}
-
-	conf.NextProtos = []string{"istio", "h2"}
-	tls := tls.Server(&HTTPConn{r: r, w: w, acceptedConn: hac.conn}, conf)
-
-	// TODO: replace with handshake with context
-	err := tls.Handshake()
-	if err != nil {
 		return
 	}
+	if r.RequestURI ==  "/_hbone/mtls" {
+		// Create a stream, used for proxy with caching.
+		conf := hac.hb.Auth.TLSConfig
 
-	// TODO: All Istio checks go here. The TLS handshake doesn't check
-	// root cert or anything - this is proof of concept only, to eval
-	// perf.
+		tls := tls.Server(&HTTPConn{r: r, w: w, acceptedConn: hac.conn}, conf)
 
-	// TODO: allow user to customize app port, protocol.
-	// TODO: if protocol is not matching wire protocol, convert.
-	hac.hb.HandleTCPProxy(tls, tls, "locahost:8080")
+		// TODO: replace with handshake with context
+		err := tls.Handshake()
+		if err != nil {
+			return
+		}
+
+		// TODO: All Istio checks go here. The TLS handshake doesn't check
+		// root cert or anything - this is proof of concept only, to eval
+		// perf.
+
+		// TODO: allow user to customize app port, protocol.
+		// TODO: if protocol is not matching wire protocol, convert.
+		hac.hb.HandleTCPProxy(tls, tls, "locahost:8080")
+		return
+	}
+	hac.hb.HandleTCPProxy(w, r.Body, "localhost:8080")
+
 
 	//if tls.ConnectionState().NegotiatedProtocol == "h2" {
 	//	// http2 and http expect a net.Listener, and do their own accept()
@@ -176,6 +176,7 @@ func (hb *HBone) handleAcceptedH2C(conn net.Conn) {
 func (hb *HBone) HandleTCPProxy(w io.Writer, r io.Reader, s string) error {
 	nc, err := net.Dial("tcp", s)
 	if err != nil {
+		log.Println("Error dialing ", s ,err)
 		return err
 	}
 

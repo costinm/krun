@@ -14,12 +14,13 @@ var initDebug func(run *k8s.KRun)
 
 func main() {
 	kr := &k8s.KRun{}
-	kr.InitromEnv()
+	kr.InitFromEnv()
 
 	k8sClient, err := kr.GetK8S()
 	if err != nil {
 		panic(err)
 	}
+
 
 	if len(os.Args) == 1 {
 		// Default gateway label for now, we can customize with env variables.
@@ -31,10 +32,14 @@ func main() {
 
 	kr.Refresh()
 
-	xdsAddr := os.Getenv("XDS_ADDR")
-	if xdsAddr != "" {
-		proxyConfig := fmt.Sprintf(`{"discoveryAddress": "%s"}`, xdsAddr)
+	if kr.XDSAddr == "" {
+		kr.InitIstio()
+	}
+
+	if kr.XDSAddr != "" && kr.XDSAddr != "-" {
+		proxyConfig := fmt.Sprintf(`{"discoveryAddress": "%s"}`, kr.XDSAddr)
 		kr.StartIstioAgent(proxyConfig)
+
 	}
 
 	kr.StartApp()

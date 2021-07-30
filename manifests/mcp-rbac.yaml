@@ -1,0 +1,30 @@
+# Allow all system-authenticated KSAs to read the
+# mesh config in istio-system for MCP.
+#
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: istio-system
+  name: asm-meshconfig
+rules:
+  - apiGroups: [""]
+    resources:
+      - "configmaps"
+    resourceNames:
+      - "istio-asm-managed"
+    verbs:
+      - "get"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: istio-system
+  name: asm-meshconfig
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: asm-meshconfig
+subjects:
+  - kind: Group
+    name: system:authenticated
+    apiGroup: rbac.authorization.k8s.io
