@@ -36,7 +36,7 @@ run:
         -e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
 		-e WORKLOAD_NAMESPACE=fortio \
 		-e WORKLOAD_NAME=cloudrun \
-		\
+		${DOCKER_EXTRA} \
 		-e SSH_AUTH="$(shell cat ~/.ssh/id_ecdsa.pub)" \
 		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
 		-v ${ADC}:/var/run/secrets/google/google.json:ro \
@@ -52,3 +52,6 @@ ssh:
  		-o StrictHostKeyChecking=no \
  		-o ProxyCommand='hbone http://127.0.0.1:9999/_hbone/22'  \
      		root@proxybase
+
+test/asm:
+	DOCKER_EXTRA="-e XDS_ADDR=istiod.wlhe.i.webinf.info:443" CLUSTER_NAME=istio CLUSTER_LOCATION=us-central1-c $(MAKE) run

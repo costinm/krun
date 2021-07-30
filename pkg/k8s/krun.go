@@ -26,7 +26,7 @@ type KRun struct {
 
 	// Address of the XDS server. If not specified, MCP is used.
 	XDSAddr string
-	// MCPAddr, extracted from cluster
+	// MCPAddr, extracted from cluster. Only set if using MCP
 	MCPAddr string
 
 	// Canonical name for the application.

@@ -36,10 +36,9 @@ func main() {
 		kr.InitIstio()
 	}
 
-	if kr.XDSAddr != "" && kr.XDSAddr != "-" {
+	if kr.XDSAddr != "-" {
 		proxyConfig := fmt.Sprintf(`{"discoveryAddress": "%s"}`, kr.XDSAddr)
 		kr.StartIstioAgent(proxyConfig)
-
 	}
 
 	kr.StartApp()
@@ -52,17 +51,19 @@ func main() {
 
 
 	// TODO: wait for app and proxy ready
-	hb := &hbone.HBone{
-	}
-	err = hb.Init()
-	if err != nil {
-		panic(err)
-	}
+	if kr.XDSAddr != "-" {
+		hb := &hbone.HBone{
+		}
+		err = hb.Init()
+		if err != nil {
+			log.Println("Failed to init hbone", err)
+		} else {
 
-	err = hb.Start(":14009")
-	if err != nil {
-		panic(err)
+			err = hb.Start(":14009")
+			if err != nil {
+				panic(err)
+			}
+		}
 	}
-
 	select{}
 }

@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"strings"
 	"syscall"
 
 	"github.com/creack/pty"
@@ -137,16 +136,14 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 		kr.ProjectId, kr.ProjectNumber, kr.ClusterName, kr.ClusterLocation ))
 	env = append(env, "XDS_ADDR=" + kr.XDSAddr)
 	//env = append(env, "CA_ROOT_CA=/etc/ssl/certs/ca-certificates.crt")
-	env = append(env, "XDS_AUTH_PROVIDER=gcp")
 	//env = append(env, "XDS_ROOT_CA=/etc/ssl/certs/ca-certificates.crt")
 	env = append(env, "JWT_POLICY=third-party-jwt")
 
-	if strings.Contains(kr.XDSAddr, "meshconfig") && strings.Contains(kr.XDSAddr, "googleapis.com") {
-		env = append(env, "CA_ADDR=meshca.googleapis.com:443")
-	}
 	env = append(env, "TRUST_DOMAIN=" + kr.TrustDomain)
 
-	if strings.Contains(kr.XDSAddr, "meshconfig") {
+	if kr.MCPAddr != "" {
+		env = append(env, "CA_ADDR=meshca.googleapis.com:443")
+		env = append(env, "XDS_AUTH_PROVIDER=gcp")
 		env = append(env, "ISTIO_META_CLOUDRUN_ADDR=" + kr.MCPAddr)
 	}
 

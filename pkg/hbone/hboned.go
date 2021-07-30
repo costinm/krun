@@ -9,6 +9,8 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"runtime/debug"
 	"time"
 
@@ -20,11 +22,12 @@ type HBone struct {
 
 	h2Server *http2.Server
 	listener net.Listener
-	Cert *tls.Certificate
+	Cert     *tls.Certificate
+	rp       *httputil.ReverseProxy
 }
 
 type HBoneAcceptedConn struct {
-	hb *HBone
+	hb   *HBone
 	conn net.Conn
 }
 
@@ -51,6 +54,8 @@ func (hb *HBone) Init() error {
 		return err
 	}
 	hb.h2Server = &http2.Server{}
+	u, _ := url.Parse("http://localhost:8080")
+	hb.rp = httputil.NewSingleHostReverseProxy(u)
 
 	return nil
 }
@@ -141,23 +146,24 @@ func (hac *HBoneAcceptedConn) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		// TODO: allow user to customize app port, protocol.
 		// TODO: if protocol is not matching wire protocol, convert.
 		hac.hb.HandleTCPProxy(tls, tls, "locahost:8080")
+		//if tls.ConnectionState().NegotiatedProtocol == "h2" {
+		//	// http2 and http expect a net.Listener, and do their own accept()
+		//	hb.proxy.ServeConn(
+		//		tls,
+		//		&http2.ServeConnOpts{
+		//			Handler: http.HandlerFunc(l.ug.H2Handler.httpHandleHboneCHTTP),
+		//			Context: tc.Context(), // associated with the stream, with cancel
+		//		})
+		//} else {
+		//	// HTTP/1.1
+		//	// TODO. Typically we want to upgrade over the wire to H2
+		//}
 		return
 	}
-	hac.hb.HandleTCPProxy(w, r.Body, "localhost:8080")
 
-
-	//if tls.ConnectionState().NegotiatedProtocol == "h2" {
-	//	// http2 and http expect a net.Listener, and do their own accept()
-	//	hb.proxy.ServeConn(
-	//		tls,
-	//		&http2.ServeConnOpts{
-	//			Handler: http.HandlerFunc(l.ug.H2Handler.httpHandleHboneCHTTP),
-	//			Context: tc.Context(), // associated with the stream, with cancel
-	//		})
-	//} else {
-	//	// HTTP/1.1
-	//	// TODO. Typically we want to upgrade over the wire to H2
-	//}
+	// This is not a tunnel, but regular request. For test only - should be off once mTLS
+	// works properly.
+	hac.hb.rp.ServeHTTP(w, r)
 }
 
 
