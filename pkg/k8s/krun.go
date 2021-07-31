@@ -1,7 +1,9 @@
 package k8s
 
 import (
+	"os"
 	"os/exec"
+	"strings"
 
 	containerpb "google.golang.org/genproto/googleapis/container/v1"
 	"k8s.io/client-go/kubernetes"
@@ -22,13 +24,10 @@ type KRun struct {
 	// will be created. Files should be under /var/run/secrets
 	Aud2File map[string]string
 
-	// URL of a SSH Cert authority, similar with Istiod.
-	// If set, will be used to enable an SSHD server, with a cert signed
-	// by the CA based on the Istio mTLS certificate, with the same identity.
-	//
-	// The SSH server will accept connections using certs signed by the same
-	// cert authority, with same namespace or istio-system.
-	SSHCA string
+	// Address of the XDS server. If not specified, MCP is used.
+	XDSAddr string
+	// MCPAddr, extracted from cluster. Only set if using MCP
+	MCPAddr string
 
 	// Canonical name for the application.
 	// Will be set as "app" and "service.istio.io/canonical-name" labels
@@ -60,7 +59,7 @@ type KRun struct {
 
 	// Primary client is the k8s client to use. If not set will be created based on
 	// the config.
-	Client   *kubernetes.Clientset
+	Client *kubernetes.Clientset
 
 	// List of clusters - used if location and cluster are not set explicitly
 	clusters []*containerpb.Cluster
@@ -68,11 +67,126 @@ type KRun struct {
 	// Kubeconfig - constructed by looking up the clusters
 	KubeConfig *clientcmdapi.Config
 
-	agentCmd *exec.Cmd
-	appCmd   *exec.Cmd
+	ProjectId       string
+	ProjectNumber   string
+	ClusterName     string
+	ClusterLocation string
+
+	agentCmd    *exec.Cmd
+	appCmd      *exec.Cmd
+	TrustDomain string
 }
 
-type cluster struct {
-	client   *kubernetes.Clientset
+func (kr *KRun) InitFromEnv() *KRun {
 
+	if kr.KSA == "" {
+		kr.KSA = os.Getenv("WORKLOAD_SERVICE_ACCOUNT")
+	}
+
+	if kr.KSA == "" {
+		kr.KSA = "default"
+	}
+
+	if kr.Namespace == "" {
+		kr.Namespace = os.Getenv("WORKLOAD_NAMESPACE")
+	}
+	if kr.Name == "" {
+		kr.Name = os.Getenv("WORKLOAD_NAME")
+	}
+
+	ks := os.Getenv("K_SERVICE")
+	if kr.Namespace == "" {
+		// TODO: revision--NS-NAME-SUFFIX
+		parts := strings.Split(ks, "-")
+		kr.Namespace = parts[0]
+		if len(parts) > 1 {
+			kr.Name = parts[1]
+		}
+	}
+
+	if kr.Namespace == "" {
+		kr.Namespace = "default"
+	}
+	if kr.Name == "" {
+		kr.Name = kr.Namespace
+	}
+
+	kr.Aud2File = map[string]string{}
+	prefix := "."
+	if os.Getuid() == 0 {
+		prefix = ""
+	}
+	for _, kv := range os.Environ() {
+		kvl := strings.SplitN(kv, "=", 2)
+		if strings.HasPrefix(kvl[0], "K8S_SECRET_") {
+			kr.Secrets2Dirs[kvl[0][11:]] = prefix + kvl[1]
+		}
+		if strings.HasPrefix(kvl[0], "K8S_CM_") {
+			kr.CM2Dirs[kvl[0][7:]] = prefix + kvl[1]
+		}
+		if strings.HasPrefix(kvl[0], "K8S_TOKEN_") {
+			kr.Aud2File[kvl[0][10:]] =  prefix + kvl[1]
+		}
+	}
+	if kr.ProjectId == "" {
+		kr.ProjectId = os.Getenv("PROJECT_ID")
+	}
+	if kr.ProjectId == "" {
+		kr.ProjectId, _ = ProjectFromMetadata()
+	}
+
+	if kr.TrustDomain == "" {
+		kr.TrustDomain = os.Getenv("TRUST_DOMAIN")
+	}
+	if kr.TrustDomain == "" {
+		kr.TrustDomain = kr.ProjectId + ".svc.id.goog"
+	}
+	kr.Aud2File[kr.TrustDomain] = prefix + "/var/run/secrets/tokens/istio-token"
+	kr.Aud2File["api"] = prefix + "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+	if kr.KSA == "" {
+		kr.KSA = "default"
+	}
+
+	if kr.ClusterName == "" {
+		kr.ClusterName = os.Getenv("CLUSTER_NAME")
+	}
+
+
+	if kr.ProjectNumber == "" {
+		kr.ProjectNumber = os.Getenv("PROJECT_NUMBER")
+	}
+	if kr.ProjectNumber == "" {
+		kr.ProjectNumber, _ = ProjectNumberFromMetadata()
+	}
+
+
+	if kr.ClusterLocation == "" {
+		kr.ClusterLocation = os.Getenv("CLUSTER_LOCATION")
+	}
+	// Deprecated
+	if kr.ClusterLocation == "" {
+		kr.ClusterLocation = os.Getenv("LOCATION")
+	}
+	if kr.ClusterLocation == "" {
+		kr.ClusterLocation, _ = RegionFromMetadata()
+	}
+
+	if kr.XDSAddr == "" {
+		kr.XDSAddr = os.Getenv("XDS_ADDR")
+	}
+	// Advanced options
+
+	// example dns:debug
+	kr.AgentDebug = cfg("XDS_AGENT_DEBUG", "")
+
+	return kr
+}
+
+func cfg(name, def string) string {
+	v := os.Getenv(name)
+	if name == "" {
+		return def
+	}
+	return v
 }

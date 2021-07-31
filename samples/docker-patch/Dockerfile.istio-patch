@@ -22,8 +22,8 @@ COPY --from=istio /var/run/ko/envoy_bootstrap_tmpl.json /var/lib/istio/envoy/env
 # Until iptables is working - can be used with iptables too
 ENV HTTP_PROXY=127.0.0.1:15080
 
-ENV POD_NAMESPACE=${NS}
-ENV POD_NAME=${APP}
+ENV WORKLOAD_NAMESPACE=${NS}
+ENV WORKLOAD_NAME=${APP}
 ENV LABEL_APP=${APP}
 
 ENTRYPOINT ["/krun"]

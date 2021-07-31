@@ -1,27 +1,42 @@
+# This config allows a Google Service Account to impersonate a Kubernetes Service Account by
+# calling the 'TokenRequest' API to get audience-bound tokens equivalent with the tokens created
+# by secret mounts.
+# It also has permissions needed to get the configmaps for connecting to Istiod.
+
+# In turn, the tokens can be used to access Istio and other services using KSA.
+# The role is limited to the 'default' service account in the namespace.
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
-  name: fortio-tokenrequest
+  namespace: ${NS}
+  name: xds-default
 rules:
   - apiGroups: [""]
     resources:
       - "serviceaccounts/token"
-      - "serviceaccounts"
-#    resourceNames:
-#      - "default"
+    resourceNames:
+      - "default"
     verbs:
       - "create"
+      - "get"
+  - apiGroups: [""]
+    resources:
+      - "configmaps"
+    resourceNames:
+      - "istio-ca-root-cert"
+      - "krun"
+    verbs:
       - "get"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: tokenrequest
+  namespace: ${NS}
+  name: xds-default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: fortio-tokenrequest
+  kind: Role
+  name: xds-default
 subjects:
-  - kind: ServiceAccount
-    name: default
-    namespace: default
+  - kind: User
+    name: k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com

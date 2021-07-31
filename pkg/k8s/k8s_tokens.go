@@ -27,7 +27,7 @@ func (kr *KRun) Refresh() {
 	time.AfterFunc(30 * time.Minute, kr.Refresh)
 }
 
-func InitToken(client *kubernetes.Clientset, ns string, ksa string, audience string, s2 string) error {
+func InitToken(client *kubernetes.Clientset, ns string, ksa string, audience string, destFile string) error {
 	treq := &authenticationv1.TokenRequest{
 		Spec: authenticationv1.TokenRequestSpec{
 			Audiences: []string{audience},
@@ -40,16 +40,16 @@ func InitToken(client *kubernetes.Clientset, ns string, ksa string, audience str
 		return err
 	}
 
-	lastSlash := strings.LastIndex(s2, "/")
-	err = os.MkdirAll(s2[:lastSlash], 0755)
+	lastSlash := strings.LastIndex(destFile, "/")
+	err = os.MkdirAll(destFile[:lastSlash], 0755)
 	if err != nil {
-		log.Println("Error creating dir", ns, ksa, s2[:lastSlash])
+		log.Println("Error creating dir", ns, ksa, destFile[:lastSlash])
 	}
 	// Save the token, readable by app. Little value to have istio token as different user,
 	// for this separate container/sandbox is needed.
-	err = ioutil.WriteFile(s2, []byte(ts.Status.Token), 0644)
+	err = ioutil.WriteFile(destFile, []byte(ts.Status.Token), 0644)
 	if err != nil {
-		log.Println("Error creating ", ns, ksa, audience, s2, err)
+		log.Println("Error creating ", ns, ksa, audience, destFile, err)
 		return err
 	}
 

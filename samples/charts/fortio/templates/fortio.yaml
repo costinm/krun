@@ -25,7 +25,8 @@ spec:
       labels:
         app: {{ .Values.app }}
         version: v1
-        istio.io/rev: canary
+        # This can be used to override - if not set, use the namespace or cluster default
+        #istio.io/rev: canary
     spec:
       containers:
       - name: fortio

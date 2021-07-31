@@ -7,9 +7,9 @@
 # Defaults, using the internal test cluster - must be overriden
 
 # GKE cluster used
-PROJECT?=wlhe-cr
-LOCATION?=us-central1-c
-CLUSTER?=istio
+PROJECT_ID?=wlhe-cr
+CLUSTER_LOCATION?=us-central1-c
+CLUSTER_NAME?=asm-cr
 
 # Region where CR will be deployed
 REGION?=us-central1
@@ -30,77 +30,91 @@ CR_SUFFIX=-icq63pqnqq-uc.a.run.app
 ################ Values derived from .local.mk
 
 # Where to store the images
-REPO=gcr.io/${PROJECT}
+REPO=gcr.io/${PROJECT_ID}
 
+IMAGE?=${REPO}/fortio-cr:latest
 
 ISTIOD_URL?=istiod.${SUBDOMAIN}:443
 
 # Namespace to attach to.
 NS=fortio
 
-# GKE cluster used by cloudrun
-K8S_CLUSTER_ARGS=--set-env-vars="PROJECT=${PROJECT}" \
-                 --set-env-vars="LOCATION=${LOCATION}" \
-                 --set-env-vars="CLUSTER=${CLUSTER}" \
-        		 --set-env-vars="XDS_ADDR=${ISTIOD_URL}"
-
 # Enable the built-in sshd server, with cert auth
-SSH_DEBUG_ARGS=--set-env-vars="SSH_CA=sshca.${SUBDOMAIN}:443" \
-               --set-env-vars="SSH_AUTH=$(shell cat ~/.ssh/id_ecdsa.pub)" \
+SSH_DEBUG_ARGS=--set-env-vars="SSH_AUTH=$(shell cat ~/.ssh/id_ecdsa.pub)"
+
+# If the SSH CA is installed, this will also provide server authentication, you can
+# remove "-o StrictHostKeyChecking=no -o "UserKnownHostsFile /dev/null""
+#--set-env-vars="SSH_CA=sshca.${SUBDOMAIN}:443" \
 
 
 # Create fortio+proxy image, deploy to CloudRun
 all: image push deploy
 
 push: image
-	docker push ${REPO}/fortio:latest
-
-pull:
-	docker pull ghcr.io/costinm/krun/krun:latest # Get latest
+	docker push ${IMAGE}
 
 # Build the image using the proxy as base
 image:
-	docker build . \
-		-f Dockerfile.fortio \
-		--build-arg BASE=ko.local/krun:latest \
-		-t ${REPO}/fortio:latest
+	docker build . -t ${IMAGE}
+
+# For gvisor: add
+# --set-env-vars="HTTP_PROXY=127.0.0.1:15080"
 
 SANDBOX?=--sandbox=minivm
 
 # Deploy to cloudrun
-#
-#
 deploy:
-	gcloud alpha run deploy fortio${SUFFIX} \
-		  --platform managed --project ${PROJECT} \
+	gcloud alpha run deploy fortio-${CLUSTER_NAME}${SUFFIX} \
+		  --platform managed --project ${PROJECT_ID} \
+		  --region ${REGION} ${SANDBOX} \
+         --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
+         --allow-unauthenticated \
+         --use-http2 \
+         --port 14009 \
+         --min-instances=1 \
+         --image ${IMAGE} \
+         --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}" \
+         --set-env-vars="CLUSTER_NAME=${CLUSTER_NAME}" \
+          ${SSH_DEBUG_ARGS} ${EXTRA} \
+ 		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
+
+# WIP - will need additional setup for exposing Istiod on a ILB or gateway with certs.
+deploy/oss:
+	gcloud alpha run deploy fortio-${CLUSTER_NAME}${SUFFIX} \
+		  --platform managed --project ${PROJECT_ID} \
 		  --region ${REGION} ${SANDBOX} \
          --allow-unauthenticated \
          --use-http2 \
          --port 15009 \
          --min-instances=1 \
-         --image ${REPO}/fortio:latest \
+         --image ${IMAGE} \
  		  ${K8S_CLUSTER_ARGS} \
  		  ${SSH_DEBUG_ARGS} ${EXTRA} \
           --set-env-vars="HTTP_PROXY=127.0.0.1:15080" \
-         --set-env-vars="LABEL_FOO=bar2" \
-         --set-env-vars="POD_NAMESPACE=fortio" \
- 		 --set-env-vars="POD_NAME=fortio-cr" \
+         --set-env-vars="WORKLOAD_NAMESPACE=fortio" \
+ 		 --set-env-vars="WORKLOAD_NAME=fortio-cr" \
  		 --set-env-vars="LABEL_APP=fortio-cr" \
  		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)" \
- 		  --vpc-connector projects/${PROJECT}/locations/${REGION}/connectors/serverlesscon \
+ 		  --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
+
 
 # WIP - using gvisor and whitebox
 deploy-gvisor:
 	$(MAKE) deploy SUFFIX=-gvisor SANDBOX=""
 
 
+pull:
+	docker pull ghcr.io/costinm/krun/krun:latest # Get latest
+
+SVC?=https://fortio${CLUSTER_NAME}${SUFFIX}-icq63pqnqq-uc.a.run.app:443
+
 # SSH to the deployed CloudRun using HBONE
 # SUFFIX can be used for the other variants
 ssh:
-	 ssh -F /dev/null -o StrictHostKeyChecking=no \
-        -o "UserKnownHostsFile /dev/null" \
- 	    -o ProxyCommand='hbone https://fortio${SUFFIX}-icq63pqnqq-uc.a.run.app:443/_hbone/22' \
-     	root@proxybase
+	 ssh -F /dev/null -v \
+        -o StrictHostKeyChecking=no -o "UserKnownHostsFile /dev/null" \
+ 	    -o ProxyCommand='hbone ${SVC}/_hbone/22' \
+     	root@proxybase ${SSH_ARGS}
 
 config_dump:
 	 ssh -F /dev/null -o StrictHostKeyChecking=no \
@@ -113,15 +127,15 @@ config_dump:
 setup: setup-gsa setup-rbac
 
 setup-gsa:
-	gcloud --project ${PROJECT} iam service-accounts create k8s-${NS} \
+	gcloud --project ${PROJECT_ID} iam service-accounts create k8s-${NS} \
       --display-name "Service account with access to ${NS} k8s namespace"
-	gcloud --project ${PROJECT} projects add-iam-policy-binding \
-            ${PROJECT} \
-            --member="serviceAccount:k8s-${NS}@${PROJECT}.iam.gserviceaccount.com" \
+	gcloud --project ${PROJECT_ID} projects add-iam-policy-binding \
+            ${PROJECT_ID} \
+            --member="serviceAccount:k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com" \
             --role="roles/container.clusterViewer"
 
 setup-rbac:
-	cat rbac.yaml | NS=${NS} envsubst  | kubectl apply -f -
+	cat ../../manifests/rbac.yaml | NS=${NS} envsubst  | kubectl apply -f -
 
 logs-project:
 	gcloud logging read 'resource.type = "project" OR resource.type = "cloud_run_revision"'
@@ -129,70 +143,17 @@ logs-project:
 # textPayload:SyncAddress --limit=50 --format=json
 logs:
 	#gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.location = "us-central1" AND resource.labels.service_name="fortio${SUFFIX}"'
-	gcloud --project ${PROJECT} logging read \
+	gcloud --project ${PROJECT_ID} logging read \
 		--format "csv(resource.labels.service_name,textPayload)" \
 		--freshness 1h \
  		'resource.type="cloud_run_revision" AND resource.labels.location = "us-central1" AND resource.labels.service_name="fortio${SUFFIX}"'
 
 setupcon-sharedvpc:
 	gcloud services enable vpcaccess.googleapis.com
-
-	# Requires a /28 subnet - shared vpc
 	gcloud compute networks vpc-access connectors create serverlesscon \
-    --region asia-northeast1 \
+    --region ${REGION} \
     --subnet default \
-    --subnet-project wlhe-cr\
+    --subnet-project ${PROJECT_ID} \
     --min-instances 2 \
     --max-instances 10 \
-
-	#
-	gcloud compute networks vpc-access connectors create CONNECTOR_NAME \
-	--network VPC_NETWORK \
-	--region REGION \
-	--range IP_RANGE
-
-###################################################
-# Running and testing in local docker
-ADC=${HOME}/.config/gcloud/legacy_credentials/${USER}/adc.json
-export ADC
-
-# Local build - using ko.local for krun, local docker build
-run: image run/docker
-
-
-# Run the image in a local docker container, using a service account file
-run/docker:
-	docker run -it --rm \
-		--name fortio \
-        -p 9999:15009 \
-        -e XDS_ADDR=istiod.wlhe.i.webinf.info:443 \
-                -e K8S_DNS=1 \
-                -e CLUSTER=${CLUSTER} \
-                -e PROJECT=${PROJECT} \
-                -e LOCATION=${LOCATION} \
-                -e POD_NAMESPACE=fortio \
-                -e POD_NAME=fortio-cr \
-                -e LABEL_APP=fortio-cr \
-                -e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
-                -v ${ADC}:/var/run/secrets/google/google.json:ro \
-                ${REPO}/fortio:latest \
-                /bin/bash
-
-# Will run 'krun' - to debug krun use
-#        --entrypoint /bin/sh
-
-
-# SSH into the local docker (for testing ssh - docker exec is more convenient )
-ssh/docker:
-	 ssh -F /dev/null -o "UserKnownHostsFile /dev/null" \
- 		-o StrictHostKeyChecking=no \
- 		-o ProxyCommand='hbone http://127.0.0.1:9999/_hbone/22'  \
-     		root@proxybase
-
-deploy/dns:
-	$(MAKE) deploy SUFFIX=-dns EXTRA=--set-env-vars="K8S_DNS=1"
-
-# Deploy the same thing in asia
-deploy/asia:
-	$(MAKE) deploy SUFFIX=asia REGION=asia-northeast1
 

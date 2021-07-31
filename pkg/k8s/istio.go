@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -73,6 +74,7 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 	if kr.AgentDebug != "" {
 		args = append(args,	"--log_output_level=" + kr.AgentDebug)
 	}
+	args = append(args, "--stsPort=15463")
 	return exec.Command("/usr/local/bin/pilot-agent", args...)
 }
 
@@ -92,6 +94,7 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 	// If using a private CA - add it's root to the docker images, everything will be consistent
 	// and simpler !
 	env = append(env, "XDS_ROOT_CA=SYSTEM")
+	env = append(env, "PILOT_CERT_PROVIDER=system")
 	env = append(env, "CA_ROOT_CA=SYSTEM")
 	env = append(env, "POD_NAMESPACE=" + kr.Namespace)
 
@@ -125,6 +128,31 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 	// Currently broken in iptables - use whitebox interception, but still run it
 	env = append(env, "ISTIO_META_DNS_CAPTURE=true")
 	env = append(env, "DNS_PROXY_ADDR=localhost:53")
+
+	// MCP config
+	env = append(env, fmt.Sprintf("GKE_CLUSTER_URL=https://container.googleapis.com/v1/projects/%s/locations/%s/clusters/%s",
+		kr.ProjectId, kr.ClusterLocation, kr.ClusterName))
+	env = append(env, fmt.Sprintf("GCP_METADATA=%s|%s|%s|%s",
+		kr.ProjectId, kr.ProjectNumber, kr.ClusterName, kr.ClusterLocation ))
+	env = append(env, "XDS_ADDR=" + kr.XDSAddr)
+	//env = append(env, "CA_ROOT_CA=/etc/ssl/certs/ca-certificates.crt")
+	//env = append(env, "XDS_ROOT_CA=/etc/ssl/certs/ca-certificates.crt")
+	env = append(env, "JWT_POLICY=third-party-jwt")
+
+	env = append(env, "TRUST_DOMAIN=" + kr.TrustDomain)
+
+	if kr.MCPAddr != "" {
+		env = append(env, "CA_ADDR=meshca.googleapis.com:443")
+		env = append(env, "XDS_AUTH_PROVIDER=gcp")
+		env = append(env, "ISTIO_META_CLOUDRUN_ADDR=" + kr.MCPAddr)
+	}
+
+	// WIP: automate getting the CR addr (or have Thetis handle it)
+	// For example by reading a configmap in cluster
+	//--set-env-vars="ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443" \
+
+	env = append(env, fmt.Sprintf("ISTIO_META_CLUSTER_ID=cn-%s-%s-%s",
+		kr.ProjectId, kr.ClusterLocation, kr.ClusterName))
 
 	// If set, let istiod generate bootstrap
 	bootstrapIstiod := os.Getenv("BOOTSTRAP_XDS_AGENT")
@@ -249,17 +277,20 @@ func (kr *KRun) runIptablesSetup(env []string) {
 		"-x", "")
 	cmd.Env = env
 	cmd.Dir = "/"
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	so := &bytes.Buffer{}
+	se := &bytes.Buffer{}
+	cmd.Stdout = so
+	cmd.Stderr = se
 	err := cmd.Start()
 	if err != nil {
-		log.Println("Error starting iptables", err)
+		log.Println("Error starting iptables", err, so.String(), "stderr:", se.String())
 	} else {
 		err = cmd.Wait()
 		if err != nil {
-			log.Println("Error starting iptables", err)
+			log.Println("Error starting iptables", err, so.String(), "stderr:", se.String())
 		}
 	}
+	// TODO: make the stdout/stderr available in a debug endpoint
 	log.Println("Iptables start done")
 }
 
