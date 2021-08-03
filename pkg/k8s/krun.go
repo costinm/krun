@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	containerpb "google.golang.org/genproto/googleapis/container/v1"
 	"k8s.io/client-go/kubernetes"
@@ -75,6 +76,8 @@ type KRun struct {
 	agentCmd    *exec.Cmd
 	appCmd      *exec.Cmd
 	TrustDomain string
+
+	StartTime time.Time
 }
 
 func (kr *KRun) InitFromEnv() *KRun {

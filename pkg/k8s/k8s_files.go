@@ -55,13 +55,12 @@ func (kr *KRun) InitIstio() {
 	kr.MCPAddr = meshCfgGet(meshCfg, "ISTIO_META_CLOUDRUN_ADDR")
 }
 
+// quick qay to extract the value of a key from mesh config, without fully decoding it.
 func meshCfgGet(meshCfg string, key string) string {
 	start1 := strings.Index(meshCfg, key)
 	val := meshCfg[start1+len(key)+1:]
 	s0 := strings.Index(val, "\"")
 	e0 := strings.Index(val[s0+1:], "\"")
 	mcpAddr := val[s0+1: s0+e0+1]
-	log.Println("Start, end ", start1, s0, e0, mcpAddr)
 	return mcpAddr
-
 }
