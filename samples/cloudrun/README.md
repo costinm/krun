@@ -108,12 +108,12 @@ gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
           --project ${PROJECT_ID} \
           --region ${REGION} \
           --sandbox=minivm \
-          --serviceAccount:k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com \
+          --serviceAccount=k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com \
           --allow-unauthenticated \
           --use-http2 \
           --port 15009 \
           --image ${IMAGE} \
-          --vpc-connector projects/${PROJECT_ID}/locations/${CLOUDRUN_REGION}/connectors/serverlesscon \
+          --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
          --set-env-vars="CLUSTER_NAME=${CLUSTER_NAME}" \
          --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}" 
          
