@@ -145,14 +145,16 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 		env = append(env, "CA_ADDR=meshca.googleapis.com:443")
 		env = append(env, "XDS_AUTH_PROVIDER=gcp")
 		env = append(env, "ISTIO_META_CLOUDRUN_ADDR=" + kr.MCPAddr)
+		// This is required for MCP - does not work for OSS primary cluster.
+		// Will be used to set a clusterid metadata, which will locate the remote cluster id
+		env = append(env, fmt.Sprintf("ISTIO_META_CLUSTER_ID=cn-%s-%s-%s",
+			kr.ProjectId, kr.ClusterLocation, kr.ClusterName))
+
 	}
 
 	// WIP: automate getting the CR addr (or have Thetis handle it)
 	// For example by reading a configmap in cluster
 	//--set-env-vars="ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443" \
-
-	env = append(env, fmt.Sprintf("ISTIO_META_CLUSTER_ID=cn-%s-%s-%s",
-		kr.ProjectId, kr.ClusterLocation, kr.ClusterName))
 
 	// If set, let istiod generate bootstrap
 	bootstrapIstiod := os.Getenv("BOOTSTRAP_XDS_AGENT")

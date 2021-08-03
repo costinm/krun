@@ -129,7 +129,7 @@ func (kr *KRun) InitGCP() error {
 		kr.AllClusters(kr.ProjectId, "", "", "")
 		//log.Println("Get all clusters ", time.Since(t0))
 
-		for _, c := range kr.clusters {
+		for _, c := range kr.Clusters {
 			if strings.HasPrefix(c.Location, kr.ClusterLocation) {
 				log.Println("------- Found ", c)
 				rc, err := kr.restConfigForCluster(c)

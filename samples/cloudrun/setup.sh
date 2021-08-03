@@ -2,7 +2,7 @@
 
 export PROJECT_ID=${PROJECT_ID:-wlhe-cr}
 export CLUSTER_LOCATION=${CLUSTER_LOCATION:-us-central1-c}
-export CLUSTER_NAME=${CLUSTER_NAME:-asm-managed}
+export CLUSTER_NAME=${CLUSTER_NAME:-asm-cr}
 export REGION=${REGION:-us-central1}
 
 export NS=${NS:-fortio}
@@ -108,3 +108,20 @@ function setup_fortio() {
 }
 
 
+function deploy_app() {
+  export CLOUDRUN_SERVICE=fortio-asm-cr
+  export REGION=us-central1
+
+  gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
+          --platform managed \
+          --project ${PROJECT_ID} \
+          --region ${REGION} \
+          --sandbox=minivm \
+          --allow-unauthenticated \
+          --use-http2 \
+          --port 15009 \
+          --image ${IMAGE} \
+          --vpc-connector projects/${PROJECT_ID}/locations/${CLOUDRUN_REGION}/connectors/serverlesscon \
+          --set-env-vars="CLUSTER_NAME=${CLUSTER_NAME}" \
+         --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}"
+}

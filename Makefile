@@ -114,7 +114,7 @@ deploy/istiod:
 		--set telemetry.enabled=true \
 		--set meshConfig.trustDomain="${PROJECT_ID}.svc.id.goog" \
 		--set global.sds.token.aud="${PROJECT_ID}.svc.id.goog" \
-		--set pilot.env.TOKEN_AUDIENCES="{${PROJECT_ID}.svc.id.goog,istio-ca}" \
+		--set pilot.env.TOKEN_AUDIENCES="${PROJECT_ID}.svc.id.goog\,istio-ca" \
 		--set meshConfig.proxyHttpPort=15080 \
         --set meshConfig.accessLogFile=/dev/stdout \
         --set pilot.replicaCount=1 \

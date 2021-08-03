@@ -95,12 +95,12 @@ WIP - Deploy the service, using the defaults. Namespace is extracted from the se
 
 ```shell
 export CLOUDRUN_SERVICE=fortio-asm-cr
-export CLOUDRUN_REGION=us-central1
+export REGION=us-central1
 
 gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
           --platform managed 
           --project ${PROJECT_ID} \
-          --region ${CLOUDRUN_REGION} \
+          --region ${REGION} \
           --sandbox=minivm \
           --allow-unauthenticated \
           --use-http2 \
@@ -115,22 +115,25 @@ Deploy the service, with explicit configuration:
 
 ```shell
 export CLOUDRUN_SERVICE=fortio-cloudrun
-export CLOUDRUN_REGION=us-central1
+export REGION=us-central1
 
 gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
-          --platform managed 
+          --platform managed \
           --project ${PROJECT_ID} \
-          --region ${CLOUDRUN_REGION} \
+          --region ${REGION} \
           --sandbox=minivm \
           --allow-unauthenticated \
           --use-http2 \
           --port 15009 \
           --image ${IMAGE} \
-          --vpc-connector projects/${PROJECT_ID}/locations/${CLOUDRUN_REGION}/connectors/serverlesscon
-         --set-env-vars="CLUSTER_NAME=asm-cr" \
-         --set-env-vars="CLUSTER_LOCATION=us-central1-c" \
+          --vpc-connector projects/${PROJECT_ID}/locations/${CLOUDRUN_REGION}/connectors/serverlesscon \
+         --set-env-vars="CLUSTER_NAME=${CLUSTER_NAME}" \
+         --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}" 
          
 ```
+
+CLUSTER_NAME and CLUSTER_LOCATION will be optional - krun will pick a config cluster in the same region based on a TBD 
+label, and fallback to other config cluster if the local cluster is unavailable.
 
 ### Testing
 

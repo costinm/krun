@@ -135,7 +135,7 @@ func (kr *KRun) CreateRestConfig(p, l, clusterName string) (*rest.Config, error)
 		return nil, err
 	}
 
-	kr.clusters = append(kr.clusters, c)
+	kr.Clusters = append(kr.Clusters, c)
 
 	kr.addClusterConfig(c, p, l, clusterName)
 	return kr.restConfigForCluster(c)
@@ -250,11 +250,17 @@ func (kr *KRun) AllClusters(project string, defCluster string, label string, mes
 
 	for _, c := range clusters.Clusters {
 		if label != "" {
-			if c.ResourceLabels[label] != meshID {
-				continue
+			if meshID == "" {
+				if c.ResourceLabels[label] == "" {
+					continue
+				}
+			} else {
+				if c.ResourceLabels[label] != meshID {
+					continue
+				}
 			}
 		}
-		kr.clusters = append(kr.clusters, c)
+		kr.Clusters = append(kr.Clusters, c)
 
 		caCert, err := base64.StdEncoding.DecodeString(c.MasterAuth.ClusterCaCertificate)
 		if err != nil {
