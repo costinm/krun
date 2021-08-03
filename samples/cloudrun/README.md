@@ -42,12 +42,15 @@ when deploying the CloudRun service.
 ### Namespace setup 
 
 The steps can be run by a user or service account with namespace permissions in K8S and CR deploy permission.
+In this example we will use namespace 'fortio', set as NS env variable.
 
 1. Create a google service account for the CloudRun app (once per namespace)
 
 
 ```shell
 export NS=fortio # Namespace 
+
+kubectl create ns ${NS}
 
 gcloud --project ${PROJECT_ID} iam service-accounts create k8s-${NS} \
       --display-name "Service account with access to ${NS} k8s namespace"
@@ -57,15 +60,13 @@ gcloud --project ${PROJECT_ID} projects add-iam-policy-binding \
             --member="serviceAccount:k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com" \
             --role="roles/container.clusterViewer"
 
-
 ```
 
 2. Bind the GSA to a KSA
    You can grant additional permissions if the CloudRun service is using the K8S ApiServer. To keep things simple, we
    associate with the 'default' KSA in the namespace.
 
-```shell 
-export PROJECT_ID=wlhe-cr
+```shell
 export NS=fortio 
 
 cat manifests/rbac.yaml | envsubst | kubectl apply -f -
@@ -74,42 +75,27 @@ cat manifests/rbac.yaml | envsubst | kubectl apply -f -
 
 ### Build a docker image containing the app and the sidecar
 
-samples/fortio/Dockerfile contains an example Dockerfile, with comments.
+samples/fortio/Dockerfile contains an example Dockerfile - you can also use the pre-build image
+`grc.io/wlhe-cr/fortio-cr:latest`
 
 You can build the app with the normal docker command:
 
 ```shell
 
+# Get the base image.
+docker pull ghcr.io/costinm/krun/krun:latest
+
+# Target image
 export IMAGE=gcr.io/${PROJECT_ID}/fortio-cr:latest
-(cd samples/fortio && docker build . 	-t ${IMAGE})
+
+(cd samples/fortio && docker build . -t ${IMAGE})
+
 docker push ${IMAGE}
 ```
 
 
 
 ### Deploy the image to CloudRun
-
-
-<!--
-WIP - Deploy the service, using the defaults. Namespace is extracted from the service name, the cluster is auto-detected:
-
-```shell
-export CLOUDRUN_SERVICE=fortio-asm-cr
-export REGION=us-central1
-
-gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
-          --platform managed 
-          --project ${PROJECT_ID} \
-          --region ${REGION} \
-          --sandbox=minivm \
-          --allow-unauthenticated \
-          --use-http2 \
-          --port 15009 \
-          --image ${IMAGE} \
-          --vpc-connector projects/${PROJECT_ID}/locations/${CLOUDRUN_REGION}/connectors/serverlesscon
-         
-```
--->
 
 Deploy the service, with explicit configuration:
 
@@ -122,6 +108,7 @@ gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
           --project ${PROJECT_ID} \
           --region ${REGION} \
           --sandbox=minivm \
+          --serviceAccount:k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com \
           --allow-unauthenticated \
           --use-http2 \
           --port 15009 \
@@ -142,7 +129,6 @@ label, and fallback to other config cluster if the local cluster is unavailable.
 ```
 gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
 
-kubectl create ns fortio
 kubectl label namespace fortio istio-injection- istio.io/rev=asm-managed-rapid --overwrite
 
 helm upgrade --install \

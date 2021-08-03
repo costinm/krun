@@ -67,6 +67,7 @@ deploy:
 	gcloud alpha run deploy fortio-${CLUSTER_NAME}${SUFFIX} \
 		  --platform managed --project ${PROJECT_ID} \
 		  --region ${REGION} ${SANDBOX} \
+		  --serviceaccount=serviceAccount:k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com \
          --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
          --allow-unauthenticated \
          --use-http2 \
