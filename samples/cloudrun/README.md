@@ -108,7 +108,7 @@ gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
           --project ${PROJECT_ID} \
           --region ${REGION} \
           --sandbox=minivm \
-          --serviceAccount=k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com \
+          --serviceaccount=k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com \
           --allow-unauthenticated \
           --use-http2 \
           --port 15009 \
