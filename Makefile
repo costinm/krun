@@ -85,6 +85,12 @@ deploy/k8s-fortio:
 		fortio \
  		samples/charts/fortio
 
+template/k8s-fortio:
+	helm template \
+		-n fortio \
+		fortio \
+ 		samples/charts/fortio > samples/fortio/in-cluster.yaml
+
 # Update base images, for build/krun ( local build )
 pull:
 	# Custom build
