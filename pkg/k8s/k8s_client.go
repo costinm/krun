@@ -129,7 +129,7 @@ func (kr *KRun) InitGCP() error {
 		kr.AllClusters(kr.ProjectId, "", "", "")
 		//log.Println("Get all clusters ", time.Since(t0))
 
-		for _, c := range kr.clusters {
+		for _, c := range kr.Clusters {
 			if strings.HasPrefix(c.Location, kr.ClusterLocation) {
 				log.Println("------- Found ", c)
 				rc, err := kr.restConfigForCluster(c)
@@ -151,9 +151,10 @@ func (kr *KRun) InitGCP() error {
 		}
 		kr.Client, err = kubernetes.NewForConfig(rc)
 		if err != nil {
+			log.Println("Failed in NewForConfig", kr, err)
 			return err
 		}
-		log.Println("Get 1 cluster ", time.Since(t0))
+		log.Println("Get cluster from GKE API server", kr.ClusterLocation, kr.ClusterName, time.Since(t0))
 	}
 
 	kr.SaveKubeConfig()

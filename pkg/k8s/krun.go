@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	containerpb "google.golang.org/genproto/googleapis/container/v1"
 	"k8s.io/client-go/kubernetes"
@@ -61,8 +62,8 @@ type KRun struct {
 	// the config.
 	Client *kubernetes.Clientset
 
-	// List of clusters - used if location and cluster are not set explicitly
-	clusters []*containerpb.Cluster
+	// List of Clusters - used if location and cluster are not set explicitly
+	Clusters []*containerpb.Cluster
 
 	// Kubeconfig - constructed by looking up the clusters
 	KubeConfig *clientcmdapi.Config
@@ -75,6 +76,8 @@ type KRun struct {
 	agentCmd    *exec.Cmd
 	appCmd      *exec.Cmd
 	TrustDomain string
+
+	StartTime time.Time
 }
 
 func (kr *KRun) InitFromEnv() *KRun {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/costinm/krun/pkg/hbone"
 	"github.com/costinm/krun/pkg/k8s"
@@ -13,12 +14,14 @@ import (
 var initDebug func(run *k8s.KRun)
 
 func main() {
-	kr := &k8s.KRun{}
+	kr := &k8s.KRun{
+		StartTime: time.Now(),
+	}
 	kr.InitFromEnv()
 
 	k8sClient, err := kr.GetK8S()
 	if err != nil {
-		panic(err)
+		log.Fatal("Failed to connect to GKE ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}
 
 

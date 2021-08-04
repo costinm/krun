@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	container "cloud.google.com/go/container/apiv1"
 
@@ -125,20 +126,26 @@ func (kr *KRun) CreateRestConfig(p, l, clusterName string) (*rest.Config, error)
 
 	cl, err := container.NewClusterManagerClient(ctx)
 	if err != nil {
+		log.Println("Failed NewClusterManagerClient", kr, err)
 		return nil, err
 	}
 
-	c, err := cl.GetCluster(ctx, &containerpb.GetClusterRequest{
-		Name: fmt.Sprintf("projects/%s/locations/%s/cluster/%s", p, l, clusterName),
-	})
-	if err != nil {
-		return nil, err
+	for i :=0; i < 5; i++ {
+		gcr := &containerpb.GetClusterRequest{
+			Name: fmt.Sprintf("projects/%s/locations/%s/cluster/%s", p, l, clusterName),
+		}
+		c, e := cl.GetCluster(ctx, gcr)
+		if e == nil {
+			kr.Clusters = append(kr.Clusters, c)
+
+			kr.addClusterConfig(c, p, l, clusterName)
+			return kr.restConfigForCluster(c)
+		}
+		log.Println("Failed GetCluster, retry", gcr, kr, err)
+		time.Sleep(1 * time.Second)
+		err = e
 	}
-
-	kr.clusters = append(kr.clusters, c)
-
-	kr.addClusterConfig(c, p, l, clusterName)
-	return kr.restConfigForCluster(c)
+	return nil, err
 }
 
 func (kr *KRun) restConfigForCluster(c *containerpb.Cluster) (*rest.Config, error) {
@@ -250,11 +257,17 @@ func (kr *KRun) AllClusters(project string, defCluster string, label string, mes
 
 	for _, c := range clusters.Clusters {
 		if label != "" {
-			if c.ResourceLabels[label] != meshID {
-				continue
+			if meshID == "" {
+				if c.ResourceLabels[label] == "" {
+					continue
+				}
+			} else {
+				if c.ResourceLabels[label] != meshID {
+					continue
+				}
 			}
 		}
-		kr.clusters = append(kr.clusters, c)
+		kr.Clusters = append(kr.Clusters, c)
 
 		caCert, err := base64.StdEncoding.DecodeString(c.MasterAuth.ClusterCaCertificate)
 		if err != nil {

@@ -42,12 +42,15 @@ when deploying the CloudRun service.
 ### Namespace setup 
 
 The steps can be run by a user or service account with namespace permissions in K8S and CR deploy permission.
+In this example we will use namespace 'fortio', set as NS env variable.
 
 1. Create a google service account for the CloudRun app (once per namespace)
 
 
 ```shell
 export NS=fortio # Namespace 
+
+kubectl create ns ${NS}
 
 gcloud --project ${PROJECT_ID} iam service-accounts create k8s-${NS} \
       --display-name "Service account with access to ${NS} k8s namespace"
@@ -57,15 +60,13 @@ gcloud --project ${PROJECT_ID} projects add-iam-policy-binding \
             --member="serviceAccount:k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com" \
             --role="roles/container.clusterViewer"
 
-
 ```
 
 2. Bind the GSA to a KSA
    You can grant additional permissions if the CloudRun service is using the K8S ApiServer. To keep things simple, we
    associate with the 'default' KSA in the namespace.
 
-```shell 
-export PROJECT_ID=wlhe-cr
+```shell
 export NS=fortio 
 
 cat manifests/rbac.yaml | envsubst | kubectl apply -f -
@@ -74,14 +75,21 @@ cat manifests/rbac.yaml | envsubst | kubectl apply -f -
 
 ### Build a docker image containing the app and the sidecar
 
-samples/fortio/Dockerfile contains an example Dockerfile, with comments.
+samples/fortio/Dockerfile contains an example Dockerfile - you can also use the pre-build image
+`grc.io/wlhe-cr/fortio-cr:latest`
 
 You can build the app with the normal docker command:
 
 ```shell
 
+# Get the base image.
+docker pull ghcr.io/costinm/krun/krun:latest
+
+# Target image
 export IMAGE=gcr.io/${PROJECT_ID}/fortio-cr:latest
-(cd samples/fortio && docker build . 	-t ${IMAGE})
+
+(cd samples/fortio && docker build . -t ${IMAGE})
+
 docker push ${IMAGE}
 ```
 
@@ -89,48 +97,30 @@ docker push ${IMAGE}
 
 ### Deploy the image to CloudRun
 
-
-<!--
-WIP - Deploy the service, using the defaults. Namespace is extracted from the service name, the cluster is auto-detected:
-
-```shell
-export CLOUDRUN_SERVICE=fortio-asm-cr
-export CLOUDRUN_REGION=us-central1
-
-gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
-          --platform managed 
-          --project ${PROJECT_ID} \
-          --region ${CLOUDRUN_REGION} \
-          --sandbox=minivm \
-          --allow-unauthenticated \
-          --use-http2 \
-          --port 15009 \
-          --image ${IMAGE} \
-          --vpc-connector projects/${PROJECT_ID}/locations/${CLOUDRUN_REGION}/connectors/serverlesscon
-         
-```
--->
-
 Deploy the service, with explicit configuration:
 
 ```shell
 export CLOUDRUN_SERVICE=fortio-cloudrun
-export CLOUDRUN_REGION=us-central1
+export REGION=us-central1
 
 gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
-          --platform managed 
+          --platform managed \
           --project ${PROJECT_ID} \
-          --region ${CLOUDRUN_REGION} \
+          --region ${REGION} \
           --sandbox=minivm \
+          --serviceaccount=k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com \
           --allow-unauthenticated \
           --use-http2 \
           --port 15009 \
           --image ${IMAGE} \
-          --vpc-connector projects/${PROJECT_ID}/locations/${CLOUDRUN_REGION}/connectors/serverlesscon
-         --set-env-vars="CLUSTER_NAME=asm-cr" \
-         --set-env-vars="CLUSTER_LOCATION=us-central1-c" \
+          --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
+         --set-env-vars="CLUSTER_NAME=${CLUSTER_NAME}" \
+         --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}" 
          
 ```
+
+CLUSTER_NAME and CLUSTER_LOCATION will be optional - krun will pick a config cluster in the same region based on a TBD 
+label, and fallback to other config cluster if the local cluster is unavailable.
 
 ### Testing
 
@@ -139,7 +129,6 @@ gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
 ```
 gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
 
-kubectl create ns fortio
 kubectl label namespace fortio istio-injection- istio.io/rev=asm-managed-rapid --overwrite
 
 helm upgrade --install \
