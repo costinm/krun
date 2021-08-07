@@ -2,28 +2,44 @@
 
 ## Installation 
 
-### Cluster setup
+Requirements:
+- The project should be allowed by policy to use 'allow-unauthenticated'. WIP to eliminate this limitation.
+- For each region, you need a Serverless connector, using the same network as the GKE cluster(s) the CloudRun service will
+communicate with.
+- Currently, 'sandbox=minivm' is required for iptables. 
 
-1. Install Managed ASM in the GKE config cluster
-See [Install docs](https://cloud.google.com/service-mesh/docs/scripted-install/gke-install) for ASM, make sure
-all requirements are met. For googlers make sure the project is allowed to use 'allow-unauthenticated'.
-
+You need to have gcloud and kubectl, and credentials for the cluster. Few environment variables will be used across
+this doc:
 
 ```shell
 export PROJECT_ID=wlhe-cr
 export CLUSTER_LOCATION=us-central1-c
 export CLUSTER_NAME=asm-cr
+# CloudRun region 
 export REGION=us-central1
+export NS=fortio # Namespace where the CloudRun service will 'attach'
+
+gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
+
+```
+
+### Cluster setup
+
+1. If you don't already have a cluster with managed ASM, follow [Install docs](https://cloud.google.com/service-mesh/docs/scripted-install/gke-install) 
+
+Short version:
+
+```shell
 curl https://storage.googleapis.com/csm-artifacts/asm/install_asm_1.10 > install_asm
 chmod +x install_asm
 
-# Managed CP:
 ./install_asm --mode install --output_dir ${CLUSTER_NAME} --enable_all --managed
 ```
 
 
-
-2. Allow read access to mesh config:
+2. Allow read access to mesh config. This is needed to simplify the configuration - it is also possible to 
+   explicitly pass extra env variables to the CloudRun services instead of using this config, will be documented in 
+   separate doc for advanced users.
 
 ```shell 
 
@@ -35,20 +51,28 @@ kubectl apply -f manifests/mcp-rbac.yaml
 
 For each region where GKE and CloudRun will be used, [install CloudRun connector](https://cloud.google.com/vpc/docs/configure-serverless-vpc-access)
 Using the UI is usually easier - it does require a /28 range to be specified.
-You can call the connector 'serverlesscon' - the name will be used
-when deploying the CloudRun service.
+You can call the connector 'serverlesscon' - the name will be used when deploying the CloudRun service. 
+
+If you already have a connector, you can continue to use it, and adjust the '--vpc-connector' parameter on the 
+deploy command.
+
+The connector MUST be on the same network with the GKE cluster.
 
 
 ### Namespace setup 
 
-The steps can be run by a user or service account with namespace permissions in K8S and CR deploy permission.
+Each CloudRun service will be mapped to a K8S namespace. The service account used by CloudRun must be granted access
+to the GKE APIserver with minimal permissions, and must be allowed to get tokens.
+
+This steps can be run by a user or service account with namespace permissions in K8S - does not require cluster admin.
+
 In this example we will use namespace 'fortio', set as NS env variable.
 
-1. Create a google service account for the CloudRun app (once per namespace)
+1. Create a google service account for the CloudRun app (once per namespace). If you already have a GSA you use for 
+your CloudRun service - only add '--role="roles/container.clusterViewer"' binding to the existing service account.
 
 
 ```shell
-export NS=fortio # Namespace 
 
 kubectl create ns ${NS}
 
@@ -62,12 +86,17 @@ gcloud --project ${PROJECT_ID} projects add-iam-policy-binding \
 
 ```
 
-2. Bind the GSA to a KSA
-   You can grant additional permissions if the CloudRun service is using the K8S ApiServer. To keep things simple, we
-   associate with the 'default' KSA in the namespace.
+2. Bind the GSA to a KSA. This will allow CloudRun service to get the required K8S resources to integrate with ASM.
+   You can grant additional permissions if the CloudRun service is using the K8S ApiServer, if the application is also 
+   integrating/using APIserver. 
+   
+   To keep things simple, we will associate with the 'default' KSA in the namespace, advanced users can customize the 
+   config to use a different KSA.
 
 ```shell
 export NS=fortio 
+# Or use an existing GSA 
+export GSA=k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com
 
 cat manifests/rbac.yaml | envsubst | kubectl apply -f -
 
@@ -82,7 +111,9 @@ You can build the app with the normal docker command:
 
 ```shell
 
-# Get the base image.
+# Get the base image. You can also create a 'golden' base, starting with ASM proxy image and adding the 
+# startup helper (krun) and other files or configs you need. 
+# The application will be added to the base.
 docker pull ghcr.io/costinm/krun/krun:latest
 
 # Target image
@@ -124,17 +155,13 @@ label, and fallback to other config cluster if the local cluster is unavailable.
 
 ### Testing
 
-1. Deploy an in-cluster application
+1. Deploy an in-cluster application. The CloudRun service will connect to it:
 
 ```shell
 gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
 
-kubectl label namespace fortio istio-injection- istio.io/rev=asm-managed-rapid --overwrite
-
-helm upgrade --install \
-		-n fortio \
-		fortio \
- 		samples/charts/fortio
+kubectl label namespace fortio istio-injection- istio.io/rev=asm-managed --overwrite
+kubectl apply -f https://raw.githubusercontent.com/costinm/krun/main/samples/fortio/in-cluster.yaml
 
 ```
 
@@ -148,28 +175,22 @@ in-cluster app.
 In general, the CloudRun applications can use any K8S service name - including shorter version for same-namespace
 services. So fortio, fortio.fortio, fortio.fortio.svc.cluster.local also work.
 
+In this example the in-cluster application is using ASM - it is also possible to access regular K8S applications
+without a sidecar. 
 
 ## Configuration options 
 
-Configuration is based on environment variables and metadata server. 
+Default automatic configuration is based on environment variables, metadata server and calls to GKE APIs. 
 
+We require 2 environment variables - WIP to automatically locate the cluster:
 - CLUSTER_NAME - name of the config cluster, required. 
 - CLUSTER_LOCATION - location of the GKE config cluster. Optional if 
   the cluster is regional and in same region with the CloudRun service.
-- PROJECT_ID - project of the config cluster - optional, defaults to same
-project.
-
-
-
-
-WORKLOAD_NAMESPACE and WORKLOAD_NAME (TODO: use shorter names) map the CloudRun service to the equivalent of a k8s pod, 
-in the given namespace. You can specify additional labels to be used by Istio for config generation - in Istio
-configs associate with workloads using label selectors.
-
-The MCP_ADDR is a temporary requirement - will be replaced with an automated mechanism.
-
-Currently 'sandbox=minivm' is required for iptables. It is possible to run the same thing in gvisor, usign the 
-istio agent http proxy.
+  
+  
+WORKLOAD_NAMESPACE and WORKLOAD_NAME map the CloudRun service to the equivalent of a k8s pod, 
+in the given namespace. If not set, the CloudRun service name is used, the first part of the name
+will be used as namespace, using the '-' as delimiter.
 
 '--use-http2' and '--port 15009' are required for using the 'hbone' port multiplexing. The app is still expected to
 run on port 8080. It is also possible to not set the flags and use the normal CloudRun ingress - debugging will not
@@ -188,7 +209,7 @@ You can ssh into the service and forward ports - like envoy admin port - using:
 ```shell
 
 # Compile the proxy command
-go install ./cmd/hbonec
+go install ./cmd/hbone
 
 # Set with your own service URL
 export SERVICE_URL=https://fortio-asm-cr-icq63pqnqq-uc.a.run.app:443

@@ -39,4 +39,4 @@ roleRef:
   name: xds-default
 subjects:
   - kind: User
-    name: k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com
+    name: ${GSA}

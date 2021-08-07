@@ -54,6 +54,10 @@ docker/run-noxds:
 		${KRUN_IMAGE} \
 	   /bin/bash
 
+local/run-kubeconfig:
+	docker run  -e KUBECONFIG=/var/run/kubeconfig -v ${HOME}/.kube/config:/var/run/kubeconfig:ro -it  \
+		ghcr.io/costinm/krun/krun:latest  /bin/bash
+
 # Run in local docker, using ADC for auth
 docker/run-xds-adc:
 	docker run -it --rm \
@@ -80,6 +84,12 @@ deploy/k8s-fortio:
 		-n fortio \
 		fortio \
  		samples/charts/fortio
+
+template/k8s-fortio:
+	helm template \
+		-n fortio \
+		fortio \
+ 		samples/charts/fortio > samples/fortio/in-cluster.yaml
 
 # Update base images, for build/krun ( local build )
 pull:
