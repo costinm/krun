@@ -62,12 +62,14 @@ image:
 
 SANDBOX?=--sandbox=minivm
 
+SERVICE?=fortio-${CLUSTER_NAME}${SUFFIX}
 # Deploy to cloudrun
+# Adding XDS_ADDR=READ_DOMAIN:443 will skip looking up for MCP configmap and use that address instead.
 deploy:
-	gcloud alpha run deploy fortio-${CLUSTER_NAME}${SUFFIX} \
+	gcloud alpha run deploy ${SERVICE} \
 		  --platform managed --project ${PROJECT_ID} \
 		  --region ${REGION} ${SANDBOX} \
-		  --serviceaccount=serviceAccount:k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com \
+		  --service-account=k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com \
          --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
          --allow-unauthenticated \
          --use-http2 \
@@ -76,33 +78,13 @@ deploy:
          --image ${IMAGE} \
          --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}" \
          --set-env-vars="CLUSTER_NAME=${CLUSTER_NAME}" \
-          ${SSH_DEBUG_ARGS} ${EXTRA} \
+  		 --set-env-vars="LABEL_DEPLOY=$(shell date +%y%m%d-%H%M)" \
+         ${SSH_DEBUG_ARGS} ${EXTRA} \
  		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
 
-# WIP - will need additional setup for exposing Istiod on a ILB or gateway with certs.
-deploy/oss:
-	gcloud alpha run deploy fortio-${CLUSTER_NAME}${SUFFIX} \
-		  --platform managed --project ${PROJECT_ID} \
-		  --region ${REGION} ${SANDBOX} \
-         --allow-unauthenticated \
-         --use-http2 \
-         --port 15009 \
-         --min-instances=1 \
-         --image ${IMAGE} \
- 		  ${K8S_CLUSTER_ARGS} \
- 		  ${SSH_DEBUG_ARGS} ${EXTRA} \
-          --set-env-vars="HTTP_PROXY=127.0.0.1:15080" \
-         --set-env-vars="WORKLOAD_NAMESPACE=fortio" \
- 		 --set-env-vars="WORKLOAD_NAME=fortio-cr" \
- 		 --set-env-vars="LABEL_APP=fortio-cr" \
- 		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)" \
- 		  --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
-
-
-# WIP - using gvisor and whitebox
-deploy-gvisor:
-	$(MAKE) deploy SUFFIX=-gvisor SANDBOX=""
-
+# Port 15009 for using envoy for ingress
+# Port 8080 for going directly to the app
+# Port 14009 for using KRun and 'native' hbone.
 
 pull:
 	docker pull ghcr.io/costinm/krun/krun:latest # Get latest
