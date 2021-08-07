@@ -40,7 +40,8 @@ func initCM(k8sClient *kubernetes.Clientset,  ns string, name string, path strin
 	}
 }
 
-func (kr *KRun) InitIstio() {
+// FindXDSAddr will try to find the XDSAddr using in-cluster info.
+func (kr *KRun) FindXDSAddr() {
 	// TODO: find default tag, label, etc.
 	// Current code is written for MCP, use XDS_ADDR explicitly
 	// otherwise.

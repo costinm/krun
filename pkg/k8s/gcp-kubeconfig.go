@@ -12,6 +12,7 @@ import (
 	"time"
 
 	container "cloud.google.com/go/container/apiv1"
+	"k8s.io/client-go/kubernetes"
 
 	gkehub "cloud.google.com/go/gkehub/apiv1beta1"
 	//gkehub "google.golang.org/genproto/googleapis/cloud/gkehub/v1beta1"
@@ -34,6 +35,77 @@ import (
 // TODO: if cluster not specified, list clusters
 // TODO: use hub as well.
 
+// k8sFromEnv will use env variables to locate the
+// k8s cluster and create a client.
+func (kr *KRun) k8sFromEnv()  {
+	if kr.ProjectId == "" {
+		kr.ProjectId = os.Getenv("PROJECT_ID")
+	}
+
+	if kr.ProjectId == "" {
+		kr.ProjectId, _ = ProjectFromMetadata()
+	}
+
+	if kr.ClusterName == "" {
+		kr.ClusterName = os.Getenv("CLUSTER_NAME")
+	}
+
+	if kr.ClusterLocation == "" {
+		kr.ClusterLocation = os.Getenv("CLUSTER_LOCATION")
+	}
+
+	if kr.ClusterLocation == "" {
+		kr.ClusterLocation, _ = RegionFromMetadata()
+	}
+}
+
+func (kr *KRun) initGCP() error {
+	kr.k8sFromEnv()
+
+	// Get all clusters, including hub - attempt to find the cluster.
+	//kr.AllHub(gcpProj, cluster, "", "")
+	t0 := time.Now()
+	if kr.ClusterName == "" {
+		// WIP - list all clusters and attempt to find one in the same region.
+		// TODO: connect to cluster, find istiod - and keep trying until a working
+		// one is found ( fallback )
+
+		// ~500ms
+		kr.AllClusters(kr.ProjectId, "", "", "")
+		//log.Println("Get all clusters ", time.Since(t0))
+
+		for _, c := range kr.Clusters {
+			if strings.HasPrefix(c.Location, kr.ClusterLocation) {
+				log.Println("------- Found ", c)
+				rc, err := kr.restConfigForCluster(c)
+				if err != nil {
+					continue
+				}
+				kr.Client, err = kubernetes.NewForConfig(rc)
+				if err != nil {
+					continue
+				}
+				break
+			}
+		}
+	} else {
+		// ~400 ms
+		rc, err := kr.CreateRestConfig(kr.ProjectId, kr.ClusterLocation, kr.ClusterName)
+		if err != nil {
+			return err
+		}
+		kr.Client, err = kubernetes.NewForConfig(rc)
+		if err != nil {
+			log.Println("Failed in NewForConfig", kr, err)
+			return err
+		}
+		log.Println("Get cluster from GKE API server", kr.ClusterLocation, kr.ClusterName, time.Since(t0))
+	}
+
+	kr.SaveKubeConfig()
+
+	return nil
+}
 
 // SaveKubeConfig saves the KUBECONFIG to ./var/run/.kube/config
 // The assumption is that on a read-only image, /var/run will be

@@ -98,6 +98,10 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 	env = append(env, "CA_ROOT_CA=SYSTEM")
 	env = append(env, "POD_NAMESPACE=" + kr.Namespace)
 
+	if kr.ExtraEnv != nil {
+		env = append(env, kr.ExtraEnv...)
+	}
+
 	os.MkdirAll(prefix + "/etc/istio/proxy", 0755)
 
 	// Save the istio certificates - for proxyless or app use.
@@ -130,10 +134,12 @@ func (kr *KRun) StartIstioAgent(proxyConfig string) {
 	env = append(env, "DNS_PROXY_ADDR=localhost:53")
 
 	// MCP config
+	// The following 2 are required for MeshCA.
 	env = append(env, fmt.Sprintf("GKE_CLUSTER_URL=https://container.googleapis.com/v1/projects/%s/locations/%s/clusters/%s",
 		kr.ProjectId, kr.ClusterLocation, kr.ClusterName))
 	env = append(env, fmt.Sprintf("GCP_METADATA=%s|%s|%s|%s",
 		kr.ProjectId, kr.ProjectNumber, kr.ClusterName, kr.ClusterLocation ))
+
 	env = append(env, "XDS_ADDR=" + kr.XDSAddr)
 	//env = append(env, "CA_ROOT_CA=/etc/ssl/certs/ca-certificates.crt")
 	//env = append(env, "XDS_ROOT_CA=/etc/ssl/certs/ca-certificates.crt")

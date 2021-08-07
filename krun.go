@@ -17,13 +17,13 @@ func main() {
 	kr := &k8s.KRun{
 		StartTime: time.Now(),
 	}
-	kr.InitFromEnv()
 
-	k8sClient, err := kr.GetK8S()
+	err := kr.InitK8SClient()
 	if err != nil {
 		log.Fatal("Failed to connect to GKE ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}
 
+	kr.LoadConfig()
 
 	if len(os.Args) == 1 {
 		// Default gateway label for now, we can customize with env variables.
@@ -31,12 +31,10 @@ func main() {
 		log.Println("Starting in gateway mode", os.Args)
 	}
 
-	kr.Client = k8sClient
-
 	kr.Refresh()
 
 	if kr.XDSAddr == "" {
-		kr.InitIstio()
+		kr.FindXDSAddr()
 	}
 
 	if kr.XDSAddr != "-" {

@@ -5,11 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
@@ -77,8 +75,12 @@ func queryMetadata(url string) (string, error) {
 	return strings.TrimSpace(string(b)), err
 }
 
-// InitUsingKubeConfig uses in-cluster or KUBECONFIG to init the primary k8s cluster.
-func (kr *KRun) InitUsingKubeConfig() error {
+// initUsingKubeConfig uses KUBECONFIG or $HOME/.kube/config
+// to init the primary k8s cluster.
+//
+// error is set if KUBECONFIG is set or ~/.kube/config exists and
+// fail to load. If the file doesn't exist, err is nil.
+func (kr *KRun) initUsingKubeConfig() error {
 	// Explicit kube config - use it
 	kc := os.Getenv("KUBECONFIG")
 	if kc == "" {
@@ -98,7 +100,7 @@ func (kr *KRun) InitUsingKubeConfig() error {
 	return nil
 }
 
-func (kr *KRun) InitInCluster() error {
+func (kr *KRun) initInCluster() error {
 	// In cluster
 	hostInClustser := os.Getenv("KUBERNETES_SERVICE_HOST")
 	if hostInClustser != "" {
@@ -116,74 +118,53 @@ func (kr *KRun) InitInCluster() error {
 	return nil
 }
 
-func (kr *KRun) InitGCP() error {
-	// Get all clusters, including hub - attempt to find the cluster.
-	//kr.AllHub(gcpProj, cluster, "", "")
-	t0 := time.Now()
-	if kr.ClusterName == "" {
-		// WIP - list all clusters and attempt to find one in the same region.
-		// TODO: connect to cluster, find istiod - and keep trying until a working
-		// one is found ( fallback )
 
-		// ~500ms
-		kr.AllClusters(kr.ProjectId, "", "", "")
-		//log.Println("Get all clusters ", time.Since(t0))
+// WIP
+func New() (*KRun, error) {
+	kr := &KRun{}
 
-		for _, c := range kr.Clusters {
-			if strings.HasPrefix(c.Location, kr.ClusterLocation) {
-				log.Println("------- Found ", c)
-				rc, err := kr.restConfigForCluster(c)
-				if err != nil {
-					continue
-				}
-				kr.Client, err = kubernetes.NewForConfig(rc)
-				if err != nil {
-					continue
-				}
-				break
-			}
-		}
-	} else {
-		// ~400 ms
-		rc, err := kr.CreateRestConfig(kr.ProjectId, kr.ClusterLocation, kr.ClusterName)
-		if err != nil {
-			return err
-		}
-		kr.Client, err = kubernetes.NewForConfig(rc)
-		if err != nil {
-			log.Println("Failed in NewForConfig", kr, err)
-			return err
-		}
-		log.Println("Get cluster from GKE API server", kr.ClusterLocation, kr.ClusterName, time.Since(t0))
-	}
-
-	kr.SaveKubeConfig()
-
-	return nil
+	return kr, nil
 }
 
-// GetK8S gets the default k8s client, using environment variables to decide how.
+// InitK8SClient gets the default k8s client, using environment
+// variables to decide how:
 //
-func (kr *KRun) GetK8S() (*kubernetes.Clientset, error) {
+// - KUBECONFIG or $HOME/.kube/config will be tried first
+// - GKE is checked - using metadata server to get
+//   PROJECT_ID, CLUSTER_LOCATION (if not set).
+// - (in future other vendor-specific methods may be added)
+// - finally in-cluster will be checked.
+//
+// Once the cluster is found, additional config can be loaded from
+// the cluster.
+func (kr *KRun) InitK8SClient() error {
 	if kr.Client != nil {
-		return kr.Client, nil
+		return  nil
 	}
 
-	err := kr.InitUsingKubeConfig()
+	err := kr.initUsingKubeConfig()
 	if err != nil {
-		return nil, err
+		return  err
 	}
 	if kr.Client != nil {
-		return kr.Client, nil
+		return  nil
 	}
 
-	err = kr.InitGCP()
+	err = kr.initGCP()
 	if err != nil {
-		return nil, err
+		return  err
 	}
 	if kr.Client != nil {
-		return kr.Client, nil
+		return  nil
 	}
 
-	return nil, errors.New("not found")
+	err = kr.initInCluster()
+	if err != nil {
+		return  err
+	}
+	if kr.Client != nil {
+		return  nil
+	}
+
+	return errors.New("not found")
 }

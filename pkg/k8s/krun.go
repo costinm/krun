@@ -21,6 +21,8 @@ type KRun struct {
 	// Config mounts are optional (for now)
 	CM2Dirs map[string]string
 
+	ExtraEnv []string
+
 	// Audience to files. For each key, a k8s token with the given audience
 	// will be created. Files should be under /var/run/secrets
 	Aud2File map[string]string
@@ -80,17 +82,22 @@ type KRun struct {
 	StartTime time.Time
 }
 
-func (kr *KRun) InitFromEnv() *KRun {
+// LoadConfig will use the env variables, metadata server and cluster configmaps
+// to get the initial configuration for Istio and KRun.
+//
+//
+func (kr *KRun) LoadConfig() *KRun {
 
 	if kr.KSA == "" {
+		// Same environment used for VMs
 		kr.KSA = os.Getenv("WORKLOAD_SERVICE_ACCOUNT")
 	}
-
 	if kr.KSA == "" {
 		kr.KSA = "default"
 	}
 
 	if kr.Namespace == "" {
+		// Same environment used for VMs
 		kr.Namespace = os.Getenv("WORKLOAD_NAMESPACE")
 	}
 	if kr.Name == "" {
@@ -134,6 +141,7 @@ func (kr *KRun) InitFromEnv() *KRun {
 	if kr.ProjectId == "" {
 		kr.ProjectId = os.Getenv("PROJECT_ID")
 	}
+
 	if kr.ProjectId == "" {
 		kr.ProjectId, _ = ProjectFromMetadata()
 	}

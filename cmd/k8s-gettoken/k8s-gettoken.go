@@ -20,7 +20,7 @@ func main() {
 	}
 
 	kr := &k8s.KRun{}
-	clientset, err := kr.GetK8S()
+	err := kr.InitK8SClient()
 	if err != nil {
 		panic(err)
 	}
@@ -32,7 +32,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	ts, err := clientset.CoreV1().ServiceAccounts(ns).CreateToken(context.Background(),
+	ts, err := kr.Client.CoreV1().ServiceAccounts(ns).CreateToken(context.Background(),
 		ksa, treq, metav1.CreateOptions{})
 	if err != nil {
 		panic(err)
