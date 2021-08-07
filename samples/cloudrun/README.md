@@ -139,7 +139,7 @@ gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
           --project ${PROJECT_ID} \
           --region ${REGION} \
           --sandbox=minivm \
-          --serviceaccount=k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com \
+          --service-account=k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com \
           --allow-unauthenticated \
           --use-http2 \
           --port 15009 \
@@ -157,7 +157,8 @@ label, and fallback to other config cluster if the local cluster is unavailable.
 
 1. Deploy an in-cluster application. The CloudRun service will connect to it:
 
-```
+```shell
+gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
 
 kubectl label namespace fortio istio-injection- istio.io/rev=asm-managed --overwrite
 kubectl apply -f https://raw.githubusercontent.com/costinm/krun/main/samples/fortio/in-cluster.yaml

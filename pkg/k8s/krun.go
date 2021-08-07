@@ -80,6 +80,7 @@ type KRun struct {
 	TrustDomain string
 
 	StartTime time.Time
+	Labels    map [string]string
 }
 
 // LoadConfig will use the env variables, metadata server and cluster configmaps
@@ -106,7 +107,11 @@ func (kr *KRun) LoadConfig() *KRun {
 
 	ks := os.Getenv("K_SERVICE")
 	if kr.Namespace == "" {
-		// TODO: revision--NS-NAME-SUFFIX
+		verNsName := strings.SplitN(ks, "--", 2)
+		if len(verNsName) > 1 {
+			ks = verNsName[1]
+			kr.Labels["ver"] = verNsName[0]
+		}
 		parts := strings.Split(ks, "-")
 		kr.Namespace = parts[0]
 		if len(parts) > 1 {
@@ -136,6 +141,9 @@ func (kr *KRun) LoadConfig() *KRun {
 		}
 		if strings.HasPrefix(kvl[0], "K8S_TOKEN_") {
 			kr.Aud2File[kvl[0][10:]] =  prefix + kvl[1]
+		}
+		if strings.HasPrefix(kvl[0], "LABEL_") {
+			kr.Labels[kvl[0][6:]] =  prefix + kvl[1]
 		}
 	}
 	if kr.ProjectId == "" {

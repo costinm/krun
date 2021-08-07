@@ -302,3 +302,5 @@ func (kr *KRun) runIptablesSetup(env []string) {
 	log.Println("Iptables start done")
 }
 
+// TODO: lookup istiod service and endpoints ( instead of using an ILB or external name)
+//

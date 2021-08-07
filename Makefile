@@ -104,10 +104,12 @@ deps:
 	# TODO: helm, ko
 
 test:
-	# OSS/ASM with Istiod exposed in Gateway, with ACME certs
+	(cd samples/fortio; REGION=us-central1 CLUSTER_NAME=asm-cr CLUSTER_LOCATION=us-central1-c \
+    	make deploy)
+    # OSS/ASM with Istiod exposed in Gateway, with ACME certs
 	(cd samples/fortio; REGION=us-central1 CLUSTER_NAME=istio CLUSTER_LOCATION=us-central1-c \
-	EXTRA="--set-env-vars XDS_ADDR=istiod.wlhe.i.webinf.info:443" \
-	make deploy)
+		EXTRA="--set-env-vars XDS_ADDR=istiod.wlhe.i.webinf.info:443" \
+		make deploy)
 
 # A single version of Istiod - using a version-based revision name.
 # The version will be associated with labels using in the other charts.
@@ -131,3 +133,9 @@ deploy/istiod:
         --set pilot.autoscaleEnabled=false \
 		--set pilot.env.PILOT_ENABLE_WORKLOAD_ENTRY_AUTOREGISTRATION=true \
 		--set pilot.env.PILOT_ENABLE_WORKLOAD_ENTRY_HEALTHCHECKS=true
+
+# Whitebox:
+# Istio install:
+# 		--set meshConfig.proxyHttpPort=15080 \
+# Cloudrun:
+#  --set-env-vars="HTTP_PROXY=127.0.0.1:15080"
