@@ -8,7 +8,7 @@ steps:
     env:
       - DOCKER_CLI_EXPERIMENTAL=enabled
       - TAG=$_GIT_TAG
-    args: [ 'build', '-t', 'gcr.io/wlhe-cr/mesh-base', '.' ]
+    args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/mesh-base', '.' ]
     #timeout: 600s
     #entrypoint: /bin/bash
 
@@ -16,17 +16,29 @@ steps:
     env:
       - DOCKER_CLI_EXPERIMENTAL=enabled
       - TAG=$_GIT_TAG
-    args: [ 'build', '-t', 'gcr.io/wlhe-cr/fortio-mesh', 'samples/fortio' ]
+    args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/fortio-mesh', 'samples/fortio' ]
 
-#  - name: 'gcr.io/kaniko-project/executor:latest'
-#    args:
-#      - --destination=gcr.io/$PROJECT_ID/krun:latest
-#      - --cache=true
-#      - --cache-ttl=24h
-#    timeout: 1200s
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/fortio-mesh']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:331.0.0'
+    entrypoint: make
+    args:
+      - deploy/fortio
+
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    args:
+      - --destination=gcr.io/$PROJECT_ID/krun-kaniko:latest
+      - --cache=true
+      - --cache-ttl=24h
+    timeout: 1200s
+images:
+  - 'gcr.io/wlhe-cr/mesh-base'
+  - 'gcr.io/wlhe-cr/fortio-mesh'
 
 
 substitutions:
+  #PROJECT_ID: costin-asm1
   # _GIT_TAG will be filled with a git-based tag for the image, of the form vYYYYMMDD-hash, and
   # can be used as a substitution
   _GIT_TAG: '12345'

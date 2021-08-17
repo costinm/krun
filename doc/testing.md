@@ -23,5 +23,8 @@ services, and tested using direct http and tunneled mTLS.
 Currently using wlhe-cr project, with istio cluster. Eventually should
 use Prow.
 
+Cloud builder is used, with default (601426346923@cloudbuild.gserviceaccount.com) service account
+granted CloudRun and GKE access. The project has at least 3 clusters configured - the "asm-cr" 
+project will be used for tests.
 
 
