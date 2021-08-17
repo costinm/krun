@@ -1,14 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net"
-	"net/http"
 	"os"
 
-	"github.com/costinm/krun/pkg/hbone"
+	"github.com/costinm/hbone"
 )
 
 
@@ -20,14 +20,13 @@ var (
 
 // Create a HBONE tunnel to a given URL.
 //
-// Current client is authenticated for HBONE using local credentials,
-// or a kube.json file. If no certs or kube.json is found, one will be generated.
+// Current client is authenticated for HBONE using local credentials.
 //
-// Example:
-// ssh -v -o ProxyCommand='hbone https://c1.webinf.info:443/dm/PZ5LWHIYFLSUZB7VHNAMGJICH7YVRU2CNFRT4TXFFQSXEITCJUCQ:22'  root@PZ5LWHIYFLSUZB7VHNAMGJICH7YVRU2CNFRT4TXFFQSXEITCJUCQ
-// ssh -v -o ProxyCommand='hbone https://%h:443/hbone/:22' root@fortio.app.run
 //
-// Note that SSH is converting %h to lowercase - the ID must be in this form
+// ssh -o ProxyCommand='hbone https://%h:443/hbone/:22' root@fortio.app.run
+// If the server doesn't have persistent SSH key, use
+// -F /dev/null -o StrictHostKeyChecking=no -o "UserKnownHostsFile /dev/null"
+// Note the server is still authenticated using the external TLS connection and hostname.
 //
 func main() {
 	flag.Parse()
@@ -36,6 +35,9 @@ func main() {
 		log.Fatal("Expecting URL or host:port")
 	}
 	url := flag.Arg(0)
+
+	hb := &hbone.HBone{}
+	hc := hb.NewEndpoint(url)
 
 	if *port != "" {
 		fmt.Println("Listening on ", *port, " for ", url)
@@ -49,7 +51,8 @@ func main() {
 				panic(err)
 			}
 			go func() {
-				err := hbone.HboneCat(http.DefaultClient, url, a, a)
+				err := hc.Proxy(context.Background(), a, a)
+				//err := hbone.HboneCat(http.DefaultClient, url, a, a)
 				if err != nil {
 					log.Println(err)
 				}
@@ -58,7 +61,7 @@ func main() {
 	}
 
 	fmt.Println("Connecting to ", url)
-	err := hbone.HboneCat(http.DefaultClient, url, os.Stdin, os.Stdout)
+	err := hc.Proxy(context.Background(), os.Stdin, os.Stdout)
 	if err != nil {
 		log.Fatal(err)
 	}

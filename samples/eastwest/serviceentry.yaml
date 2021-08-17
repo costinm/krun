@@ -1,0 +1,38 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: cr
+  namespace: fortio
+  labels:
+    topology.istio.io/network: cloudrun
+spec:
+  hosts:
+    - cr.fortio.svc.cluster.local
+    - cr.fortio
+  ports:
+    - number: 2000
+      name: tcplocal
+      protocol: TCP
+
+  location: MESH_INTERNAL
+  resolution: STATIC
+
+  endpoints:
+    - address: 10.11.0.1
+      ports:
+        tls-sni: 15443
+      labels:
+        app: cr
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cr
+  namespace: fortio
+spec:
+  ports:
+    - port: 15443
+      name: tls-sni
+  selector:
+    app: cr
+---

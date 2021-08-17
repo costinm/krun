@@ -1,11 +1,9 @@
 package k8s
 
 import (
+	"context"
 	"errors"
 	"flag"
-	"fmt"
-	"io/ioutil"
-	"net/http"
 	"os"
 	"strings"
 
@@ -26,55 +24,6 @@ func init() {
 	klog.InitFlags(fs)
 }
 
-func RegionFromMetadata() (string, error) {
-	v, err := queryMetadata("http://metadata.google.internal/computeMetadata/v1/instance/region")
-	if err != nil {
-		return "", err
-	}
-	vs := strings.SplitAfter(v, "/regions/")
-	if len(vs) != 2 {
-		return "", fmt.Errorf("malformed region value split into %#v", vs)
-	}
-	return vs[1], nil
-}
-
-func ProjectFromMetadata() (string, error) {
-	v, err := queryMetadata("http://metadata.google.internal/computeMetadata/v1/project/project-id")
-	if err != nil {
-		return "", err
-	}
-	return v, nil
-}
-
-func ProjectNumberFromMetadata() (string, error) {
-	v, err := queryMetadata("http://metadata.google.internal/computeMetadata/v1/project/numeric-project-id")
-	if err != nil {
-		return "", err
-	}
-	return v, nil
-}
-
-func queryMetadata(url string) (string, error) {
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Metadata-Flavor", "Google")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("metadata server responeded with code=%d %s", resp.StatusCode, resp.Status)
-	}
-	defer resp.Body.Close()
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(b)), err
-}
-
 // initUsingKubeConfig uses KUBECONFIG or $HOME/.kube/config
 // to init the primary k8s cluster.
 //
@@ -87,6 +36,18 @@ func (kr *KRun) initUsingKubeConfig() error {
 		kc = os.Getenv("HOME") + "/.kube/config"
 	}
 	if _, err := os.Stat(kc); err == nil {
+		cf, err := clientcmd.LoadFromFile(kc)
+		//config := clientcmd.NewNonInteractiveClientConfig(cf, cf.CurrentContext, nil, nil)
+		if strings.HasPrefix(cf.CurrentContext, "gke_") {
+			parts := strings.Split(cf.CurrentContext, "_")
+			if len(parts) > 3 {
+				// TODO: if env variable with cluster name/location are set - use that for context
+				kr.ProjectId = parts[1]
+				kr.ClusterLocation = parts[2]
+				kr.ClusterName = parts[3]
+			}
+		}
+
 		config, err := clientcmd.BuildConfigFromFlags("", kc)
 		if err != nil {
 			return err
@@ -118,14 +79,6 @@ func (kr *KRun) initInCluster() error {
 	return nil
 }
 
-
-// WIP
-func New() (*KRun, error) {
-	kr := &KRun{}
-
-	return kr, nil
-}
-
 // InitK8SClient gets the default k8s client, using environment
 // variables to decide how:
 //
@@ -150,12 +103,14 @@ func (kr *KRun) InitK8SClient() error {
 		return  nil
 	}
 
-	err = kr.initGCP()
-	if err != nil {
-		return  err
-	}
-	if kr.Client != nil {
-		return  nil
+	if kr.VendorInit != nil {
+		err = kr.VendorInit(context.Background(), kr)
+		if err != nil {
+			return  err
+		}
+		if kr.Client != nil {
+			return  nil
+		}
 	}
 
 	err = kr.initInCluster()

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/costinm/krun/pkg/gcp"
 	"github.com/costinm/krun/pkg/k8s"
 )
 
@@ -69,12 +70,12 @@ func main() {
 	//	}
 	//} else {
 	//kr.AllHub(gcpProj, cluster, meshIDLabel, meshID)
-	err := kr.AllClusters(gcpProj, "", "mesh_id", "")
+	kc, cl, err := gcp.AllClusters(kr, "", "mesh_id", "")
 	if err != nil {
 		panic(err)
 	}
 	//}
-	err = kr.SaveKubeConfig()
+	err = gcp.SaveKubeConfig(kc, "", "config")
 	if err != nil {
 		panic(err)
 	}
@@ -85,7 +86,7 @@ func main() {
 		panic(err)
 	}
 
-	for _, c:= range kr.Clusters {
+	for _, c:= range cl {
 		buf := &bytes.Buffer{}
 		cn := "gke_" + gcpProj + "_" + c.Location + "_" + c.Name
 		cn = strings.ReplaceAll(cn, "_", "-")

@@ -1,12 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"time"
 
-	"github.com/costinm/krun/pkg/hbone"
+	"github.com/costinm/krun/pkg/gcp"
+	"github.com/costinm/hbone"
 	"github.com/costinm/krun/pkg/k8s"
 )
 
@@ -16,6 +16,7 @@ var initDebug func(run *k8s.KRun)
 func main() {
 	kr := &k8s.KRun{
 		StartTime: time.Now(),
+		VendorInit: gcp.InitGCP,
 	}
 
 	err := kr.InitK8SClient()
@@ -38,8 +39,7 @@ func main() {
 	}
 
 	if kr.XDSAddr != "-" {
-		proxyConfig := fmt.Sprintf(`{"discoveryAddress": "%s"}`, kr.XDSAddr)
-		kr.StartIstioAgent(proxyConfig)
+		kr.StartIstioAgent()
 	}
 
 	kr.StartApp()
@@ -53,17 +53,15 @@ func main() {
 
 	// TODO: wait for app and proxy ready
 	if kr.XDSAddr != "-" {
-		hb := &hbone.HBone{
-		}
-		err = hb.Init()
+		auth, err := hbone.LoadAuth("")
 		if err != nil {
 			log.Println("Failed to init hbone", err)
-		} else {
+		}
 
-			err = hb.Start(":14009")
-			if err != nil {
-				panic(err)
-			}
+		hb := hbone.New(auth)
+		_, err = hbone.ListenAndServeTCP(":14009", hb.HandleAcceptedH2C)
+		if err != nil {
+			panic(err)
 		}
 	}
 	select{}

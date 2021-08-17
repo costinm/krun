@@ -17,6 +17,7 @@ RUN go mod download
 COPY *.go ./
 COPY cmd ./cmd/
 COPY pkg ./pkg/
+COPY kodata ./kodata/
 
 RUN go build -a -gcflags='all=-N -l' -ldflags '-extldflags "-static"' -o /ws/krun ./
 
@@ -25,6 +26,12 @@ FROM ${BASE} AS istio
 
 # Similar with the 'ko' runtime layout
 COPY --from=build /ws/krun /ko-app/krun
+
+COPY kodata/* /var/run/ko/
+
+RUN  chown -R 1337 /var/run/ko
+
+ENV KO_DATA_PATH=/var/run/ko
 
 WORKDIR /
 

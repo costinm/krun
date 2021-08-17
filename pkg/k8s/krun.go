@@ -1,14 +1,13 @@
 package k8s
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
-	containerpb "google.golang.org/genproto/googleapis/container/v1"
 	"k8s.io/client-go/kubernetes"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 // KRun allows running an app in an Istio and K8S environment.
@@ -64,12 +63,6 @@ type KRun struct {
 	// the config.
 	Client *kubernetes.Clientset
 
-	// List of Clusters - used if location and cluster are not set explicitly
-	Clusters []*containerpb.Cluster
-
-	// Kubeconfig - constructed by looking up the clusters
-	KubeConfig *clientcmdapi.Config
-
 	ProjectId       string
 	ProjectNumber   string
 	ClusterName     string
@@ -79,8 +72,17 @@ type KRun struct {
 	appCmd      *exec.Cmd
 	TrustDomain string
 
-	StartTime time.Time
-	Labels    map [string]string
+	StartTime  time.Time
+	Labels     map[string]string
+	VendorInit func(context.Context, *KRun) error
+}
+
+
+func New() *KRun {
+	kr := &KRun{
+		StartTime: time.Now(),
+	}
+	return kr
 }
 
 // LoadConfig will use the env variables, metadata server and cluster configmaps
@@ -146,13 +148,6 @@ func (kr *KRun) LoadConfig() *KRun {
 			kr.Labels[kvl[0][6:]] =  prefix + kvl[1]
 		}
 	}
-	if kr.ProjectId == "" {
-		kr.ProjectId = os.Getenv("PROJECT_ID")
-	}
-
-	if kr.ProjectId == "" {
-		kr.ProjectId, _ = ProjectFromMetadata()
-	}
 
 	if kr.TrustDomain == "" {
 		kr.TrustDomain = os.Getenv("TRUST_DOMAIN")
@@ -171,24 +166,8 @@ func (kr *KRun) LoadConfig() *KRun {
 		kr.ClusterName = os.Getenv("CLUSTER_NAME")
 	}
 
-
-	if kr.ProjectNumber == "" {
-		kr.ProjectNumber = os.Getenv("PROJECT_NUMBER")
-	}
-	if kr.ProjectNumber == "" {
-		kr.ProjectNumber, _ = ProjectNumberFromMetadata()
-	}
-
-
 	if kr.ClusterLocation == "" {
 		kr.ClusterLocation = os.Getenv("CLUSTER_LOCATION")
-	}
-	// Deprecated
-	if kr.ClusterLocation == "" {
-		kr.ClusterLocation = os.Getenv("LOCATION")
-	}
-	if kr.ClusterLocation == "" {
-		kr.ClusterLocation, _ = RegionFromMetadata()
 	}
 
 	if kr.XDSAddr == "" {

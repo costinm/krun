@@ -2,17 +2,32 @@ package k8s
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 
 	"github.com/creack/pty"
+	"gopkg.in/yaml.v2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+
+// MeshConfig is a minimal mesh config.
+type MeshConfig struct {
+	TrustDomain string `yaml:"trustDomain,omitempty"`
+	DefaultConfig ProxyConfig `yaml:"defaultConfig,omitempty"`
+}
+type ProxyConfig struct {
+	DiscoveryAddress string `yaml:"discoveryAddress,omitempty"`
+	MeshId string `yaml:"meshId,omitempty"`
+	ProxyMetadata map[string]string `yaml:"proxyMetadata,omitempty"`
+}
 
 // When running as root:
 // - if /var/lib/istio/resolv.conf is found, use it.
@@ -41,6 +56,42 @@ func resolvConfForRoot()  {
 	}
 	log.Println("Adjusted resolv.conf")
 }
+
+// FindXDSAddr will try to find the XDSAddr using in-cluster info.
+// This is called after K8S client has been initialized.
+func (kr *KRun) FindXDSAddr() {
+	// TODO: find default tag, label, etc.
+	// Current code is written for MCP, use XDS_ADDR explicitly
+	// otherwise.
+	s, err :=  kr.Client.CoreV1().ConfigMaps("istio-system").Get(context.Background(),
+		"istio-asm-managed", metav1.GetOptions{})
+	if err != nil {
+		//
+		panic(err)
+	}
+	meshCfg := s.Data["mesh"]
+	mc := MeshConfig{}
+	err = yaml.Unmarshal([]byte(meshCfg), &mc)
+	if err != nil {
+		return
+	}
+
+	kr.TrustDomain = mc.TrustDomain
+	if kr.ProjectId == "" {
+		td := strings.Split(kr.TrustDomain, ".")
+		if len(td) > 1 {
+			kr.ProjectId = td[0]
+		}
+	}
+	kr.XDSAddr = mc.DefaultConfig.DiscoveryAddress
+	kr.MCPAddr = mc.DefaultConfig.ProxyMetadata[ "ISTIO_META_CLOUDRUN_ADDR"]
+	meshId := mc.DefaultConfig.MeshId
+	mid := strings.Split(meshId, "-")
+	if len(mid) > 1 {
+		kr.ProjectNumber = mid[1]
+	}
+}
+
 
 func (kr *KRun) agentCommand() *exec.Cmd {
 	// From the template:
@@ -80,7 +131,8 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 
 // StartIstioAgent creates the env and starts istio agent.
 // If running as root, will also init iptables and change UID to 1337.
-func (kr *KRun) StartIstioAgent(proxyConfig string) {
+func (kr *KRun) StartIstioAgent() {
+	proxyConfig := fmt.Sprintf(`{"discoveryAddress": "%s"}`, kr.XDSAddr)
 	// /dev/stdout is rejected - it is a pipe.
 	// https://github.com/envoyproxy/envoy/issues/8297#issuecomment-620659781
 	prefix := "."

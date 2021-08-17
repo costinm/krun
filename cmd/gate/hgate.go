@@ -1,12 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"time"
 
-	"github.com/costinm/krun/pkg/hbone"
+	"github.com/costinm/hbone"
 	"github.com/costinm/krun/pkg/k8s"
 )
 
@@ -18,31 +17,36 @@ func main() {
 	kr := &k8s.KRun{
 		StartTime: time.Now(),
 	}
-	kr.LoadConfig()
 
 	err := kr.InitK8SClient()
 	if err != nil {
 		log.Fatal("Failed to connect to GKE ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}
 
+	kr.LoadConfig()
 	kr.Refresh()
 
-	if kr.XDSAddr == "" {
-		kr.FindXDSAddr()
+	auth, err := hbone.LoadAuth("")
+	if err != nil {
+		log.Fatal("Failed to load certificates", err)
 	}
 
-	if kr.XDSAddr != "-" {
-		proxyConfig := fmt.Sprintf(`{"discoveryAddress": "%s"}`, kr.XDSAddr)
-		kr.ExtraEnv = []string{"GRPC_XDS_BOOTSTRAP=./var/run/grpc.json"}
-		kr.StartIstioAgent(proxyConfig)
+	h2r := hbone.New(auth)
+
+	_, err = hbone.ListenAndServeTCP(":15443", h2r.HandleSNIConn)
+	if err != nil {
+		log.Fatal("Failed to start SNI tunnel", err)
 	}
 
-	auth := &hbone.Auth{}
-	auth.InitKeys()
+	_, err = hbone.ListenAndServeTCP(":15442", h2r.HandleH2RSNIConn)
+	if err != nil {
+		log.Fatal("Failed to start H2R SNI tunnel ", err)
+	}
 
-	h2r := hbone.H2RServer{Auth: auth}
-
-	h2r.Start()
+	_, err = hbone.ListenAndServeTCP(":15441", h2r.HandleH2RSNIConn)
+	if err != nil {
+		log.Fatal("Failed to start H2R tunnel", err)
+	}
 
 	select{}
 
