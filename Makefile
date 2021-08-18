@@ -106,7 +106,6 @@ deps:
 	# TODO: helm, ko
 
 test:
-	go test ./pkg/...
 	(cd samples/fortio; REGION=us-central1 CLUSTER_NAME=asm-cr CLUSTER_LOCATION=us-central1-c \
     	make deploy)
     # OSS/ASM with Istiod exposed in Gateway, with ACME certs
