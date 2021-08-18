@@ -4,15 +4,6 @@ options:
   #machineType: 'N1_HIGHCPU_8'
 
 steps:
-  - name: golang
-    entrypoint: /bin/bash
-    args:
-      - -c
-      - |
-        go test -timeout 2m -v ./... || true
-        #go get -u github.com/jstemmer/go-junit-report
-        #2>&1 go test -timeout 1m -v ./... | tee sponge.log
-        #/go/bin/go-junit-report -set-exit-code < sponge.log > ${SHORT_SHA}_test_log.xml
 
   - name: 'gcr.io/kaniko-project/executor:latest'
     args:
@@ -26,11 +17,45 @@ steps:
       - --destination=gcr.io/$PROJECT_ID/fortio-kaniko:$COMMIT_SHA
       - --dockerfile=samples/fortio/Dockerfile
       - --context=dir://samples/fortio
-      - --build-args
-      - BASE=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
+      - --build-arg=BASE=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
       - --cache=true
       - --cache-ttl=240h
     timeout: 1200s
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:331.0.0'
+    entrypoint: gcloud
+    args:
+      - container
+      - clusters
+      - get-credentials
+      - asm-cr
+      - -zone=us-central1-c
+      - --project=$PROJECT_ID
+
+
+  - name: golang
+    entrypoint: /bin/bash
+    env:
+      - PROJECT_ID=$PROJECT_ID
+      - CLUSTER_NAME=asm-cr
+      - CLUSTER_LOCATION=us-central1-c
+    args:
+      - -c
+      - |
+        pwd
+        env
+        ls
+        ls -a $HOME
+        go test -timeout 2m -v ./... || true
+        #go get -u github.com/jstemmer/go-junit-report
+        #2>&1 go test -timeout 1m -v ./... | tee sponge.log
+        #/go/bin/go-junit-report -set-exit-code < sponge.log > ${SHORT_SHA}_test_log.xml
+
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:331.0.0'
+    entrypoint: make
+    args:
+      - test
 
   - name: 'gcr.io/cloud-builders/docker'
     env:
@@ -48,11 +73,6 @@ steps:
     args:
       - deploy/fortio
 
-
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:331.0.0'
-    entrypoint: make
-    args:
-      - test
 
   - name: 'gcr.io/cloud-builders/docker'
     env:
