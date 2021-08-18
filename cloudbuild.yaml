@@ -22,18 +22,9 @@ steps:
       - --cache-ttl=240h
     timeout: 1200s
 
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:331.0.0'
-    entrypoint: gcloud
-    args:
-      - container
-      - clusters
-      - get-credentials
-      - asm-cr
-      - -zone=us-central1-c
-      - --project=$PROJECT_ID
-
-
-  - name: golang
+  # TODO: combine gcloud, go, etc in single image - maybe use Istio build image
+  - name: gcr.io/istio-testing/build-tools:master-2021-08-06T18-11-12
+    # name: golang
     entrypoint: /bin/bash
     env:
       - PROJECT_ID=$PROJECT_ID
@@ -45,6 +36,8 @@ steps:
         pwd
         env
         ls
+        gcloud version
+        gcloud container clusters get-credentials asm-cr --zone us-central1-c --project $PROJECT_ID
         go test -timeout 2m -v ./... || true
         #go get -u github.com/jstemmer/go-junit-report
         #2>&1 go test -timeout 1m -v ./... | tee sponge.log
