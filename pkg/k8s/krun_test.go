@@ -19,7 +19,7 @@ func TestK8S(t *testing.T) {
 
 	err := kr.InitK8SClient()
 	if err != nil {
-		t.Fatal("Failed to connect to GKE ", time.Since(kr.StartTime), kr, os.Environ(), err)
+		t.Skip("Failed to connect to GKE, missing kubeconfig ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}
 
 	kr.LoadConfig()
