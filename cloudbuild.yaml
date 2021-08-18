@@ -3,6 +3,12 @@ options:
   substitution_option: ALLOW_LOOSE
   #machineType: 'N1_HIGHCPU_8'
 
+# Execution environment:
+# HOME=/builder/home
+# pwd=/workspace
+# BUILDER_OUTPUT=/builder/outputs
+# GOCACHE=/gocache
+
 steps:
 
   - name: 'gcr.io/kaniko-project/executor:latest'
@@ -22,7 +28,8 @@ steps:
       - --cache-ttl=240h
     timeout: 1200s
 
-  # TODO: combine gcloud, go, etc in single image - maybe use Istio build image
+  # TODO: combine gcloud, go, etc in single image - Istio build image is huge
+  # Also includes gcloud 349.0.0
   - name: gcr.io/istio-testing/build-tools:master-2021-08-06T18-11-12
     # name: golang
     entrypoint: /bin/bash
@@ -30,42 +37,36 @@ steps:
       - PROJECT_ID=$PROJECT_ID
       - CLUSTER_NAME=asm-cr
       - CLUSTER_LOCATION=us-central1-c
+      - FORTIO_IMAGE=gcr.io/$PROJECT_ID/fortio-kaniko:$COMMIT_SHA
     args:
       - -c
       - |
-        pwd
-        env
-        ls
-        gcloud version
+        export KUBECONFIG=/builder/home/config
         gcloud container clusters get-credentials asm-cr --zone us-central1-c --project $PROJECT_ID
         go test -timeout 2m -v ./... || true
         #go get -u github.com/jstemmer/go-junit-report
         #2>&1 go test -timeout 1m -v ./... | tee sponge.log
         #/go/bin/go-junit-report -set-exit-code < sponge.log > ${SHORT_SHA}_test_log.xml
 
+        make test
 
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:331.0.0'
-    entrypoint: make
-    args:
-      - test
+#  - name: 'gcr.io/cloud-builders/docker'
+#    env:
+#      - DOCKER_CLI_EXPERIMENTAL=enabled
+#      - TAG=$_GIT_TAG
+#    args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/fortio-mesh', '--build-arg', 'BASE=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA', 'samples/fortio' ]
 
-  - name: 'gcr.io/cloud-builders/docker'
-    env:
-      - DOCKER_CLI_EXPERIMENTAL=enabled
-      - TAG=$_GIT_TAG
-    args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/fortio-mesh', '--build-arg', 'BASE=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA', 'samples/fortio' ]
+#  - name: 'gcr.io/cloud-builders/docker'
+#    args: ['push', 'gcr.io/$PROJECT_ID/fortio-mesh']
 
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/fortio-mesh']
+#  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:331.0.0'
+#    entrypoint: make
+#    env:
+#      - IMAGE=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
+#    args:
+#      - deploy/fortio
 
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:331.0.0'
-    entrypoint: make
-    env:
-      - IMAGE=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
-    args:
-      - deploy/fortio
-
-
+  # Final step - if everything else was fine, use real docker to build the branch golden image
   - name: 'gcr.io/cloud-builders/docker'
     env:
       - DOCKER_CLI_EXPERIMENTAL=enabled

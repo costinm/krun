@@ -32,7 +32,7 @@ CR_SUFFIX=-icq63pqnqq-uc.a.run.app
 # Where to store the images
 REPO=gcr.io/${PROJECT_ID}
 
-IMAGE?=${REPO}/fortio-cr:latest
+FORTIO_IMAGE?=${REPO}/fortio-cr:latest
 
 ISTIOD_URL?=istiod.${SUBDOMAIN}:443
 
@@ -51,11 +51,11 @@ SSH_DEBUG_ARGS=--set-env-vars="SSH_AUTH=$(shell cat ~/.ssh/id_ecdsa.pub)"
 all: image push deploy
 
 push: image
-	docker push ${IMAGE}
+	docker push ${FORTIO_IMAGE}
 
 # Build the image using the proxy as base
 image:
-	docker build . -t ${IMAGE}
+	docker build . -t ${FORTIO_IMAGE}
 
 # For gvisor: add
 # --set-env-vars="HTTP_PROXY=127.0.0.1:15080"
@@ -75,7 +75,7 @@ deploy:
          --use-http2 \
          --port 14009 \
          --min-instances=1 \
-         --image ${IMAGE} \
+         --image ${FORTIO_IMAGE} \
          --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}" \
          --set-env-vars="CLUSTER_NAME=${CLUSTER_NAME}" \
   		 --set-env-vars="LABEL_DEPLOY=$(shell date +%y%m%d-%H%M)" \
