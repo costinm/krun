@@ -105,7 +105,11 @@ deps:
 	chmod +x kubectl
 	# TODO: helm, ko
 
+
 test:
+	go test -timeout 2m -v ./...
+
+canary:
 	(cd samples/fortio; REGION=us-central1 CLUSTER_NAME=asm-cr CLUSTER_LOCATION=us-central1-c \
     	make deploy)
     # OSS/ASM with Istiod exposed in Gateway, with ACME certs
@@ -141,3 +145,7 @@ deploy/istiod:
 # 		--set meshConfig.proxyHttpPort=15080 \
 # Cloudrun:
 #  --set-env-vars="HTTP_PROXY=127.0.0.1:15080"
+
+# Create the builder docker image, used in GCB
+build/builder:
+	cd tools/gcb && gcloud builds submit . --config=cloudbuild.yaml

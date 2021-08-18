@@ -8,7 +8,6 @@ RUN GOOS=linux go build -mod=vendor -o /bin/ko ./cmd/ko
 FROM gcr.io/cloud-builders/kubectl
 
 COPY --from=kosource /bin/ko /
-COPY ko.bash /builder/ko.bash
 
 # Install Go
 COPY --from=0 /usr/local/go /usr/local/go

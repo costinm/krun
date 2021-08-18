@@ -28,6 +28,34 @@ steps:
       - --cache-ttl=240h
     timeout: 1200s
 
+  # To compare against kankiko
+  - name: gcr.io/costin-asm1/ko:latest
+    entrypoint: /bin/bash
+    env:
+      - PROJECT_ID=$PROJECT_ID
+      - CLUSTER_NAME=asm-cr
+      - CLUSTER_LOCATION=us-central1-c
+      - FORTIO_IMAGE=gcr.io/$PROJECT_ID/fortio-kaniko:$COMMIT_SHA
+      - KUBECONFIG=/builder/home/config
+    args:
+      - -c
+      - |
+        make push/krun
+
+  - name: gcr.io/costin-asm1/ko:latest
+    entrypoint: /bin/bash
+    env:
+      - PROJECT_ID=$PROJECT_ID
+      - CLUSTER_NAME=asm-cr
+      - CLUSTER_LOCATION=us-central1-c
+      - FORTIO_IMAGE=gcr.io/$PROJECT_ID/fortio-kaniko:$COMMIT_SHA
+      - KUBECONFIG=/builder/home/config
+    args:
+      - -c
+      - |
+        gcloud container clusters get-credentials asm-cr --zone us-central1-c --project $PROJECT_ID
+        make all test canary
+
   # TODO: combine gcloud, go, etc in single image - Istio build image is huge
   # Also includes gcloud 349.0.0
   # https://github.com/GoogleCloudPlatform/cloud-builders-community/tree/master/ko is a good
