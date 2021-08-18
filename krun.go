@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/costinm/krun/pkg/gcp"
 	"github.com/costinm/hbone"
+	"github.com/costinm/krun/pkg/gcp"
 	"github.com/costinm/krun/pkg/k8s"
 )
 
@@ -45,9 +45,9 @@ func main() {
 	kr.StartApp()
 
 
-	if InitDebug != nil {
+	if initDebug != nil {
 		// Split for conditional compilation (to compile without ssh dep)
-		InitDebug(kr)
+		initDebug(kr)
 	}
 
 

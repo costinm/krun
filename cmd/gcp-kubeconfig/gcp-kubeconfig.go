@@ -2,13 +2,16 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 	"text/template"
 
 	"github.com/costinm/krun/pkg/gcp"
 	"github.com/costinm/krun/pkg/k8s"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 
@@ -28,25 +31,7 @@ metadata:
   namespace: istio-system
 stringData:
   {{ .name }}: |
-    apiVersion: v1
-    kind: Config
-    clusters:
-    - cluster:
-        certificate-authority-data: {{ .ca }}
-        server: https://{{ .server }}
-      name: {{ .name }}
-    contexts:
-    - context:
-        cluster: {{ .name }}
-        user: {{ .name }} 
-      name: {{ .name }}
-    current-context: {{ .name }}
-    preferences: {}
-    users:
-    - name: {{ .name }}
-      user:
-        auth-provider:
-          name: gcp
+    {{ .kubeConfig }}
 ---
 `
 
@@ -70,11 +55,19 @@ func main() {
 	//	}
 	//} else {
 	//kr.AllHub(gcpProj, cluster, meshIDLabel, meshID)
-	kc, cl, err := gcp.AllClusters(kr, "", "mesh_id", "")
+	cl, err := gcp.AllClusters(context.Background(), kr, "", "mesh_id", "")
 	if err != nil {
 		panic(err)
 	}
-	//}
+
+	if len(cl) == 0 {
+		log.Println("No clusters")
+		return
+	}
+	kc := cl[0].KubeConfig
+	for _, c := range cl {
+		gcp.MergeKubeConfig(kc, c.KubeConfig)
+	}
 	err = gcp.SaveKubeConfig(kc, "", "config")
 	if err != nil {
 		panic(err)
@@ -88,12 +81,15 @@ func main() {
 
 	for _, c:= range cl {
 		buf := &bytes.Buffer{}
-		cn := "gke_" + gcpProj + "_" + c.Location + "_" + c.Name
+		cn := "gke_" + gcpProj + "_" + c.ClusterLocation + "_" + c.ClusterName
 		cn = strings.ReplaceAll(cn, "_", "-")
+		cfgjs, err := clientcmd.Write(*kc)
+		if err != nil {
+			continue
+		}
 		tmpl.Execute(buf, map[string]string{
 			"name": cn,
-			"ca": string(c.MasterAuth.ClusterCaCertificate),
-			"server": c.Endpoint,
+			"kubeConfig": string(cfgjs),
 		})
 
 		ioutil.WriteFile("secret-" + cn + ".yaml", buf.Bytes(), 0700)
