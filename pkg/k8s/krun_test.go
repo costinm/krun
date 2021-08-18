@@ -4,6 +4,8 @@ import (
 	"os"
 	"testing"
 	"time"
+	// Required for k8s client to link in the authenticator
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
 // Requires KUBECONFIG or $HOME/.kube/config

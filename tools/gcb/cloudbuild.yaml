@@ -3,6 +3,6 @@ substitutions:
   _KO_GIT_TAG: 'main'
 steps:
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '--build-arg', 'KO_GIT_TAG=${_KO_GIT_TAG}', '--tag=gcr.io/$PROJECT_ID/ko', '.']
+    args: ['build', '--build-arg', 'KO_GIT_TAG=${_KO_GIT_TAG}', '--tag=gcr.io/$PROJECT_ID/krun-builder', '-f', 'tools/gcb/Dockerfile', '.']
 
-images: ['gcr.io/$PROJECT_ID/ko']
+images: ['gcr.io/$PROJECT_ID/krun-builder']

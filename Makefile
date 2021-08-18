@@ -7,18 +7,20 @@
 # USER - User logged in gcloud, used to find adc for local tests
 -include .local.mk
 
+PROJECT_ID?=wlhe-cr
+
 ISTIO_CHARTS?=../istio/manifests/charts
 REV?=v1-11
 
 # Github actions use this.
-KO_DOCKER_REPO?=ghcr.io/costinm/krun/krun
+KO_DOCKER_REPO?=gcr.io/${PROJECT_ID}/krun
 export KO_DOCKER_REPO
 
 # For testing/dev in local docker
 ADC?=${HOME}/.config/gcloud/legacy_credentials/${USER}/adc.json
 export ADC
 
-KRUN_IMAGE=ghcr.io/costinm/krun/krun:latest
+KRUN_IMAGE?=${KO_DOCKER_REPO}:latest
 
 # Push krun - the github action on push will do the same.
 # This is the fastest way to push krun - permission required to KO_DOCKER_REPO
@@ -58,7 +60,7 @@ docker/run-noxds:
 
 local/run-kubeconfig:
 	docker run  -e KUBECONFIG=/var/run/kubeconfig -v ${HOME}/.kube/config:/var/run/kubeconfig:ro -it  \
-		ghcr.io/costinm/krun/krun:latest  /bin/bash
+		${KRUN_IMAGE}  /bin/bash
 
 # Run in local docker, using ADC for auth
 docker/run-xds-adc:
@@ -147,5 +149,12 @@ deploy/istiod:
 #  --set-env-vars="HTTP_PROXY=127.0.0.1:15080"
 
 # Create the builder docker image, used in GCB
-build/builder:
-	cd tools/gcb && gcloud builds submit . --config=cloudbuild.yaml
+gcb/builder:
+	gcloud builds --project ${PROJECT_ID} submit . --config=tools/gcb/cloudbuild.yaml
+
+gcb/local:
+	cloud-build-local --dryrun=false --push=true   --substitutions=BRANCH_NAME=local,COMMIT_SHA=local .
+
+gcb/build:
+	gcloud builds --project ${PROJECT_ID} submit --substitutions=BRANCH_NAME=local,COMMIT_SHA=local .
+

@@ -12,7 +12,8 @@ ENV GOOS=linux
 ENV GOPROXY=https://proxy.golang.org
 
 COPY go.* ./
-RUN go mod download
+# Helps speed up local builds
+#RUN go mod download
 
 COPY *.go ./
 COPY cmd ./cmd/
