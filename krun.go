@@ -14,10 +14,9 @@ import (
 var initDebug func(run *k8s.KRun)
 
 func main() {
-	kr := &k8s.KRun{
-		StartTime: time.Now(),
-		VendorInit: gcp.InitGCP,
-	}
+	kr := k8s.New()
+
+	kr.VendorInit = gcp.InitGCP
 
 	err := kr.InitK8SClient()
 	if err != nil {

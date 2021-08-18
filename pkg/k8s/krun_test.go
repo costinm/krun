@@ -13,9 +13,7 @@ func TestK8S(t *testing.T) {
 	os.Mkdir("../../../out", 0775)
 	os.Chdir("../../../out")
 
-	kr := &KRun{
-		StartTime: time.Now(),
-	}
+	kr := New()
 
 	err := kr.InitK8SClient()
 	if err != nil {

@@ -30,6 +30,9 @@ steps:
 
   # TODO: combine gcloud, go, etc in single image - Istio build image is huge
   # Also includes gcloud 349.0.0
+  # https://github.com/GoogleCloudPlatform/cloud-builders-community/tree/master/ko is a good
+  # base, includes ko, kubectl, gcloud
+  # They use: CLOUDSDK_COMPUTE_ZONE, CLOUDSDK_CONTAINER_CLUSTER, CLOUDSDK_CORE_PROJECT
   - name: gcr.io/istio-testing/build-tools:master-2021-08-06T18-11-12
     # name: golang
     entrypoint: /bin/bash

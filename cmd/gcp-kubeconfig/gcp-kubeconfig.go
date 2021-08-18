@@ -46,7 +46,7 @@ func main() {
 	//meshID := os.Getenv("MESH_ID")
 
 
-	kr := &k8s.KRun{}
+	kr := k8s.New()
 	//if meshID == "" {
 	//  // if location is specified, create a single-cluster config.
 	//	err := kr.CreateClusterConfig(gcpProj, location, cluster)

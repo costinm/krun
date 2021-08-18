@@ -19,7 +19,7 @@ func main() {
 		aud = os.Args[1]
 	}
 
-	kr := &k8s.KRun{}
+	kr := k8s.New()
 	err := kr.InitK8SClient()
 	if err != nil {
 		panic(err)

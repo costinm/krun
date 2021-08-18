@@ -14,9 +14,7 @@ import (
 // a SNI to H2 proxy - similar with the current multi-net gateway
 // protocol from Istio side.
 func main() {
-	kr := &k8s.KRun{
-		StartTime: time.Now(),
-	}
+	kr := k8s.New()
 
 	err := kr.InitK8SClient()
 	if err != nil {

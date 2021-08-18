@@ -81,6 +81,10 @@ type KRun struct {
 func New() *KRun {
 	kr := &KRun{
 		StartTime: time.Now(),
+		Aud2File: map[string]string{},
+		CM2Dirs: map[string]string{},
+		Labels: map[string]string{},
+		Secrets2Dirs: map[string]string{},
 	}
 	return kr
 }
