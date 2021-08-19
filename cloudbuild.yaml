@@ -75,7 +75,6 @@ steps:
       - CLUSTER_NAME=asm-cr
       - CLUSTER_LOCATION=us-central1-c
       - FORTIO_IMAGE=gcr.io/$PROJECT_ID/fortio-mesh:$COMMIT_SHA
-      - KUBECONFIG=/workspace/kubeconfig
     waitFor:
       - fortio
     args:
@@ -83,9 +82,12 @@ steps:
       - |
         make canary
 
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
-    id: get-creds
-    #- name: gcr.io/$PROJECT_ID/krun-builder:latest
+
+  # Run tests. We need a docker image with cloudrun (for get credentials) and go
+  #  get-credentials generate a file with exec gcloud - so it must be present.
+  # TODO: use krun to generate a config using metadata server, or add golang to alpine
+  #- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+  - name: gcr.io/$PROJECT_ID/krun-builder:latest
     entrypoint: /bin/bash
     env:
       - PROJECT_ID=$PROJECT_ID
@@ -99,22 +101,6 @@ steps:
       - -c
       - |
         gcloud container clusters get-credentials asm-cr --zone us-central1-c --project $PROJECT_ID
-
-  # Deploy the canary, run tests
-  #- name: gcr.io/$PROJECT_ID/krun-builder:latest
-  - name: golang
-    entrypoint: /bin/bash
-    env:
-      - PROJECT_ID=$PROJECT_ID
-      - CLUSTER_NAME=asm-cr
-      - CLUSTER_LOCATION=us-central1-c
-      - FORTIO_IMAGE=gcr.io/$PROJECT_ID/fortio-mesh:$COMMIT_SHA
-      - KUBECONFIG=/workspace/kubeconfig
-    waitFor:
-      - "get-creds"
-    args:
-      - -c
-      - |
         make test || true
 
   # TODO: combine gcloud, go, etc in single image - Istio build image is huge

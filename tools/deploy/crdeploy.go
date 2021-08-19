@@ -1,6 +1,9 @@
 package main
 
-
+// crdeploy is a go-based tool to deploy a CR service, primarily for CI/CD and tests to avoid the large gcloud
+// docker image.
+//
+// Based on:
 // https://cloud.google.com/run/docs/reference/rest/
 // https://github.com/GoogleCloudPlatform/cloud-run-button/blob/18b4cd01c618/cmd/cloudshell_open/deploy.go
 
