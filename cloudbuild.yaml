@@ -24,6 +24,7 @@ steps:
 #
 # ~15sec
   - name: 'gcr.io/kaniko-project/executor:latest'
+    id: fortio
     args:
       - --destination=gcr.io/$PROJECT_ID/fortio:$COMMIT_SHA
       - --dockerfile=samples/fortio/Dockerfile
