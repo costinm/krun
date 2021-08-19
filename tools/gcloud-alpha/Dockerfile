@@ -2,7 +2,7 @@
 
 FROM golang:alpine AS go
 
-FROM gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
+FROM gcr.io/google.com/cloudsdktool/cloud-sdk:353.0.0-alpine
 
 RUN gcloud components install -q alpha
 

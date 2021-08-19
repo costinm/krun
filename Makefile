@@ -158,7 +158,10 @@ deploy/istiod:
 gcb/builder:
 	gcloud builds --project ${PROJECT_ID} submit . --config=tools/gcb/cloudbuild.yaml
 
-gcb/ko-builder:
+gcb/builder-gcloud:
+	gcloud builds --project ${PROJECT_ID} submit . --config=tools/gcloud-alpha/cloudbuild.yaml
+
+gcb/builder-ko:
 	gcloud builds --project ${PROJECT_ID} submit . --config=tools/ko/cloudbuild.yaml
 
 gcb/local:

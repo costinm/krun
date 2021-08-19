@@ -16,7 +16,7 @@ steps:
   - name: 'gcr.io/kaniko-project/executor:latest'
     id: base-kaniko
     args:
-      - --destination=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
+      - --destination=gcr.io/$PROJECT_ID/krun:$COMMIT_SHA
       - --cache=true
       - --cache-ttl=240h
       - --force
@@ -25,10 +25,10 @@ steps:
 # ~15sec
   - name: 'gcr.io/kaniko-project/executor:latest'
     args:
-      - --destination=gcr.io/$PROJECT_ID/fortio-kaniko:$COMMIT_SHA
+      - --destination=gcr.io/$PROJECT_ID/fortio:$COMMIT_SHA
       - --dockerfile=samples/fortio/Dockerfile
       - --context=dir://samples/fortio
-      - --build-arg=BASE=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
+      - --build-arg=BASE=gcr.io/$PROJECT_ID/krun:$COMMIT_SHA
       - --cache=true
       - --cache-ttl=240h
     timeout: 1200s
@@ -36,39 +36,40 @@ steps:
       - base-kaniko
 
   # To compare against kankiko
-  - name: gcr.io/$PROJECT_ID/ko
-    entrypoint: /bin/bash
-    id: base-ko
-    env:
-      - KO_DOCKER_REPO=gcr.io/$PROJECT_ID
-    waitFor:
-      - "-"
-    args:
-      - -c
-      - |
-        KO_IMAGE=$(ko publish -B -t $COMMIT_SHA ./)
-
-        echo $$KO_IMAGE > /workspace/base_image
-
-  # Use docker to build fortio - this is what users will do
-  - name: 'gcr.io/cloud-builders/docker'
-    id: fortio
-    entrypoint: /bin/bash
-    env:
-      - DOCKER_CLI_EXPERIMENTAL=enabled
-      - TAG=$_GIT_TAG
-    waitFor:
-      - base-ko
-    args:
-      - -c
-      - |
-        docker build -t gcr.io/$PROJECT_ID/fortio-mesh:$COMMIT_SHA --build-arg BASE=gcr.io/$PROJECT_ID/krun:$COMMIT_SHA samples/fortio
-        docker push gcr.io/$PROJECT_ID/fortio-mesh:$COMMIT_SHA
+#  - name: gcr.io/$PROJECT_ID/ko
+#    entrypoint: /bin/bash
+#    id: base-ko
+#    env:
+#      - KO_DOCKER_REPO=gcr.io/$PROJECT_ID
+#    waitFor:
+#      - "-"
+#    args:
+#      - -c
+#      - |
+#        KO_IMAGE=$(ko publish -B -t $COMMIT_SHA ./)
+#
+#        echo $$KO_IMAGE > /workspace/base_image
+#
+#  # Use docker to build fortio - this is what users will do
+#  - name: 'gcr.io/cloud-builders/docker'
+#    id: fortio
+#    entrypoint: /bin/bash
+#    env:
+#      - DOCKER_CLI_EXPERIMENTAL=enabled
+#      - TAG=$_GIT_TAG
+#    waitFor:
+#      - base-ko
+#    args:
+#      - -c
+#      - |
+#        docker build -t gcr.io/$PROJECT_ID/fortio-mesh:$COMMIT_SHA --build-arg BASE=gcr.io/$PROJECT_ID/krun:$COMMIT_SHA samples/fortio
+#        docker push gcr.io/$PROJECT_ID/fortio-mesh:$COMMIT_SHA
 
   # Deploy the canary, run tests
   # Missing alpha command
   #- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  - name: gcr.io/$PROJECT_ID/krun-builder:latest
+  - name: gcr.io/wlhe-cr/gcloud-alpha
+  #- name: gcr.io/$PROJECT_ID/krun-builder:latest
     entrypoint: /bin/bash
     env:
       - PROJECT_ID=$PROJECT_ID
@@ -87,7 +88,8 @@ steps:
   #  get-credentials generate a file with exec gcloud - so it must be present.
   # TODO: use krun to generate a config using metadata server, or add golang to alpine
   #- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
-  - name: gcr.io/$PROJECT_ID/krun-builder:latest
+  - name: gcr.io/wlhe-cr/gcloud-alpha
+  #- name: gcr.io/$PROJECT_ID/krun-builder:latest
     entrypoint: /bin/bash
     env:
       - PROJECT_ID=$PROJECT_ID
