@@ -9,40 +9,39 @@ options:
 # BUILDER_OUTPUT=/builder/outputs
 # GOCACHE=/gocache
 
-
 steps:
 
 # ~2 min
-  - name: 'gcr.io/kaniko-project/executor:latest'
-    id: base-kaniko
-    args:
-      - --destination=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
-      - --cache=true
-      - --cache-ttl=240h
-      - --force
-    timeout: 1200s
+#  - name: 'gcr.io/kaniko-project/executor:latest'
+#    args:
+#      - --destination=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
+#      - --cache=true
+#      - --cache-ttl=240h
+#    timeout: 1200s
 #
 # ~15sec
-  - name: 'gcr.io/kaniko-project/executor:latest'
-    args:
-      - --destination=gcr.io/$PROJECT_ID/fortio-kaniko:$COMMIT_SHA
-      - --dockerfile=samples/fortio/Dockerfile
-      - --context=dir://samples/fortio
-      - --build-arg=BASE=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
-      - --cache=true
-      - --cache-ttl=240h
-    timeout: 1200s
-    waitFor:
-      - base-kaniko
+#  - name: 'gcr.io/kaniko-project/executor:latest'
+#    args:
+#      - --destination=gcr.io/$PROJECT_ID/fortio-kaniko:$COMMIT_SHA
+#      - --dockerfile=samples/fortio/Dockerfile
+#      - --context=dir://samples/fortio
+#      - --build-arg=BASE=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
+#      - --cache=true
+#      - --cache-ttl=240h
+#    timeout: 1200s
 
   # To compare against kankiko
+  # Super slow - most in getting the 1.6G image including gcloud
+  #- name: gcr.io/$PROJECT_ID/krun-builder
   - name: gcr.io/$PROJECT_ID/ko
     entrypoint: /bin/bash
-    id: base-ko
     env:
-      - KO_DOCKER_REPO=gcr.io/$PROJECT_ID
-    waitFor:
-      - "-"
+      - PROJECT_ID=$PROJECT_ID
+      - CLUSTER_NAME=asm-cr
+      - CLUSTER_LOCATION=us-central1-c
+      - FORTIO_IMAGE=gcr.io/$PROJECT_ID/fortio-kaniko:$COMMIT_SHA
+      - KUBECONFIG=/builder/home/config
+      - KO_DOCKER_REPO=gcr.io/$PROJECT_ID/krun
     args:
       - -c
       - |
@@ -52,13 +51,10 @@ steps:
 
   # Use docker to build fortio - this is what users will do
   - name: 'gcr.io/cloud-builders/docker'
-    id: fortio
     entrypoint: /bin/bash
     env:
       - DOCKER_CLI_EXPERIMENTAL=enabled
       - TAG=$_GIT_TAG
-    waitFor:
-      - base-ko
     args:
       - -c
       - |
@@ -76,14 +72,12 @@ steps:
       - CLUSTER_LOCATION=us-central1-c
       - FORTIO_IMAGE=gcr.io/$PROJECT_ID/fortio-mesh:$COMMIT_SHA
       - KUBECONFIG=/workspace/kubeconfig
-    waitFor:
-      - fortio
     args:
       - -c
       - |
         make canary
 
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: get-creds
     #- name: gcr.io/$PROJECT_ID/krun-builder:latest
     entrypoint: /bin/bash

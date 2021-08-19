@@ -18,8 +18,8 @@ and port forward.
 - periodically refreshes the K8S token and other resources, similar with kubelet.
   
 
-All CLI configuration uses environment variables and env detection,
-the remaining of the command line is used to start the application.
+All krun configurations are based environment variables and env detection (including metadata server, config maps in 
+the cluster) - the parameters on the command line are passed directly to the application.
 
 
 ## Running as non-root
@@ -29,52 +29,62 @@ KRun can also be used as regular user, howerver:
 - iptables will not be set
 - envoy (if found) will run with the current UID
 - all files will be created relative to current dir instead of root dir.
+- envoy will be started with interception mode NONE.
 
-In this mode Istio can't capture traffic - however it can work in 'whitebox' mode,
-using HTTP_PROXY environment variable to capture HTTP and Sidecar API for forwarding
-local ports to services. 
+In this mode Istio can't capture traffic - it works in 'whitebox' mode, using HTTP_PROXY environment variable to 
+capture HTTP and Sidecar API for forwarding local ports to services. 
+
+It currently requires MeshConfig HttpProxyPort to be set - in 1.12 this will be automatically set for the workload,
+no need for global config (PR#...)
+
+Non-root mode is useful in Docker environments where iptables and/or running as root are not possible. For example
+CI/CDs, current CloudRun VMs (minivm supports iptables), developer machine.  
 
 ## Authentication
 
+Connection to K8S and Istiod will authenticate using:
 
-## GKE support 
+- metadata server or GOOGLE_APPLICATION_CREDENTIALS for GKE
+- an existing KUBECONFIG or $HOME/kube/config 
+
+In the first case, the Google Service Account requires the appropriate permissions. 
+
+
+# Configuration options and defaults
+
+## GKE support
 
 When running on a GCP VM, CloudRun instance or a VM with access to downloaded Google Service
 Account credentials, the library can get the APIserver URL and certificate, and create a kube config file.
 
 Credentials can be provided by a local metadata server or downloaded service account.
-The SA must have the correct IAM permissions. 
+The SA must have the correct IAM permissions.
 
-- `CLUSTER` - name of the GKE or Hub cluster
-- `LOCATION` - if specified, will look for a GKE cluster in that location. Otherwise
- will use Hub.
-- 
+- `CLUSTER_NAME` - name of the GKE or Hub cluster
+- `CLUSTER_LOCATION` - optional, if specified, zone or region of the GKE cluster. By default metadata server is used to find
+  the region of the workload, and the cluster is looked for in the same region.
+- `PROJECT_ID` - optional, the project of the GKE cluster. By default metadata server is used (same project as the workload)
 
-## Anthos Connect Gateway
+For authentication metadata server or GOOGLE_APPLICATION_CREDENTIALS will be used.
 
-This also works for GKE Connect Gateway, for private or non-GKE clusters registered in the hub.
+Work in progress to support Hub and the Hub connector.
 
-# Configuration options and defaults
+## K8S namespace mapping
 
-## K8S Cluster
+The workload needs to know the namespace and KSA.
 
-krun uses environment variables to identify the K8S cluster to associate with.
+- `WORKLOAD_NAMESPACE` 
+- `WORKLOAD_NAME` - it will default to the same value with WORKLOAD_NAMESPACE
+- `WORKLOAD_SERVICE_ACCOUNT` - default is "default"
 
-- PROJECT_ID
-- CLUSTER_LOCATION
-- CLUSTER_NAME
+If the workload runs in CloudRun and namespace/name are not set, K_SERVICE can be used to infer the namespace and name,
+will be parsed as [$VERSION--]$WORKLOAD_NAMESPACE[-$WORKLOAD_NAME]
 
-Alternatively, it can use 
+## Local debugging
 
-- KUBECONFIG 
-- ${HOME}/.kube/config
+When running on a local docker or dev machine, since metadata server is not available:
 
-For authentication it can use the metadata server or GOOGLE_APPLICATION_CREDENTIALS
+- GOOGLE_APPLICATION_CREDENTIALS must be set and the content must be mounted/available
+- CLUSTER_LOCATION and PROJECT_ID are required
+- WORKLOAD_NAMESPACE or K_SERVICE are required
 
-# Local debugging
-
-When running on a local docker, since metadata server is not available we need to specify a larger set of configs:
-
-- PROJECT_ID, PROJECT_NUMBER, CLUSTER_LOCATION, CLUSTER_NAME
-- GOOGLE_APPLICATION_CREDENTIALS
-- 

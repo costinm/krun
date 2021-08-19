@@ -32,6 +32,8 @@ COPY --from=kosource /bin/ko /usr/local/bin/ko
 COPY --from=istio /usr/local/bin/pilot-agent /usr/local/bin/
 COPY --from=istio /usr/local/bin/envoy /usr/local/bin/
 
+ENV GOPATH=""
+
 # To avoid downloads when building. The builder should be rebuilt on dep changes
 COPY go.* ./
 RUN go mod download
