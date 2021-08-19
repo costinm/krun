@@ -60,7 +60,8 @@ image:
 # For gvisor: add
 # --set-env-vars="HTTP_PROXY=127.0.0.1:15080"
 
-SANDBOX?=--sandbox=minivm
+#SANDBOX?=--sandbox=minivm
+SANDBOX?=--execution-environment=gen2
 
 SERVICE?=fortio-${CLUSTER_NAME}${SUFFIX}
 # Deploy to cloudrun

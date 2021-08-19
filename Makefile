@@ -111,13 +111,19 @@ deps:
 test:
 	go test -timeout 2m -v ./...
 
-canary:
+# Canary will deploy a 'canary' version of a cloudrun instance using the current golden image, and verify it works
+canary: canary/deploy canary/test
+
+canary/deploy:
 	(cd samples/fortio; REGION=us-central1 CLUSTER_NAME=asm-cr CLUSTER_LOCATION=us-central1-c \
     	make deploy)
     # OSS/ASM with Istiod exposed in Gateway, with ACME certs
 	(cd samples/fortio; REGION=us-central1 CLUSTER_NAME=istio CLUSTER_LOCATION=us-central1-c \
 		EXTRA="--set-env-vars XDS_ADDR=istiod.wlhe.i.webinf.info:443" \
 		make deploy)
+
+canary/test:
+	curl  -v  https://fortio-asm-cr-icq63pqnqq-uc.a.run.app/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
 
 # A single version of Istiod - using a version-based revision name.
 # The version will be associated with labels using in the other charts.

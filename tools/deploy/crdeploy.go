@@ -154,6 +154,7 @@ func newService(name, project, image string, envs map[string]string, options opt
 					Annotations: make(map[string]string),
 				},
 				Spec: &runapi.RevisionSpec{
+
 					Containers: []*runapi.Container{
 						{
 							Image:     image,
