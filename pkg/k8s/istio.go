@@ -174,11 +174,19 @@ func (kr *KRun) StartIstioAgent() {
 	// TODO: add support for passing a long lived 1p JWT in a file, for local run
 	//env = append(env, "JWT_POLICY=first-party-jwt")
 
+	whiteboxMode := os.Getenv("ISTIO_META_INTERCEPTION_MODE") == "NONE"
+
 	if os.Getuid() == 0 { //&& kr.Gateway != "" {
-		kr.runIptablesSetup(env)
-		log.Println("iptables done ", kr.Gateway)
+		err := kr.runIptablesSetup(env)
+		if err != nil {
+			log.Println("iptables disabled ", err)
+			whiteboxMode = true
+		} else {
+			log.Println("iptables done ", kr.Gateway)
+		}
 	} else {
 		log.Println("No iptables")
+		whiteboxMode = true
 	}
 
 	// Currently broken in iptables - use whitebox interception, but still run it
@@ -207,7 +215,11 @@ func (kr *KRun) StartIstioAgent() {
 		// Will be used to set a clusterid metadata, which will locate the remote cluster id
 		env = append(env, fmt.Sprintf("ISTIO_META_CLUSTER_ID=cn-%s-%s-%s",
 			kr.ProjectId, kr.ClusterLocation, kr.ClusterName))
+	}
 
+	if whiteboxMode {
+		env = append(env, "ISTIO_META_INTERCEPTION_MODE=NONE")
+		env = append(env, "HTTP_PROXY_PORT=15007")
 	}
 
 	// WIP: automate getting the CR addr (or have Thetis handle it)
@@ -320,7 +332,7 @@ service.istio.io/canonical-name="%s"
 	}
 }
 
-func (kr *KRun) runIptablesSetup(env []string) {
+func (kr *KRun) runIptablesSetup(env []string) error {
 	// TODO: make the args the default !
 	// pilot-agent istio-iptables -p 15001 -u 1337 -m REDIRECT -i '*' -b "" -x "" -- crash
 
@@ -344,14 +356,16 @@ func (kr *KRun) runIptablesSetup(env []string) {
 	err := cmd.Start()
 	if err != nil {
 		log.Println("Error starting iptables", err, so.String(), "stderr:", se.String())
+		return err
 	} else {
 		err = cmd.Wait()
 		if err != nil {
 			log.Println("Error starting iptables", err, so.String(), "stderr:", se.String())
+			return err
 		}
 	}
 	// TODO: make the stdout/stderr available in a debug endpoint
-	log.Println("Iptables start done")
+	return nil
 }
 
 // TODO: lookup istiod service and endpoints ( instead of using an ILB or external name)

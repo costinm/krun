@@ -152,6 +152,9 @@ deploy/istiod:
 gcb/builder:
 	gcloud builds --project ${PROJECT_ID} submit . --config=tools/gcb/cloudbuild.yaml
 
+gcb/ko-builder:
+	gcloud builds --project ${PROJECT_ID} submit . --config=tools/ko/cloudbuild.yaml
+
 gcb/local:
 	cloud-build-local --dryrun=false --push=true   --substitutions=BRANCH_NAME=local,COMMIT_SHA=local .
 
