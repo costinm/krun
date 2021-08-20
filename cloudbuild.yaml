@@ -88,16 +88,25 @@ steps:
 #/go/bin/go-junit-report -set-exit-code < sponge.log > ${SHORT_SHA}_test_log.xml
 
 
-  # Final step - if everything was fine, tag branch golden image
-  - name: 'gcr.io/cloud-builders/docker'
-    entrypoint: /bin/bash
-    env:
-      - DOCKER_CLI_EXPERIMENTAL=enabled
+  # Final step - if everything was fine, tag branch golden image.
+  # Since the build used kaniko, we can't tag and push - instead run again kaniko
+#  - name: 'gcr.io/cloud-builders/docker'
+#    entrypoint: /bin/bash
+#    env:
+#      - DOCKER_CLI_EXPERIMENTAL=enabled
+#    args:
+#      - -c
+#      - |
+#        docker tag gcr.io/$PROJECT_ID/krun:$COMMIT_SHA  gcr.io/$PROJECT_ID/mesh-base:$BRANCH_NAME
+#        docker push gcr.io/$PROJECT_ID/mesh-base:$BRANCH_NAME
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    id: base-kaniko
     args:
-      - -c
-      - |
-        docker tag gcr.io/$PROJECT_ID/krun:$COMMIT_SHA  gcr.io/$PROJECT_ID/mesh-base:$BRANCH_NAME
-        docker push gcr.io/$PROJECT_ID/mesh-base:$BRANCH_NAME
+      - --destination=gcr.io/$PROJECT_ID/krun:$BRANCH_NAME
+      - --cache=true
+      - --cache-ttl=240h
+      - --force
+    timeout: 1200s
 
 images:
   - 'gcr.io/wlhe-cr/mesh-base:$BRANCH_NAME'
