@@ -14,7 +14,7 @@ steps:
 
 
   - name: gcr.io/$PROJECT_ID/ko
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     id: base-ko
     env:
       - KO_DOCKER_REPO=gcr.io/$PROJECT_ID
@@ -47,7 +47,7 @@ steps:
   #- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   - name: gcr.io/wlhe-cr/gcloud-alpha
   #- name: gcr.io/$PROJECT_ID/krun-builder:latest
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     env:
       - PROJECT_ID=$PROJECT_ID
       - CLUSTER_NAME=asm-cr
@@ -67,7 +67,7 @@ steps:
   #- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
   - name: gcr.io/wlhe-cr/gcloud-alpha
   #- name: gcr.io/$PROJECT_ID/krun-builder:latest
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     env:
       - PROJECT_ID=$PROJECT_ID
       - CLUSTER_NAME=asm-cr
@@ -81,15 +81,3 @@ steps:
       - |
         gcloud container clusters get-credentials asm-cr --zone us-central1-c --project $PROJECT_ID
         make test || true
-
-
-substitutions:
-  #PROJECT_ID: costin-asm1
-  # _GIT_TAG will be filled with a git-based tag for the image, of the form vYYYYMMDD-hash, and
-  # can be used as a substitution
-  _GIT_TAG: '12345'
-  # _PULL_BASE_REF will contain the ref that was pushed to to trigger this build -
-  # a branch like 'master' or 'release-0.2', or a tag like 'v0.2'.
-  _PULL_BASE_REF: 'master'
-
-  _COMMIT_SHA: 'local'

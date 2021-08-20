@@ -124,6 +124,7 @@ canary/deploy:
 
 canary/test:
 	curl  -v  https://fortio-asm-cr-icq63pqnqq-uc.a.run.app/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
+	curl  https://fortio-istio-icq63pqnqq-uc.a.run.app/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
 
 # A single version of Istiod - using a version-based revision name.
 # The version will be associated with labels using in the other charts.
@@ -166,7 +167,7 @@ gcb/builder-ko:
 
 # Local testing using CI/CD. This uses the 'ko' variant - since kaniko doesn't work locally (and is fastest on GCB)
 gcb/local:
-	cloud-build-local --dryrun=false --push=true   --substitutions=BRANCH_NAME=local,COMMIT_SHA=local . --config=tools/local/cloudbuild.yaml
+	cloud-build-local --dryrun=false --push=true   --substitutions=BRANCH_NAME=local,COMMIT_SHA=local --config=tools/local/cloudbuild.yaml .
 
 gcb/build:
 	gcloud builds --project ${PROJECT_ID} submit --substitutions=BRANCH_NAME=local,COMMIT_SHA=local .

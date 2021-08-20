@@ -43,7 +43,7 @@ steps:
   #- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   - name: gcr.io/wlhe-cr/gcloud-alpha
   #- name: gcr.io/$PROJECT_ID/krun-builder:latest
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     env:
       - PROJECT_ID=$PROJECT_ID
       - CLUSTER_NAME=asm-cr
@@ -63,7 +63,7 @@ steps:
   #- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
   - name: gcr.io/wlhe-cr/gcloud-alpha
   #- name: gcr.io/$PROJECT_ID/krun-builder:latest
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     env:
       - PROJECT_ID=$PROJECT_ID
       - CLUSTER_NAME=asm-cr
@@ -99,22 +99,10 @@ steps:
       - |
         cat /workspace/base_image
         
-        docker tag  $(cat /workspace/base_image) gcr.io/$PROJECT_ID/mesh-base:$BRANCH_NAME
+        docker tag gcr.io/$PROJECT_ID/krun:$COMMIT_SHA  gcr.io/$PROJECT_ID/mesh-base:$BRANCH_NAME
 
         docker push gcr.io/$PROJECT_ID/mesh-base:$BRANCH_NAME
 
 images:
   - 'gcr.io/wlhe-cr/mesh-base:$BRANCH_NAME'
-#  - 'gcr.io/wlhe-cr/fortio-mesh:$BRANCH_NAME'
 
-
-substitutions:
-  #PROJECT_ID: costin-asm1
-  # _GIT_TAG will be filled with a git-based tag for the image, of the form vYYYYMMDD-hash, and
-  # can be used as a substitution
-  _GIT_TAG: '12345'
-  # _PULL_BASE_REF will contain the ref that was pushed to to trigger this build -
-  # a branch like 'master' or 'release-0.2', or a tag like 'v0.2'.
-  _PULL_BASE_REF: 'master'
-
-  _COMMIT_SHA: 'local'
