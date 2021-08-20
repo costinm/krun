@@ -1,7 +1,7 @@
 timeout: 1200s
 options:
   substitution_option: ALLOW_LOOSE
-  machineType: 'N1_HIGHCPU_8'
+  #machineType: 'N1_HIGHCPU_8'
 
 # Execution environment:
 # HOME=/builder/home
@@ -12,31 +12,35 @@ options:
 
 steps:
 
-# ~2 min
-  - name: 'gcr.io/kaniko-project/executor:latest'
-    id: base-kaniko
-    args:
-      - --destination=gcr.io/$PROJECT_ID/krun:$COMMIT_SHA
-      - --cache=true
-      - --cache-ttl=240h
-      - --force
-    timeout: 1200s
-#
-# ~15sec
-  - name: 'gcr.io/kaniko-project/executor:latest'
-    id: fortio
-    args:
-      - --destination=gcr.io/$PROJECT_ID/fortio-mesh:$COMMIT_SHA
-      - --dockerfile=samples/fortio/Dockerfile
-      - --context=dir://samples/fortio
-      - --build-arg=BASE=gcr.io/$PROJECT_ID/krun:$COMMIT_SHA
-      - --cache=true
-      - --cache-ttl=240h
-    timeout: 1200s
-    waitFor:
-      - base-kaniko
 
-  # Ko or docker based build moved to local - too slow compared with kaniko
+  - name: gcr.io/$PROJECT_ID/ko
+    entrypoint: /bin/bash
+    id: base-ko
+    env:
+      - KO_DOCKER_REPO=gcr.io/$PROJECT_ID
+    waitFor:
+      - "-"
+    args:
+      - -c
+      - |
+        KO_IMAGE=$(ko publish -B -t $COMMIT_SHA ./)
+
+        echo $$KO_IMAGE > /workspace/base_image
+
+  # Use docker to build fortio - this is what users will do
+  - name: 'gcr.io/cloud-builders/docker'
+    id: fortio
+    entrypoint: /bin/bash
+    env:
+      - DOCKER_CLI_EXPERIMENTAL=enabled
+      - TAG=$_GIT_TAG
+    waitFor:
+      - base-ko
+    args:
+      - -c
+      - |
+        docker build -t gcr.io/$PROJECT_ID/fortio-mesh:$COMMIT_SHA --build-arg BASE=gcr.io/$PROJECT_ID/krun:$COMMIT_SHA samples/fortio
+        docker push gcr.io/$PROJECT_ID/fortio-mesh:$COMMIT_SHA
 
   # Deploy the canary, run tests
   # Missing alpha command
@@ -77,35 +81,6 @@ steps:
       - |
         gcloud container clusters get-credentials asm-cr --zone us-central1-c --project $PROJECT_ID
         make test || true
-
-  # TODO: combine gcloud, go, etc in single image - Istio build image is huge
-  # Also includes gcloud 349.0.0
-  # https://github.com/GoogleCloudPlatform/cloud-builders-community/tree/master/ko is a good
-  # base, includes ko, kubectl, gcloud
-  # They use: CLOUDSDK_COMPUTE_ZONE, CLOUDSDK_CONTAINER_CLUSTER, CLOUDSDK_CORE_PROJECT
-#go get -u github.com/jstemmer/go-junit-report
-#2>&1 go test -timeout 1m -v ./... | tee sponge.log
-#/go/bin/go-junit-report -set-exit-code < sponge.log > ${SHORT_SHA}_test_log.xml
-
-
-  # Final step - if everything was fine, tag branch golden image
-  - name: 'gcr.io/cloud-builders/docker'
-    entrypoint: /bin/bash
-    env:
-      - DOCKER_CLI_EXPERIMENTAL=enabled
-      - TAG=$_GIT_TAG
-    args:
-      - -c
-      - |
-        cat /workspace/base_image
-        
-        docker tag  $(cat /workspace/base_image) gcr.io/$PROJECT_ID/mesh-base:$BRANCH_NAME
-
-        docker push gcr.io/$PROJECT_ID/mesh-base:$BRANCH_NAME
-
-images:
-  - 'gcr.io/wlhe-cr/mesh-base:$BRANCH_NAME'
-#  - 'gcr.io/wlhe-cr/fortio-mesh:$BRANCH_NAME'
 
 
 substitutions:

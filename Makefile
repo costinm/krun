@@ -164,8 +164,9 @@ gcb/builder-gcloud:
 gcb/builder-ko:
 	gcloud builds --project ${PROJECT_ID} submit . --config=tools/ko/cloudbuild.yaml
 
+# Local testing using CI/CD. This uses the 'ko' variant - since kaniko doesn't work locally (and is fastest on GCB)
 gcb/local:
-	cloud-build-local --dryrun=false --push=true   --substitutions=BRANCH_NAME=local,COMMIT_SHA=local .
+	cloud-build-local --dryrun=false --push=true   --substitutions=BRANCH_NAME=local,COMMIT_SHA=local . --config=tools/local/cloudbuild.yaml
 
 gcb/build:
 	gcloud builds --project ${PROJECT_ID} submit --substitutions=BRANCH_NAME=local,COMMIT_SHA=local .
