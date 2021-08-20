@@ -124,7 +124,8 @@ canary/deploy:
 
 canary/test:
 	curl  -v  https://fortio-asm-cr-icq63pqnqq-uc.a.run.app/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
-	curl  https://fortio-istio-icq63pqnqq-uc.a.run.app/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
+	curl  -v https://fortio-istio-icq63pqnqq-uc.a.run.app/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
+	curl -v  https://fortio-istio-icq63pqnqq-uc.a.run.app/fortio/fetch2/?url=http%3A%2F%2Flocalhost%3A15000%2Fconfig_dump
 
 # A single version of Istiod - using a version-based revision name.
 # The version will be associated with labels using in the other charts.
