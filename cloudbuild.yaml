@@ -76,7 +76,7 @@ steps:
       - -c
       - |
         gcloud container clusters get-credentials asm-cr --zone us-central1-c --project $PROJECT_ID
-        make test || true
+        make test
 
   # TODO: combine gcloud, go, etc in single image - Istio build image is huge
   # Also includes gcloud 349.0.0
@@ -93,14 +93,10 @@ steps:
     entrypoint: /bin/bash
     env:
       - DOCKER_CLI_EXPERIMENTAL=enabled
-      - TAG=$_GIT_TAG
     args:
       - -c
       - |
-        cat /workspace/base_image
-        
         docker tag gcr.io/$PROJECT_ID/krun:$COMMIT_SHA  gcr.io/$PROJECT_ID/mesh-base:$BRANCH_NAME
-
         docker push gcr.io/$PROJECT_ID/mesh-base:$BRANCH_NAME
 
 images:
