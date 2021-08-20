@@ -60,7 +60,9 @@ func TestK8S(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Log("Hub clusters", len(kchub))
+		for _, kh := range kchub {
+			t.Log("Hub:", kh.ClusterName, kh.ClusterLocation)
+		}
 		if len(kchub) == 0 {
 			t.Skip("No hub clusters registered")
 		}
