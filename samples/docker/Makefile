@@ -29,7 +29,7 @@ export ADC
 run:
 	docker run -it --rm \
 		--name fortio \
-        -p 9999:14009 \
+        -p 9999:15009 \
 		-e PROJECT_ID=${PROJECT_ID} \
 		-e PROJECT_NUMBER=$(shell gcloud projects describe ${PROJECT_ID} --format="value(projectNumber)") \
 		-e CLUSTER_NAME=${CLUSTER_NAME} \

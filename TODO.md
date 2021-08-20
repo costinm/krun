@@ -7,6 +7,8 @@ CloudRun. Add the ip ranges from GKE cluster info.
 interception. Try running a GID 1337, otherwise DNS proxy will need to be refactored
 or the socket for port 53 be passed via UDS or other mean.
 
+[] P0: add the code to wait for app and proxy ready before listening on port.
+
 [] P1: examples for gvisor, without iptables (HTTP_PROXY + Sidecar)
 
 [] P1: samples with proxyless gRPC, send PR to fortio to add support.

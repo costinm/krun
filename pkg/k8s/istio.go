@@ -59,21 +59,20 @@ func resolvConfForRoot()  {
 
 // FindXDSAddr will try to find the XDSAddr using in-cluster info.
 // This is called after K8S client has been initialized.
-func (kr *KRun) FindXDSAddr() {
+func (kr *KRun) FindXDSAddr() error {
 	// TODO: find default tag, label, etc.
 	// Current code is written for MCP, use XDS_ADDR explicitly
 	// otherwise.
 	s, err :=  kr.Client.CoreV1().ConfigMaps("istio-system").Get(context.Background(),
 		"istio-asm-managed", metav1.GetOptions{})
 	if err != nil {
-		//
-		panic(err)
+		return err
 	}
 	meshCfg := s.Data["mesh"]
 	mc := MeshConfig{}
 	err = yaml.Unmarshal([]byte(meshCfg), &mc)
 	if err != nil {
-		return
+		return err
 	}
 
 	kr.TrustDomain = mc.TrustDomain
@@ -90,6 +89,8 @@ func (kr *KRun) FindXDSAddr() {
 	if len(mid) > 1 {
 		kr.ProjectNumber = mid[1]
 	}
+
+	return nil
 }
 
 
@@ -131,7 +132,8 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 
 // StartIstioAgent creates the env and starts istio agent.
 // If running as root, will also init iptables and change UID to 1337.
-func (kr *KRun) StartIstioAgent() {
+func (kr *KRun) StartIstioAgent() error {
+
 	proxyConfig := fmt.Sprintf(`{"discoveryAddress": "%s"}`, kr.XDSAddr)
 	// /dev/stdout is rejected - it is a pipe.
 	// https://github.com/envoyproxy/envoy/issues/8297#issuecomment-620659781
@@ -303,6 +305,7 @@ func (kr *KRun) StartIstioAgent() {
 	}()
 
 	// TODO: wait for agent to be ready
+	return nil
 }
 
 func (kr *KRun) Exit(code int) {

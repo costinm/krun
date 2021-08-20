@@ -33,17 +33,37 @@ func main() {
 
 	kr.Refresh()
 
-	if kr.XDSAddr == "" {
-		kr.FindXDSAddr()
+	meshMode := true
+
+	if _, err := os.Stat("/usr/local/bin/pilot-agent"); os.IsNotExist(err) {
+		meshMode = false
+	}
+	if kr.XDSAddr == "-" {
+		meshMode = false
 	}
 
-	if kr.XDSAddr != "-" {
-		kr.StartIstioAgent()
+	if meshMode {
+		// Use k8s client to autoconfigure, reading from cluster.
+		if kr.XDSAddr == "" {
+			err = kr.FindXDSAddr()
+			if err != nil {
+				log.Fatal("Failed to locate the XDS server ", err)
+			}
+		}
+
+		if kr.XDSAddr != "-" {
+			err := kr.StartIstioAgent()
+			if err != nil {
+				log.Fatal("Failed to start the mesh agent")
+			}
+		}
+		// TODO: wait for proxy ready before starting app.
 	}
+
 
 	kr.StartApp()
 
-
+	// Start internal SSH server, for debug and port forwarding. Can be conditionally compiled.
 	if initDebug != nil {
 		// Split for conditional compilation (to compile without ssh dep)
 		initDebug(kr)
@@ -51,17 +71,21 @@ func main() {
 
 
 	// TODO: wait for app and proxy ready
-	if kr.XDSAddr != "-" {
+
+	if meshMode {
 		auth, err := hbone.LoadAuth("")
 		if err != nil {
-			log.Println("Failed to init hbone", err)
+			log.Fatal("Failed to find mesh certificates", err)
 		}
+		// TODO: use an in-cluster secret or self-signed certs if mesh mode disabled
 
 		hb := hbone.New(auth)
-		_, err = hbone.ListenAndServeTCP(":14009", hb.HandleAcceptedH2C)
+		_, err = hbone.ListenAndServeTCP(":15009", hb.HandleAcceptedH2C)
 		if err != nil {
 			panic(err)
 		}
+
+		// TODO: if east-west gateway present, create a connection.
 	}
 	select{}
 }

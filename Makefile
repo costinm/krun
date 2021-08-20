@@ -22,6 +22,9 @@ export ADC
 
 KRUN_IMAGE?=${KO_DOCKER_REPO}:latest
 
+ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+OUT?=${ROOT_DIR}/../out/krun
+
 # Push krun - the github action on push will do the same.
 # This is the fastest way to push krun - permission required to KO_DOCKER_REPO
 push/krun:
@@ -168,7 +171,8 @@ gcb/builder-ko:
 
 # Local testing using CI/CD. This uses the 'ko' variant - since kaniko doesn't work locally (and is fastest on GCB)
 gcb/local:
-	cloud-build-local --dryrun=false --push=true   --substitutions=BRANCH_NAME=local,COMMIT_SHA=local --config=tools/local/cloudbuild.yaml .
+	mkdir -p ${OUT}/gcb-local
+	cloud-build-local --dryrun=false --push=true --write-workspace=${OUT}/gcb-local  --substitutions=BRANCH_NAME=local,COMMIT_SHA=local --config=tools/local/cloudbuild.yaml .
 
 gcb/build:
 	gcloud builds --project ${PROJECT_ID} submit --substitutions=BRANCH_NAME=local,COMMIT_SHA=local .

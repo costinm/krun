@@ -130,6 +130,7 @@ docker push ${IMAGE}
 
 Deploy the service, with explicit configuration:
 
+
 ```shell
 export CLOUDRUN_SERVICE=fortio-cloudrun
 export REGION=us-central1
@@ -138,7 +139,7 @@ gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
           --platform managed \
           --project ${PROJECT_ID} \
           --region ${REGION} \
-          --sandbox=minivm \
+          --execution-environment=gen2 \
           --service-account=k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com \
           --allow-unauthenticated \
           --use-http2 \
@@ -150,8 +151,18 @@ gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
          
 ```
 
+For versions of 'gcloud' older than 353.0, replace `--execution-environment=gen2` with `--sandbox=minivm`
+
 CLUSTER_NAME and CLUSTER_LOCATION will be optional - krun will pick a config cluster in the same region based on a TBD 
 label, and fallback to other config cluster if the local cluster is unavailable.
+
+- `gcloud run deploy SERVICE --platform=managed --project --region` is common required parameters
+- `--execution-environment=gen2` is currently required to have iptables enabled. Without it the 'whitebox' mode will
+   be used (still WIP)
+-  `--service-account` is recommended for 'minimal priviledge'. The service account will act as a K8S SA, and have its
+   RBAC permissions
+-   `--allow-unauthenticated` is only needed temporarily if you want to ssh into the instance for debug. WIP to fix this.
+-  `--use-http2`  and `--port 15009` are required 
 
 ### Testing
 

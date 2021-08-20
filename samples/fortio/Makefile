@@ -74,7 +74,7 @@ deploy:
          --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
          --allow-unauthenticated \
          --use-http2 \
-         --port 14009 \
+         --port 15009 \
          --min-instances=1 \
          --image ${FORTIO_IMAGE} \
          --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}" \
@@ -83,9 +83,9 @@ deploy:
          ${SSH_DEBUG_ARGS} ${EXTRA} \
  		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
 
-# Port 15009 for using envoy for ingress
+# Port 14009 for using envoy for ingress
 # Port 8080 for going directly to the app
-# Port 14009 for using KRun and 'native' hbone.
+# Port 15009 for using KRun and 'native' hbone.
 
 pull:
 	docker pull ghcr.io/costinm/krun/krun:latest # Get latest
