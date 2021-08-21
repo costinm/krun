@@ -133,14 +133,18 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 // StartIstioAgent creates the env and starts istio agent.
 // If running as root, will also init iptables and change UID to 1337.
 func (kr *KRun) StartIstioAgent() error {
-
+	if kr.XDSAddr == "" {
+		err := kr.FindXDSAddr()
+		if err != nil {
+			return err
+		}
+	}
 	proxyConfig := fmt.Sprintf(`{"discoveryAddress": "%s"}`, kr.XDSAddr)
 	// /dev/stdout is rejected - it is a pipe.
 	// https://github.com/envoyproxy/envoy/issues/8297#issuecomment-620659781
 	prefix := "."
 	if os.Getuid() == 0 {
 		prefix = ""
-		resolvConfForRoot()
 	}
 
 	env := os.Environ()
@@ -176,24 +180,29 @@ func (kr *KRun) StartIstioAgent() error {
 	// TODO: add support for passing a long lived 1p JWT in a file, for local run
 	//env = append(env, "JWT_POLICY=first-party-jwt")
 
-	whiteboxMode := os.Getenv("ISTIO_META_INTERCEPTION_MODE") == "NONE"
+	kr.WhiteboxMode = os.Getenv("ISTIO_META_INTERCEPTION_MODE") == "NONE"
+	if os.Getuid() != 0 {
+		kr.WhiteboxMode = true
+	}
 
-	if os.Getuid() == 0 { //&& kr.Gateway != "" {
+	if !kr.WhiteboxMode { //&& kr.Gateway != "" {
 		err := kr.runIptablesSetup(env)
 		if err != nil {
 			log.Println("iptables disabled ", err)
-			whiteboxMode = true
+			kr.WhiteboxMode = true
 		} else {
 			log.Println("iptables done ", kr.Gateway)
 		}
 	} else {
 		log.Println("No iptables")
-		whiteboxMode = true
 	}
 
 	// Currently broken in iptables - use whitebox interception, but still run it
-	env = append(env, "ISTIO_META_DNS_CAPTURE=true")
-	env = append(env, "DNS_PROXY_ADDR=localhost:53")
+	if !kr.WhiteboxMode {
+		resolvConfForRoot()
+		env = append(env, "ISTIO_META_DNS_CAPTURE=true")
+		env = append(env, "DNS_PROXY_ADDR=localhost:53")
+	}
 
 	// MCP config
 	// The following 2 are required for MeshCA.
@@ -219,7 +228,7 @@ func (kr *KRun) StartIstioAgent() error {
 			kr.ProjectId, kr.ClusterLocation, kr.ClusterName))
 	}
 
-	if whiteboxMode {
+	if kr.WhiteboxMode {
 		env = append(env, "ISTIO_META_INTERCEPTION_MODE=NONE")
 		env = append(env, "HTTP_PROXY_PORT=15007")
 	}
@@ -251,6 +260,16 @@ func (kr *KRun) StartIstioAgent() error {
 		}
 	}
 
+	// Environment detection: if the docker image or VM does not include an Envoy use the 'grpc agent' mode,
+	// i.e. only get certificate.
+	if _, err := os.Stat("/usr/local/bin/envoy"); os.IsNotExist(err) {
+		env = append(env, "DISABLE_ENVOY=true")
+	}
+
+	// Generate grpc bootstrap - no harm, low cost
+	if os.Getenv("GRPC_XDS_BOOTSTRAP") == "" {
+		env = append(env, "GRPC_XDS_BOOTSTRAP=/var/run/grpc_bootstrap.json")
+	}
 	cmd := kr.agentCommand()
 	var stdout io.ReadCloser
 	if os.Getuid() == 0 {

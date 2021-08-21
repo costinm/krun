@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hgate
+  namespace: istio-system
+  labels:
+    topology.istio.io/network: hb
+spec:
+  ports:
+    # Standard port for SNI routing in gateways, same as east-west gateway
+    - port: 15443
+      name: tls
+    - port: 15441
+      name: https-h2r
+  selector:
+    app: hgate
+
+  # Can also be configured behind the gateway, using SNI routes - but istio is looking for the IP to handle multi-network
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hgate
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      app: hgate
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: hgate
+        version: v1
+        # Turns off injection, regardless of namespace
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+      - name: app
+        image: gcr.io/wlhe-cr/hbgate:latest
+        ports:
+         - containerPort: 15443
+           name: tls
+         - containerPort: 15441
+           name: https-h2r
+        resources:
+          requests:
+            cpu: 10m
+            memory: "512Mi"
+          limits:
+            cpu: "1"
+            memory: "1G"

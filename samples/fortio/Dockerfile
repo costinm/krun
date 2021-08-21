@@ -1,6 +1,10 @@
 # The base image is auto-build on github. You can also build your own base image from krun or
 # your own fork. The image is based on Istio proxyv2 image, with krun added.
-ARG BASE=ghcr.io/costinm/krun/krun:latest
+# Alternatively, any Debian/Ubuntu/RedHat image with libraries compatible with envoy can be used, adding
+# pilot-agent, envoy from istio-proxy and krun from this repo.
+ARG BASE=gcr.io/wlhe-cr/krun:main
+
+# Built with Github actions: ARG BASE=gcr.io/wlhe-cr/krun:main
 
 # App code - can be an already built container, or the dockerfiel building.
 FROM fortio/fortio:latest AS fortio

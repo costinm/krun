@@ -1,4 +1,4 @@
-ARG BASE=gcr.io/istio-testing/proxyv2:latest
+ARG BASE=gcr.io/wlhe-cr/krun:main
 
 FROM golang:latest AS build
 
@@ -19,19 +19,19 @@ COPY *.go ./
 COPY cmd ./cmd/
 COPY pkg ./pkg/
 
-RUN go build -a -gcflags='all=-N -l' -ldflags '-extldflags "-static"' -o /ws/krun ./
-
 RUN go build -a -gcflags='all=-N -l' -ldflags '-extldflags "-static"' -o /ws/hbgate ./cmd/gate
 
 FROM ${BASE} AS istio
 
 FROM ubuntu:bionic
 
-# Similar with the 'ko' runtime layout
-COPY --from=build /ws/krun /ko-app/krun
 COPY --from=build /ws/hbgate /usr/local/bin/hbgate
+
+# Not using envoy
+COPY --from=istio /ws/krun /ko-app/krun
 COPY --from=istio /usr/local/bin/pilot-agent /usr/local/bin/
 
 WORKDIR /
 
 ENTRYPOINT ["/ko-app/krun"]
+CMD ["/usr/local/bin/hbgate"]

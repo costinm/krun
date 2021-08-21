@@ -72,9 +72,12 @@ type KRun struct {
 	appCmd      *exec.Cmd
 	TrustDomain string
 
-	StartTime  time.Time
-	Labels     map[string]string
-	VendorInit func(context.Context, *KRun) error
+	StartTime    time.Time
+	Labels       map[string]string
+	VendorInit   func(context.Context, *KRun) error
+
+	// WhiteboxMode indicates no iptables capture
+	WhiteboxMode bool
 }
 
 

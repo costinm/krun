@@ -25,6 +25,8 @@ KRUN_IMAGE?=${KO_DOCKER_REPO}:latest
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 OUT?=${ROOT_DIR}/../out/krun
 
+TAG?=latest
+
 # Push krun - the github action on push will do the same.
 # This is the fastest way to push krun - permission required to KO_DOCKER_REPO
 push/krun:
@@ -43,39 +45,61 @@ build/krun:
 build/docker:
 	docker build . -t ${KRUN_IMAGE}
 
+build/docker-hgate:
+	docker build . -t gcr.io/${PROJECT_ID}/hbgate:${TAG}
+
+
 docker/tag:
 	docker tag ${KO_IMAGE} ko.local/krun:latest && \
 	docker tag ${KO_IMAGE} ${KRUN_IMAGE}
 
 ################# Testing / local dev #################
 
-# Run krun in a docker image, get a shell - no pilot agent or envoy sidecar, since
-# XDS_ADDR is not set.
+# Run krun in a docker image, get a shell. Will use MCP.
 docker/run-noxds:
 	docker run -it --rm \
-		-e CLUSTER=${CLUSTER} \
-		-e PROJECT=${PROJECT_ID} \
-		-e LOCATION=${CLUSTER_LOCATION} \
+		-e CLUSTER_NAME=${CLUSTER_NAME} \
+		-e PROJECT_ID=${PROJECT_ID} \
+		-e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
 		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
 		-v ${ADC}:/var/run/secrets/google/google.json:ro \
 		${KRUN_IMAGE} \
 	   /bin/bash
 
-local/run-kubeconfig:
-	docker run  -e KUBECONFIG=/var/run/kubeconfig -v ${HOME}/.kube/config:/var/run/kubeconfig:ro -it  \
-		${KRUN_IMAGE}  /bin/bash
-
-# Run in local docker, using ADC for auth
+# Run in local docker, using ADC for auth and an explicit XDS address
 docker/run-xds-adc:
 	docker run -it --rm \
 		-e XDS_ADDR=istiod.wlhe.i.webinf.info:443 \
-		-e CLUSTER=${CLUSTER} \
-		-e PROJECT=${PROJECT_ID} \
-		-e LOCATION=${CLUSTER_LOCATION} \
+		-e CLUSTER_NAME=${CLUSTER_NAME} \
+		-e PROJECT_ID=${PROJECT_ID} \
+		-e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
 		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
 		-v ${ADC}:/var/run/secrets/google/google.json:ro \
 		${KRUN_IMAGE} \
 		/bin/bash
+
+
+# Run hbgate in a local docker container, for testing.
+# Will connect to the cluster.
+#
+# ISTIO_META_INTERCEPTION_MODE disable interception (not using it).
+# DISABLE_ENVOY also disables envoy - only using the cert part in istio-agent
+docker/run-hbgate:
+	docker run -it --rm \
+		-e CLUSTER_NAME=${CLUSTER_NAME} \
+		-e PROJECT_ID=${PROJECT_ID} \
+		-e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
+		-e DISABLE_ENVOY=true \
+		-e ISTIO_META_INTERCEPTION_MODE=NONE \
+		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
+		-p 15441:15441 \
+		-v ${ADC}:/var/run/secrets/google/google.json:ro \
+		 gcr.io/${PROJECT_ID}/hbgate:${TAG} \
+	   /bin/bash
+
+local/run-kubeconfig:
+	docker run  -e KUBECONFIG=/var/run/kubeconfig -v ${HOME}/.kube/config:/var/run/kubeconfig:ro -it  \
+		${KRUN_IMAGE}  /bin/bash
 
 push/fortio:
 	(cd samples/fortio; make image push)
@@ -174,6 +198,9 @@ gcb/local:
 	mkdir -p ${OUT}/gcb-local
 	cloud-build-local --dryrun=false --push=true --write-workspace=${OUT}/gcb-local  --substitutions=BRANCH_NAME=local,COMMIT_SHA=local --config=tools/local/cloudbuild.yaml .
 
+gcb/build-hgate:
+	gcloud builds --project ${PROJECT_ID} submit  --config=cmd/gate/cloudbuild.yaml .
+
 gcb/build:
-	gcloud builds --project ${PROJECT_ID} submit --substitutions=BRANCH_NAME=local,COMMIT_SHA=local .
+	gcloud builds --project ${PROJECT_ID} submit .
 

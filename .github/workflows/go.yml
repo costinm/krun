@@ -14,9 +14,12 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: 1.16
+      - name: What
+        run:
+          echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
       - uses: actions/checkout@v2
       - uses: imjasonh/setup-ko@v0.4
-      - run: ko publish -B ./
+      - run: ko publish -t ${{ env.BRANCH }} -B ./
 
 #  build-docker:
 #    name: Build-in-docker

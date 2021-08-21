@@ -47,6 +47,14 @@ func (kr *KRun) initUsingKubeConfig() error {
 				kr.ClusterName = parts[3]
 			}
 		}
+		if strings.HasPrefix(cf.CurrentContext, "connectgateway_") {
+			parts := strings.Split(cf.CurrentContext, "_")
+			if len(parts) > 2 {
+				// TODO: if env variable with cluster name/location are set - use that for context
+				kr.ProjectId = parts[1]
+				kr.ClusterName = parts[2]
+			}
+		}
 
 		config, err := clientcmd.BuildConfigFromFlags("", kc)
 		if err != nil {
