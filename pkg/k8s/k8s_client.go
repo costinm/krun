@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"log"
 	"os"
 	"strings"
 
@@ -70,9 +71,13 @@ func (kr *KRun) initUsingKubeConfig() error {
 }
 
 func (kr *KRun) initInCluster() error {
-	// In cluster
+	if kr.Client != nil {
+		return nil
+	}
 	hostInClustser := os.Getenv("KUBERNETES_SERVICE_HOST")
 	if hostInClustser != "" {
+		log.Println("Using in-cluster config: ", hostInClustser)
+		kr.InCluster = true
 		config, err := rest.InClusterConfig()
 		if err != nil {
 			panic(err)
@@ -98,7 +103,7 @@ func (kr *KRun) initInCluster() error {
 //
 // Once the cluster is found, additional config can be loaded from
 // the cluster.
-func (kr *KRun) InitK8SClient() error {
+func (kr *KRun) InitK8SClient(ctx context.Context) error {
 	if kr.Client != nil {
 		return  nil
 	}
@@ -107,23 +112,17 @@ func (kr *KRun) InitK8SClient() error {
 	if err != nil {
 		return  err
 	}
-	if kr.Client != nil {
-		return  nil
-	}
-
-	if kr.VendorInit != nil {
-		err = kr.VendorInit(context.Background(), kr)
-		if err != nil {
-			return  err
-		}
-		if kr.Client != nil {
-			return  nil
-		}
-	}
 
 	err = kr.initInCluster()
 	if err != nil {
 		return  err
+	}
+
+	if kr.VendorInit != nil {
+		err = kr.VendorInit(ctx, kr)
+		if err != nil {
+			return  err
+		}
 	}
 	if kr.Client != nil {
 		return  nil

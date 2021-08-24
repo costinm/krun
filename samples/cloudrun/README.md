@@ -17,7 +17,6 @@ export CLUSTER_LOCATION=us-central1-c
 export CLUSTER_NAME=asm-cr
 # CloudRun region 
 export REGION=us-central1
-export NS=fortio # Namespace where the CloudRun service will 'attach'
 
 gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
 
@@ -66,38 +65,35 @@ to the GKE APIserver with minimal permissions, and must be allowed to get tokens
 
 This steps can be run by a user or service account with namespace permissions in K8S - does not require cluster admin.
 
-In this example we will use namespace 'fortio', set as NS env variable.
+In this example we will use namespace 'fortio', set as WORKLOAD_NAMESPACE env variable.
 
 1. Create a google service account for the CloudRun app (once per namespace). If you already have a GSA you use for 
 your CloudRun service - only add '--role="roles/container.clusterViewer"' binding to the existing service account.
 
+2. Bind the GSA to a KSA. This will allow CloudRun service to get the required K8S resources to integrate with ASM.
+   You can grant additional permissions if the CloudRun service is using the K8S ApiServer, if the application is also
+   integrating/using APIserver.
+
+   To keep things simple, we will associate with the 'default' KSA in the namespace, advanced users can customize the
+   config to use a different KSA.
+
 
 ```shell
+export WORKLOAD_SERVICE_ACCOUNT=k8s-${WORKLOAD_NAMESPACE}@${PROJECT_ID}.iam.gserviceaccount.com
+export WORKLOAD_NAME=cloudrun
+export WORKLOAD_NAMESPACE=fortio # Namespace where the CloudRun service will 'attach'
 
-kubectl create ns ${NS}
+kubectl create ns ${WORKLOAD_NAMESPACE}
 
-gcloud --project ${PROJECT_ID} iam service-accounts create k8s-${NS} \
-      --display-name "Service account with access to ${NS} k8s namespace"
+gcloud --project ${PROJECT_ID} iam service-accounts create k8s-${WORKLOAD_NAMESPACE} \
+      --display-name "Service account with access to ${WORKLOAD_NAMESPACE} k8s namespace"
 
 gcloud --project ${PROJECT_ID} projects add-iam-policy-binding \
             ${PROJECT_ID} \
-            --member="serviceAccount:k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com" \
+            --member="serviceAccount:${WORKLOAD_SERVICE_ACCOUNT}" \
             --role="roles/container.clusterViewer"
 
-```
-
-2. Bind the GSA to a KSA. This will allow CloudRun service to get the required K8S resources to integrate with ASM.
-   You can grant additional permissions if the CloudRun service is using the K8S ApiServer, if the application is also 
-   integrating/using APIserver. 
-   
-   To keep things simple, we will associate with the 'default' KSA in the namespace, advanced users can customize the 
-   config to use a different KSA.
-
-```shell
-export NS=fortio 
-# Or use an existing GSA 
-export GSA=k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com
-
+# Uses WORKLOAD_NAMESPACE and WORKLOAD_SERVICE_ACCOUNT 
 cat manifests/rbac.yaml | envsubst | kubectl apply -f -
 
 ```
@@ -105,7 +101,7 @@ cat manifests/rbac.yaml | envsubst | kubectl apply -f -
 ### Build a docker image containing the app and the sidecar
 
 samples/fortio/Dockerfile contains an example Dockerfile - you can also use the pre-build image
-`grc.io/wlhe-cr/fortio-cr:latest`
+`grc.io/wlhe-cr/fortio-cr:main`
 
 You can build the app with the normal docker command:
 
@@ -114,12 +110,12 @@ You can build the app with the normal docker command:
 # Get the base image. You can also create a 'golden' base, starting with ASM proxy image and adding the 
 # startup helper (krun) and other files or configs you need. 
 # The application will be added to the base.
-docker pull ghcr.io/costinm/krun/krun:latest
+docker pull gcr.io/wlhe-cr/krun:main
 
-# Target image
-export IMAGE=gcr.io/${PROJECT_ID}/fortio-cr:latest
+# Target image 
+export IMAGE=gcr.io/${PROJECT_ID}/fortio-cr:main
 
-(cd samples/fortio && docker build . -t ${IMAGE})
+(cd samples/fortio && docker build . -t ${IMAGE} )
 
 docker push ${IMAGE}
 ```
@@ -132,7 +128,7 @@ Deploy the service, with explicit configuration:
 
 
 ```shell
-export CLOUDRUN_SERVICE=fortio-cloudrun
+export CLOUDRUN_SERVICE=${WORKLOAD_NAMESPACE}-${WORKLOAD_NAME}
 export REGION=us-central1
 
 gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
@@ -140,7 +136,7 @@ gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
           --project ${PROJECT_ID} \
           --region ${REGION} \
           --execution-environment=gen2 \
-          --service-account=k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com \
+          --service-account=k8s-${WORKLOAD_NAMESPACE}@${PROJECT_ID}.iam.gserviceaccount.com \
           --allow-unauthenticated \
           --use-http2 \
           --port 15009 \
@@ -153,8 +149,9 @@ gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
 
 For versions of 'gcloud' older than 353.0, replace `--execution-environment=gen2` with `--sandbox=minivm`
 
-CLUSTER_NAME and CLUSTER_LOCATION will be optional - krun will pick a config cluster in the same region based on a TBD 
-label, and fallback to other config cluster if the local cluster is unavailable.
+CLUSTER_NAME and CLUSTER_LOCATION will be optional - krun will pick a config cluster in the same region  that is setup
+with MCP, and fallback to other config cluster if the local cluster is unavailable. Cluster names starting with 'istio' 
+will be used first in a region. (Will likely change to use a dedicated label on the project - WIP)
 
 - `gcloud run deploy SERVICE --platform=managed --project --region` is common required parameters
 - `--execution-environment=gen2` is currently required to have iptables enabled. Without it the 'whitebox' mode will

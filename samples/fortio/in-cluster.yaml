@@ -1,5 +1,9 @@
+# This is an expanded yaml file for installing fortio in a K8S cluster for this sample and testing.
+# Based on the normal fortio, with few annotations and comments used for debugging and tunning.
+
+# Istio configs are setting it to strict mode - which is required for SNI routing and recommended for prod.
+
 ---
-# Source: probe-fortio/templates/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -11,7 +15,6 @@ spec:
   selector:
     app: fortio
 ---
-# Source: probe-fortio/templates/fortio.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -60,7 +63,6 @@ spec:
             cpu: "2"
             memory: "1G"
 ---
-# Source: probe-fortio/templates/strict.yaml
 apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule
 metadata:
@@ -71,7 +73,6 @@ spec:
     tls:
       mode: ISTIO_MUTUAL
 ---
-# Source: probe-fortio/templates/strict.yaml
 apiVersion: security.istio.io/v1beta1
 kind: PeerAuthentication
 metadata:

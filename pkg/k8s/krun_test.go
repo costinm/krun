@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	context2 "context"
 	"os"
 	"testing"
 	"time"
@@ -17,7 +18,7 @@ func TestK8S(t *testing.T) {
 
 	kr := New()
 
-	err := kr.InitK8SClient()
+	err := kr.InitK8SClient(context2.Background())
 	if err != nil {
 		t.Skip("Failed to connect to GKE, missing kubeconfig ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}

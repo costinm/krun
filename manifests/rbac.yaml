@@ -1,3 +1,21 @@
+#
+apiVersion: networking.istio.io/v1alpha3
+kind: WorkloadGroup
+metadata:
+  name: ${WORKLOAD_NAME}
+  namespace: ${WORKLOAD_NAMESPACE}
+spec:
+  metadata:
+    labels:
+      app.kubernetes.io/name: ${WORKLOAD_NAME}
+      app: ${WORKLOAD_NAME}
+      #app.kubernetes.io/version: ${WORKLOAD_VERSION}
+    annotations:
+      security.cloud.google.com/IdentityProvider: google
+  template:
+    serviceAccount: ${WORKLOAD_SERVICE_ACCOUNT}
+---
+
 # This config allows a Google Service Account to impersonate a Kubernetes Service Account by
 # calling the 'TokenRequest' API to get audience-bound tokens equivalent with the tokens created
 # by secret mounts.
@@ -8,7 +26,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  namespace: ${NS}
+  namespace: ${WORKLOAD_NAMESPACE}
   name: xds-default
 rules:
   - apiGroups: [""]
@@ -31,7 +49,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  namespace: ${NS}
+  namespace: ${WORKLOAD_NAMESPACE}
   name: xds-default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -39,4 +57,4 @@ roleRef:
   name: xds-default
 subjects:
   - kind: User
-    name: ${GSA}
+    name: ${WORKLOAD_SERVICE_ACCOUNT}

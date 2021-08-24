@@ -13,25 +13,18 @@ ENV GOPROXY=https://proxy.golang.org
 
 COPY go.* ./
 # Helps speed up local builds
-#RUN go mod download
+RUN go mod download
 
 COPY *.go ./
 COPY cmd ./cmd/
 COPY pkg ./pkg/
 
-RUN go build -a -gcflags='all=-N -l' -ldflags '-extldflags "-static"' -o /ws/hbgate ./cmd/gate
+RUN go build -a -gcflags='all=-N -l' -ldflags '-extldflags "-static"' -o /ws/hgate ./cmd/gate
 
 FROM ${BASE} AS istio
 
-FROM ubuntu:bionic
-
-COPY --from=build /ws/hbgate /usr/local/bin/hbgate
-
-# Not using envoy
-COPY --from=istio /ws/krun /ko-app/krun
-COPY --from=istio /usr/local/bin/pilot-agent /usr/local/bin/
+COPY --from=build /ws/hgate /usr/local/bin/hgate
 
 WORKDIR /
 
-ENTRYPOINT ["/ko-app/krun"]
-CMD ["/usr/local/bin/hbgate"]
+ENTRYPOINT ["/usr/local/bin/hgate"]

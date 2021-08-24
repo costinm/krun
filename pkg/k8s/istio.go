@@ -123,6 +123,9 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 	}
 	args = append(args, "--domain")
 	args = append(args, kr.Namespace +".svc.cluster.local")
+	args = append(args, "--serviceCluster")
+	args = append(args, kr.Name + "." + kr.Namespace)
+
 	if kr.AgentDebug != "" {
 		args = append(args,	"--log_output_level=" + kr.AgentDebug)
 	}
@@ -133,6 +136,9 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 // StartIstioAgent creates the env and starts istio agent.
 // If running as root, will also init iptables and change UID to 1337.
 func (kr *KRun) StartIstioAgent() error {
+	if kr.XDSAddr == "-" {
+		return nil
+	}
 	if kr.XDSAddr == "" {
 		err := kr.FindXDSAddr()
 		if err != nil {
@@ -145,6 +151,10 @@ func (kr *KRun) StartIstioAgent() error {
 	prefix := "."
 	if os.Getuid() == 0 {
 		prefix = ""
+	}
+
+	if kr.Name == "" && kr.Gateway != "" {
+		kr.Name = kr.Gateway
 	}
 
 	env := os.Environ()
@@ -184,6 +194,9 @@ func (kr *KRun) StartIstioAgent() error {
 	if os.Getuid() != 0 {
 		kr.WhiteboxMode = true
 	}
+	if kr.Gateway != "" {
+		kr.WhiteboxMode = true
+	}
 
 	if !kr.WhiteboxMode { //&& kr.Gateway != "" {
 		err := kr.runIptablesSetup(env)
@@ -191,7 +204,7 @@ func (kr *KRun) StartIstioAgent() error {
 			log.Println("iptables disabled ", err)
 			kr.WhiteboxMode = true
 		} else {
-			log.Println("iptables done ", kr.Gateway)
+			log.Println("iptables done ")
 		}
 	} else {
 		log.Println("No iptables")
@@ -268,7 +281,7 @@ func (kr *KRun) StartIstioAgent() error {
 
 	// Generate grpc bootstrap - no harm, low cost
 	if os.Getenv("GRPC_XDS_BOOTSTRAP") == "" {
-		env = append(env, "GRPC_XDS_BOOTSTRAP=/var/run/grpc_bootstrap.json")
+		env = append(env, "GRPC_XDS_BOOTSTRAP=./var/run/grpc_bootstrap.json")
 	}
 	cmd := kr.agentCommand()
 	var stdout io.ReadCloser
@@ -299,11 +312,13 @@ func (kr *KRun) StartIstioAgent() error {
 		cmd.Dir = "/"
 	} else {
 		cmd.Stdout = os.Stdout
+		env = append(env, "ISTIO_META_UNPRIVILEGED_POD=true")
 	}
 	cmd.Env = env
 
 	cmd.Stderr = os.Stderr
 	os.MkdirAll(prefix+"/var/lib/istio/envoy/", 0700)
+
 	go func() {
 		log.Println("Starting istio agent with ", cmd.Env)
 		err := cmd.Start()
@@ -340,7 +355,7 @@ func (kr *KRun) Exit(code int) {
 func (kr *KRun) initLabelsFile() {
 	if kr.Gateway != "" {
 		ioutil.WriteFile("/etc/istio/pod/labels", []byte(
-				`version=v1-cloudrun
+				`version="v1"
 security.istio.io/tlsMode="istio"
 istio="ingressgateway"
 `), 0777)

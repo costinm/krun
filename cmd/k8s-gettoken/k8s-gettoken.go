@@ -2,49 +2,43 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
-	"os"
 
+	_ "github.com/costinm/krun/pkg/gcp"
 	k8s "github.com/costinm/krun/pkg/k8s"
-	authenticationv1 "k8s.io/api/authentication/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+var (
+	nsFlag  = flag.String("ns", "default", "namespace")
+	ksaFlag = flag.String("ksa","default", "kubernetes service account")
 )
 
 // Minimal tool to get a K8S token with audience.
 func main() {
-	ns := conf("NS", "default")
-	ksa := conf("KSA", "default")
-	aud := conf("AUD", "api")
-	if len(os.Args) > 1 {
-		aud = os.Args[1]
+	flag.Parse()
+	aud := "api"
+	if len(flag.Args()) > 1 {
+		aud = flag.Args()[0]
 	}
 
 	kr := k8s.New()
-	err := kr.InitK8SClient()
+	if kr.Namespace == "" {
+		kr.Namespace = *nsFlag
+	}
+	if kr.KSA == "" {
+		kr.KSA = *ksaFlag
+	}
+	err := kr.InitK8SClient(context.Background())
 	if err != nil {
 		panic(err)
 	}
-	treq := &authenticationv1.TokenRequest{
-		Spec: authenticationv1.TokenRequestSpec{
-			Audiences: []string{aud},
-		},
-	}
-	if err != nil {
-		panic(err)
-	}
-	ts, err := kr.Client.CoreV1().ServiceAccounts(ns).CreateToken(context.Background(),
-		ksa, treq, metav1.CreateOptions{})
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(ts.Status.Token)
-}
 
-func conf(key, def string) string {
-	r := os.Getenv(key)
-	if r == "" {
-		return def
+	tok, err := kr.GetToken(context.Background(), aud)
+	if err != nil {
+		panic(err)
 	}
-	return r
+
+	fmt.Println(tok)
 }
 

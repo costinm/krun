@@ -68,10 +68,25 @@ func configFromEnvAndMD(kr *k8s.KRun)  {
 		kr.ProjectNumber = os.Getenv("PROJECT_NUMBER")
 	}
 
-	if os.Getenv("APPLICATION_DEFAULT_CREDENTIALS") == "" {
+	if os.Getenv("APPLICATION_DEFAULT_CREDENTIALS") == "" || kr.InCluster {
+		// TODO: detect if the cluster is k8s from some env ?
 		// If ADC is set, we will only use the env variables. Else attempt to init from metadata server.
 		if kr.ProjectId == "" {
 			kr.ProjectId, _ = ProjectFromMetadata()
+		}
+
+		var err error
+		if kr.InCluster && kr.ClusterName == "" {
+			kr.ClusterName, err = queryMetadata("instance/attributes/cluster-name")
+			if err != nil {
+				log.Println("Can't find cluster name")
+			}
+		}
+		if kr.InCluster && kr.ClusterLocation == "" {
+			kr.ClusterLocation, err = queryMetadata("instance/attributes/cluster-location")
+			if err != nil {
+				log.Println("Can't find cluster location")
+			}
 		}
 
 		if kr.ClusterLocation == "" {
@@ -92,7 +107,7 @@ func configFromEnvAndMD(kr *k8s.KRun)  {
 }
 
 func RegionFromMetadata() (string, error) {
-	v, err := queryMetadata("http://metadata.google.internal/computeMetadata/v1/instance/region")
+	v, err := queryMetadata("instance/region")
 	if err != nil {
 		return "", err
 	}
@@ -104,7 +119,7 @@ func RegionFromMetadata() (string, error) {
 }
 
 func ProjectFromMetadata() (string, error) {
-	v, err := queryMetadata("http://metadata.google.internal/computeMetadata/v1/project/project-id")
+	v, err := queryMetadata("project/project-id")
 	if err != nil {
 		return "", err
 	}
@@ -112,7 +127,7 @@ func ProjectFromMetadata() (string, error) {
 }
 
 func ProjectNumberFromMetadata() (string, error) {
-	v, err := queryMetadata("http://metadata.google.internal/computeMetadata/v1/project/numeric-project-id")
+	v, err := queryMetadata("project/numeric-project-id")
 	if err != nil {
 		return "", err
 	}
@@ -120,8 +135,8 @@ func ProjectNumberFromMetadata() (string, error) {
 }
 
 
-func queryMetadata(url string) (string, error) {
-	req, err := http.NewRequest("GET", url, nil)
+func queryMetadata(path string) (string, error) {
+	req, err := http.NewRequest("GET", "http://metadata.google.internal/computeMetadata/v1/" + path, nil)
 	if err != nil {
 		return "", err
 	}
@@ -143,7 +158,13 @@ func queryMetadata(url string) (string, error) {
 
 
 func InitGCP(ctx context.Context, kr *k8s.KRun) error {
+	// Load GCP env variables - will be needed.
 	configFromEnvAndMD(kr)
+
+	if kr.Client != nil {
+		// Running in-cluster or using kube config
+		return nil
+	}
 
 	t0 := time.Now()
 	var kc *kubeconfig.Config
@@ -154,38 +175,54 @@ func InitGCP(ctx context.Context, kr *k8s.KRun) error {
 		return nil
 	}
 
+	var cl *Cluster
 	if kr.ClusterName == "" || kr.ClusterLocation == "" {
 		// ~500ms
-		cl ,err := AllClusters(ctx, kr, "", "mesh_id", "")
+		cll ,err := AllClusters(ctx, kr, "", "mesh_id", "")
 		if err != nil {
 			return err
 		}
 
-		if len(cl) == 0 {
+		if len(cll) == 0 {
 			return nil // no cluster to use
 		}
 
-		kc = cl[0].KubeConfig
+		cl = cll[0]
+
+		for _, c := range cll {
+			if kr.ClusterLocation != "" && !strings.HasPrefix(c.ClusterLocation, kr.ClusterLocation) {
+				continue
+			}
+			// unknown location or same
+			if strings.HasPrefix(c.ClusterName, "istio") {
+				cl = c
+			}
+		}
 		// TODO: select default cluster based on location
 		// WIP - list all clusters and attempt to find one in the same region.
 		// TODO: connect to cluster, find istiod - and keep trying until a working
 		// one is found ( fallback )
-
 	} else {
 		// ~400 ms
-		cl, err := GKECluster(ctx, kr.ProjectId, kr.ClusterLocation, kr.ClusterName)
+		cl, err = GKECluster(ctx, kr.ProjectId, kr.ClusterLocation, kr.ClusterName)
 		//rc, err := CreateRestConfig(kr, kc, kr.ProjectId, kr.ClusterLocation, kr.ClusterName)
 		if err != nil {
 			return err
 		}
 		//kr.Client, err = kubernetes.NewForConfig(rc)
-		kc = cl.KubeConfig
 		if err != nil {
 			log.Println("Failed in NewForConfig", kr, err)
 			return err
 		}
 	}
 
+	kc = cl.KubeConfig
+	if kr.ClusterName == "" {
+		kr.ClusterName = cl.ClusterName
+	}
+	if kr.ClusterLocation == "" {
+		kr.ClusterLocation = cl.ClusterLocation
+	}
 	GCPInitTime = time.Since(t0)
 
 	rc, err := restConfig(kc)

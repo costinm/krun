@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -18,18 +20,12 @@ func main() {
 
 	kr.VendorInit = gcp.InitGCP
 
-	err := kr.InitK8SClient()
+	err := kr.InitK8SClient(context.Background())
 	if err != nil {
 		log.Fatal("Failed to connect to GKE ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}
 
 	kr.LoadConfig()
-
-	if len(os.Args) == 1 {
-		// Default gateway label for now, we can customize with env variables.
-		kr.Gateway = "ingressgateway"
-		log.Println("Starting in gateway mode", os.Args)
-	}
 
 	kr.Refresh()
 
@@ -44,18 +40,9 @@ func main() {
 
 	if meshMode {
 		// Use k8s client to autoconfigure, reading from cluster.
-		if kr.XDSAddr == "" {
-			err = kr.FindXDSAddr()
-			if err != nil {
-				log.Fatal("Failed to locate the XDS server ", err)
-			}
-		}
-
-		if kr.XDSAddr != "-" {
-			err := kr.StartIstioAgent()
-			if err != nil {
-				log.Fatal("Failed to start the mesh agent")
-			}
+		err := kr.StartIstioAgent()
+		if err != nil {
+			log.Fatal("Failed to start the mesh agent")
 		}
 		// TODO: wait for proxy ready before starting app.
 	}
@@ -77,15 +64,27 @@ func main() {
 		if err != nil {
 			log.Fatal("Failed to find mesh certificates", err)
 		}
-		// TODO: use an in-cluster secret or self-signed certs if mesh mode disabled
 
 		hb := hbone.New(auth)
 		_, err = hbone.ListenAndServeTCP(":15009", hb.HandleAcceptedH2C)
 		if err != nil {
-			panic(err)
+			log.Fatal("Failed to start h2c on 15009", err)
 		}
 
-		// TODO: if east-west gateway present, create a connection.
+		// if hgate east-west gateway present, create a connection.
+		hg, err := kr.FindHGate(context.Background())
+		if err != nil || hg == "" {
+			log.Println("hgate not found, not attaching to the cluster", err)
+		} else {
+			attachC := hb.NewClient(kr.Name + "." + kr.Namespace + ":15009")
+			attachE := attachC.NewEndpoint("")
+			attachE.SNI = fmt.Sprintf("outbound_.8080_._.%s.%s.svc.cluster.local", kr.Name,kr.Namespace)
+			go func() {
+					_, err := attachE.DialH2R(context.Background(), hg+":15441")
+					log.Println("H2R connected", hg, err)
+			}()
+		}
+
 	}
 	select{}
 }

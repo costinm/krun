@@ -10,3 +10,10 @@ The multi-network gateways are loaded from the static config file or from k8s. T
 'topology.istio.io/network' with the value beeing the network name. We'll use 'hb' as network.
 
 networking.istio.io/gatewayPort can be used to override the default port 15443 - we're not using this.
+
+## SNI routes
+
+Istio generates clusters with:
+```
+  "sni": "outbound_.8080_._.fortio.fortio.svc.cluster.local"
+```

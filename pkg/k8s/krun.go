@@ -12,6 +12,11 @@ import (
 
 // KRun allows running an app in an Istio and K8S environment.
 type KRun struct {
+	// BaseDir is the root directory for all created files and all lookups.
+	// If empty, will default to "/" when running as root, and "./" when running as regular user.
+	// MESH_BASE_DIR will override it.
+	BaseDir string
+
 	// Secrets to 'mount'. Key is the secret name, value is a path.
 	// All secret mounts are 'optional=true' ( for now )
 	Secrets2Dirs map[string]string
@@ -72,12 +77,13 @@ type KRun struct {
 	appCmd      *exec.Cmd
 	TrustDomain string
 
-	StartTime    time.Time
-	Labels       map[string]string
-	VendorInit   func(context.Context, *KRun) error
+	StartTime  time.Time
+	Labels     map[string]string
+	VendorInit func(context.Context, *KRun) error
 
 	// WhiteboxMode indicates no iptables capture
 	WhiteboxMode bool
+	InCluster    bool
 }
 
 
@@ -113,6 +119,9 @@ func (kr *KRun) LoadConfig() *KRun {
 	if kr.Name == "" {
 		kr.Name = os.Getenv("WORKLOAD_NAME")
 	}
+	if kr.Gateway == "" {
+		kr.Gateway = os.Getenv("GATEWAY_NAME")
+	}
 
 	ks := os.Getenv("K_SERVICE")
 	if kr.Namespace == "" {
@@ -140,6 +149,12 @@ func (kr *KRun) LoadConfig() *KRun {
 	if os.Getuid() == 0 {
 		prefix = ""
 	}
+	if kr.BaseDir == "" {
+		kr.BaseDir = os.Getenv("MESH_BASE_DIR")
+	}
+	if kr.BaseDir != "" {
+		prefix = kr.BaseDir
+	}
 	for _, kv := range os.Environ() {
 		kvl := strings.SplitN(kv, "=", 2)
 		if strings.HasPrefix(kvl[0], "K8S_SECRET_") {
@@ -163,8 +178,9 @@ func (kr *KRun) LoadConfig() *KRun {
 		kr.TrustDomain = kr.ProjectId + ".svc.id.goog"
 	}
 	kr.Aud2File[kr.TrustDomain] = prefix + "/var/run/secrets/tokens/istio-token"
-	kr.Aud2File["api"] = prefix + "/var/run/secrets/kubernetes.io/serviceaccount/token"
-
+	if !kr.InCluster {
+		kr.Aud2File["api"] = prefix + "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	}
 	if kr.KSA == "" {
 		kr.KSA = "default"
 	}

@@ -46,6 +46,7 @@ func (kr *KRun) StartApp() {
 	}
 	if kr.WhiteboxMode {
 		cmd.Env = append(cmd.Env, "HTTP_PROXY=127.0.0.1:15007")
+		cmd.Env = append(cmd.Env, "http_proxy=127.0.0.1:15007")
 	}
 
 	go func() {

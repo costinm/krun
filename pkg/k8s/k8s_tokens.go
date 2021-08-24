@@ -27,6 +27,21 @@ func (kr *KRun) Refresh() {
 	time.AfterFunc(30 * time.Minute, kr.Refresh)
 }
 
+func (kr *KRun) GetToken(ctx context.Context, aud string) (string, error){
+	treq := &authenticationv1.TokenRequest{
+		Spec: authenticationv1.TokenRequestSpec{
+			Audiences: []string{aud},
+		},
+	}
+	ts, err := kr.Client.CoreV1().ServiceAccounts(kr.Namespace).CreateToken(ctx,
+		kr.KSA, treq, metav1.CreateOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	return ts.Status.Token, nil
+}
+
 func InitToken(client *kubernetes.Clientset, ns string, ksa string, audience string, destFile string) error {
 	treq := &authenticationv1.TokenRequest{
 		Spec: authenticationv1.TokenRequestSpec{

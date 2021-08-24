@@ -8,6 +8,7 @@
 -include .local.mk
 
 PROJECT_ID?=wlhe-cr
+export PROJECT_ID
 
 ISTIO_CHARTS?=../istio/manifests/charts
 REV?=v1-11
@@ -20,6 +21,7 @@ export KO_DOCKER_REPO
 ADC?=${HOME}/.config/gcloud/legacy_credentials/${USER}/adc.json
 export ADC
 
+TAG ?= latest
 KRUN_IMAGE?=${KO_DOCKER_REPO}:latest
 
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -30,14 +32,21 @@ TAG?=latest
 # Push krun - the github action on push will do the same.
 # This is the fastest way to push krun - permission required to KO_DOCKER_REPO
 push/krun:
-	ko publish -B ./
+	ko publish -B -t ${TAG} ./
+
+push/hgate-ko:
+	ko publish -B -t ${TAG} ./cmd/gate
+
+push/hgate:
+	docker push gcr.io/${PROJECT_ID}/hbgate:${TAG}
+
 
 # Build and tag krun image locally, will be used in the next phase and for
 # local testing.
 build: build/krun
 
 images: build
-	(cd samples/fortio; make image)
+	(cd samples/fortio; DOCKER_BUILD_ARGS=--build-arg=BASE=${KRUN_IMAGE} make image)
 
 build/krun:
 	KO_IMAGE=$(shell ko publish -L -B ./) $(MAKE) docker/tag
@@ -45,8 +54,12 @@ build/krun:
 build/docker:
 	docker build . -t ${KRUN_IMAGE}
 
+all-hgate: push/hgate-ko #build/docker-hgate push/hgate
+	kubectl -n hgate delete rs -l app=hgate || true
+	kubectl apply -f manifests/hgate/hgate.yaml
+
 build/docker-hgate:
-	docker build . -t gcr.io/${PROJECT_ID}/hbgate:${TAG}
+	time docker build . -f cmd/gate/Dockerfile -t gcr.io/${PROJECT_ID}/hbgate:${TAG}
 
 
 docker/tag:
@@ -111,16 +124,7 @@ deploy/fortio:
 
 ## Cluster setup for samples and testing
 deploy/k8s-fortio:
-	helm upgrade --install \
-		-n fortio \
-		fortio \
- 		samples/charts/fortio
-
-template/k8s-fortio:
-	helm template \
-		-n fortio \
-		fortio \
- 		samples/charts/fortio > samples/fortio/in-cluster.yaml
+	kubectl apply -f samples/fortio/in-cluster.yaml
 
 # Update base images, for build/krun ( local build )
 pull:
@@ -138,21 +142,29 @@ deps:
 test:
 	go test -timeout 2m -v ./...
 
+canary/all: canary/build canary
+
+canary/build: images
+	(cd samples/fortio; make push)
+
 # Canary will deploy a 'canary' version of a cloudrun instance using the current golden image, and verify it works
 canary: canary/deploy canary/test
 
 canary/deploy:
-	(cd samples/fortio; REGION=us-central1 CLUSTER_NAME=asm-cr CLUSTER_LOCATION=us-central1-c \
-    	make deploy)
     # OSS/ASM with Istiod exposed in Gateway, with ACME certs
-	(cd samples/fortio; REGION=us-central1 CLUSTER_NAME=istio CLUSTER_LOCATION=us-central1-c \
+	(cd samples/fortio; REGION=us-central1 WORKLOAD_NAME=istio CLUSTER_NAME=istio CLUSTER_LOCATION=us-central1-c \
 		EXTRA="--set-env-vars XDS_ADDR=istiod.wlhe.i.webinf.info:443" \
 		make deploy)
+	(cd samples/fortio; REGION=us-central1 WORKLOAD_NAME=asm-cr CLUSTER_NAME=asm-cr CLUSTER_LOCATION=us-central1-c \
+    	make deploy)
 
+# Example: MCP_URL=https://fortio-asm-cr-icq63pqnqq-uc.a.run.app
+canary/test: CR_MCP_URL=$(shell gcloud run services describe fortio-asm-cr --format="value(status.address.url)")
+canary/test: CR_ASM_URL=$(shell gcloud run services describe fortio-istio --format="value(status.address.url)")
 canary/test:
-	curl  -v  https://fortio-asm-cr-icq63pqnqq-uc.a.run.app/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
-	curl  -v https://fortio-istio-icq63pqnqq-uc.a.run.app/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
-	curl -v  https://fortio-istio-icq63pqnqq-uc.a.run.app/fortio/fetch2/?url=http%3A%2F%2Flocalhost%3A15000%2Fconfig_dump
+	curl  -v  ${CR_MCP_URL}/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
+	curl  -v ${CR_ASM_URL}/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
+	curl -v  ${CR_MCP_URL}/fortio/fetch2/?url=http%3A%2F%2Flocalhost%3A15000%2Fconfig_dump
 
 # A single version of Istiod - using a version-based revision name.
 # The version will be associated with labels using in the other charts.
@@ -170,7 +182,7 @@ deploy/istiod:
 		--set meshConfig.trustDomain="${PROJECT_ID}.svc.id.goog" \
 		--set global.sds.token.aud="${PROJECT_ID}.svc.id.goog" \
 		--set pilot.env.TOKEN_AUDIENCES="${PROJECT_ID}.svc.id.goog\,istio-ca" \
-		--set meshConfig.proxyHttpPort=15080 \
+		--set meshConfig.proxyHttpPort=15007 \
         --set meshConfig.accessLogFile=/dev/stdout \
         --set pilot.replicaCount=1 \
         --set pilot.autoscaleEnabled=false \
@@ -179,9 +191,7 @@ deploy/istiod:
 
 # Whitebox:
 # Istio install:
-# 		--set meshConfig.proxyHttpPort=15080 \
-# Cloudrun:
-#  --set-env-vars="HTTP_PROXY=127.0.0.1:15080"
+# 		--set meshConfig.proxyHttpPort=15007
 
 # Create the builder docker image, used in GCB
 gcb/builder:
