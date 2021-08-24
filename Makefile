@@ -13,6 +13,10 @@ export PROJECT_ID
 ISTIO_CHARTS?=../istio/manifests/charts
 REV?=v1-11
 
+# Region where the cloudrun services are running
+REGION?=us-central1
+export REGION
+
 # Github actions use this.
 KO_DOCKER_REPO?=gcr.io/${PROJECT_ID}/krun
 export KO_DOCKER_REPO
@@ -152,15 +156,15 @@ canary: canary/deploy canary/test
 
 canary/deploy:
     # OSS/ASM with Istiod exposed in Gateway, with ACME certs
-	(cd samples/fortio; REGION=us-central1 WORKLOAD_NAME=istio CLUSTER_NAME=istio CLUSTER_LOCATION=us-central1-c \
+	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=istio CLUSTER_NAME=istio CLUSTER_LOCATION=us-central1-c \
 		EXTRA="--set-env-vars XDS_ADDR=istiod.wlhe.i.webinf.info:443" \
 		make deploy)
-	(cd samples/fortio; REGION=us-central1 WORKLOAD_NAME=asm-cr CLUSTER_NAME=asm-cr CLUSTER_LOCATION=us-central1-c \
+	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=asm-cr CLUSTER_NAME=asm-cr CLUSTER_LOCATION=us-central1-c \
     	make deploy)
 
 # Example: MCP_URL=https://fortio-asm-cr-icq63pqnqq-uc.a.run.app
-canary/test: CR_MCP_URL=$(shell gcloud run services describe fortio-asm-cr --format="value(status.address.url)")
-canary/test: CR_ASM_URL=$(shell gcloud run services describe fortio-istio --format="value(status.address.url)")
+canary/test: CR_MCP_URL=$(shell gcloud run services describe fortio-asm-cr --region ${REGION} --project ${PROJECT_ID} --format="value(status.address.url)")
+canary/test: CR_ASM_URL=$(shell gcloud run services describe fortio-istio --region ${REGION} --project ${PROJECT_ID} --format="value(status.address.url)")
 canary/test:
 	curl  -v  ${CR_MCP_URL}/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
 	curl  -v ${CR_ASM_URL}/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho

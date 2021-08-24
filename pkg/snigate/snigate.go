@@ -5,10 +5,11 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/costinm/hbone"
 	"github.com/costinm/krun/pkg/k8s"
-	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 )
 
@@ -18,6 +19,37 @@ type SNIGate struct {
 	Auth        *hbone.Auth
 	HBone       *hbone.HBone
 }
+
+type cachedToken struct {
+	token string
+	expiration time.Time
+}
+
+type TokenCache struct {
+	cache sync.Map
+	kr    *k8s.KRun
+}
+
+func (c TokenCache) Token(ctx context2.Context, host string) (string, error) {
+
+	if got, f := c.cache.Load(host); f {
+		t := got.(cachedToken)
+		if !t.expiration.After(time.Now().Add(-time.Minute)) {
+			return t.token, nil
+		}
+	}
+
+	t, err := c.kr.GetToken(ctx, host)
+	// TODO: cache error state or throttle
+	if err != nil {
+		return "", err
+	}
+	log.Println("XXX debug Gettoken", host, t)
+
+	c.cache.Store(host, cachedToken{t, time.Now().Add(45 * time.Minute)})
+	return t, nil
+}
+
 
 func InitSNIGate(kr *k8s.KRun, sniPort string, h2rPort string) (*SNIGate, error) {
 
@@ -46,11 +78,8 @@ func InitSNIGate(kr *k8s.KRun, sniPort string, h2rPort string) (*SNIGate, error)
 
 	h2r := hbone.New(auth)
 
-	h2r.TokenCallback = func(ctx context.Context, host string) (string, error) {
-		log.Println("Gettoken", host)
-		// TODO: P0 cache the token !!!!
-		return kr.GetToken(ctx, host)
-	}
+	tcache := &TokenCache{kr: kr}
+	h2r.TokenCallback = tcache.Token
 
 	h2r.EndpointResolver = func(sni string) *hbone.Endpoint {
 		// Current Istio SNI looks like:
