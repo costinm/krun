@@ -37,11 +37,10 @@ steps:
       - base-kaniko
 
   - name: 'gcr.io/kaniko-project/executor:latest'
-    id: fortio
+    id: hgate
     args:
-      - --destination=gcr.io/$PROJECT_ID/hbgate:$BRANCH_NAME
-      - --dockerfile=samples/fortio/Dockerfile
-      - --context=dir://samples/fortio
+      - --destination=gcr.io/$PROJECT_ID/hgate:$BRANCH_NAME
+      - --dockerfile=cmd/gate/Dockerfile
       - --build-arg=BASE=gcr.io/$PROJECT_ID/krun:$BRANCH_NAME
       - --cache=true
       - --cache-ttl=240h
