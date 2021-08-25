@@ -7,7 +7,7 @@ metadata:
 spec:
   metadata:
     labels:
-      app.kubernetes.io/name: ${WORKLOAD_NAME}
+      #app.kubernetes.io/name: ${WORKLOAD_NAME}
       app: ${WORKLOAD_NAME}
       #app.kubernetes.io/version: ${WORKLOAD_VERSION}
     annotations:
@@ -37,6 +37,7 @@ rules:
     verbs:
       - "create"
       - "get"
+
   - apiGroups: [""]
     resources:
       - "configmaps"
@@ -45,6 +46,15 @@ rules:
       - "krun"
     verbs:
       - "get"
+
+  - apiGroups: [""]
+    resources:
+      - "secrets"
+    resourceNames:
+      - "sshdebug"
+    verbs:
+      - "get"
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

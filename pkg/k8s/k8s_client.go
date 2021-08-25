@@ -65,6 +65,8 @@ func (kr *KRun) initUsingKubeConfig() error {
 		if err != nil {
 			return err
 		}
+
+		log.Println("Using Kubeconfig", cf.CurrentContext, kc)
 		return nil
 	}
 	return nil
@@ -86,6 +88,7 @@ func (kr *KRun) initInCluster() error {
 		if err != nil {
 			return err
 		}
+		log.Println("Using in-cluster k8s")
 		return nil
 	}
 

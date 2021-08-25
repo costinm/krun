@@ -1,130 +1,162 @@
 
 # Must define:
-# CLUSTER
+# CLUSTER_NAME
 # PROJECT_ID
-# LOCATION
-# SUBDOMAIN - for now we require Istiod to use an ACME cert and proper domain ('external istiod' style)
-# USER - User logged in gcloud, used to find adc for local tests
+# CLUSTER_LOCATION
+
+ROOT_DIR?=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+OUT?=${ROOT_DIR}/../out/krun
+
 -include .local.mk
 
 PROJECT_ID?=wlhe-cr
 export PROJECT_ID
 
-ISTIO_CHARTS?=../istio/manifests/charts
-REV?=v1-11
-
 # Region where the cloudrun services are running
 REGION?=us-central1
 export REGION
 
-# Github actions use this.
+CLUSTER_LOCATION?=us-central1-c
+export CLUSTER_LOCATION
+
+
+CLUSTER_NAME?=istio
+export CLUSTER_NAME
+
+TAG ?= latest
+
+# Derived values
+
+# This project uses 'ko' to build faster.
 KO_DOCKER_REPO?=gcr.io/${PROJECT_ID}/krun
 export KO_DOCKER_REPO
 
-# For testing/dev in local docker
-ADC?=${HOME}/.config/gcloud/legacy_credentials/${USER}/adc.json
-export ADC
-
-TAG ?= latest
 KRUN_IMAGE?=${KO_DOCKER_REPO}:latest
 
-ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-OUT?=${ROOT_DIR}/../out/krun
+HGATE_IMAGE?=${KO_DOCKER_REPO}/gate:latest
 
-TAG?=latest
+WORKLOAD_NAME?=fortio-cr
 
-# Push krun - the github action on push will do the same.
-# This is the fastest way to push krun - permission required to KO_DOCKER_REPO
-push/krun:
-	ko publish -B -t ${TAG} ./
+# Build krun, fortio, push fortio, deploy to main test cloudrun config
+all: build/krun push/fortio deploy/fortio
 
-push/hgate-ko:
-	ko publish -B -t ${TAG} ./cmd/gate
-
-push/hgate:
-	docker push gcr.io/${PROJECT_ID}/hbgate:${TAG}
-
-
-# Build and tag krun image locally, will be used in the next phase and for
-# local testing.
-build: build/krun
-
-images: build
-	(cd samples/fortio; DOCKER_BUILD_ARGS=--build-arg=BASE=${KRUN_IMAGE} make image)
-
-build/krun:
-	KO_IMAGE=$(shell ko publish -L -B ./) $(MAKE) docker/tag
-
-build/docker:
-	docker build . -t ${KRUN_IMAGE}
-
-all-hgate: push/hgate-ko #build/docker-hgate push/hgate
+# Build, push, deploy hgate,
+all-hgate: push/hgate
 	kubectl -n hgate delete rs -l app=hgate || true
 	kubectl apply -f manifests/hgate/hgate.yaml
 
+
+test:
+	go test -timeout 2m -v ./...
+
+#push/krun:
+#	ko publish -B -t ${TAG} ./
+#push/hgate:
+#	docker push gcr.io/${PROJECT_ID}/hbgate:${TAG}
+
+
+# Build and tag krun image locally, will be used in the next phase and for local testing, no push
+
+build/fortio: build/krun
+	(cd samples/fortio; GOLDEN_IMAGE=${KRUN_IMAGE} make image)
+
+build/krun:
+	# Will also tag ko.local/krun:latest
+	KO_IMAGE=$(shell ko publish -L -B ./) TAG_IMAGE=${KRUN_IMAGE} $(MAKE) _ko_tag_local
+
+build/hgate:
+	# Will also tag ko.local/krun:latest
+	KO_IMAGE=$(shell ko publish -L -B ./cmd/gate) TAG_IMAGE=${HGATE_IMAGE} $(MAKE) _ko_tag_local
+
+# Same thing, using docker build - slower
+build/docker-krun:
+	docker build . -t ${KRUN_IMAGE}
+
+_ko_tag_local:
+	#docker tag ${KO_IMAGE} ko.local/krun:latest && \
+	docker tag ${KO_IMAGE} ${TAG_IMAGE}
+
+# Same thing with docker
 build/docker-hgate:
-	time docker build . -f cmd/gate/Dockerfile -t gcr.io/${PROJECT_ID}/hbgate:${TAG}
+	time docker build . -f cmd/gate/Dockerfile -t ${HGATE_IMAGE}
 
 
-docker/tag:
-	docker tag ${KO_IMAGE} ko.local/krun:latest && \
-	docker tag ${KO_IMAGE} ${KRUN_IMAGE}
+test/e2e: CR_URL=$(shell gcloud run services describe ${WORKLOAD_NAME} --region ${REGION} --project ${PROJECT_ID} --format="value(status.address.url)")
+test/e2e:
+	curl  -v  ${CR_URL}/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
+	curl  -v  ${CR_URL}/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio-mcp.svc%3A8080%2Fecho
+	curl  -v  ${CR_URL}/fortio/fetch2/?url=http%3A%2F%2Fhttpbin.httpbin.svc%3A8000%2Fheaders
+    #curl  ${CR_URL}/fortio/fetch2/?url=http%3A%2F%2Flocalhost%3A15000%2Fconfig_dump
 
-################# Testing / local dev #################
+#### Pushing images
 
-# Run krun in a docker image, get a shell. Will use MCP.
-docker/run-noxds:
-	docker run -it --rm \
-		-e CLUSTER_NAME=${CLUSTER_NAME} \
-		-e PROJECT_ID=${PROJECT_ID} \
-		-e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
-		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
-		-v ${ADC}:/var/run/secrets/google/google.json:ro \
-		${KRUN_IMAGE} \
-	   /bin/bash
+# HGate - push to the repo and deploy
+push/hgate:
+	ko publish -B -t ${TAG} ./cmd/gate
 
-# Run in local docker, using ADC for auth and an explicit XDS address
-docker/run-xds-adc:
-	docker run -it --rm \
-		-e XDS_ADDR=istiod.wlhe.i.webinf.info:443 \
-		-e CLUSTER_NAME=${CLUSTER_NAME} \
-		-e PROJECT_ID=${PROJECT_ID} \
-		-e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
-		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
-		-v ${ADC}:/var/run/secrets/google/google.json:ro \
-		${KRUN_IMAGE} \
-		/bin/bash
-
-
-# Run hbgate in a local docker container, for testing.
-# Will connect to the cluster.
-#
-# ISTIO_META_INTERCEPTION_MODE disable interception (not using it).
-# DISABLE_ENVOY also disables envoy - only using the cert part in istio-agent
-docker/run-hbgate:
-	docker run -it --rm \
-		-e CLUSTER_NAME=${CLUSTER_NAME} \
-		-e PROJECT_ID=${PROJECT_ID} \
-		-e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
-		-e DISABLE_ENVOY=true \
-		-e ISTIO_META_INTERCEPTION_MODE=NONE \
-		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
-		-p 15441:15441 \
-		-v ${ADC}:/var/run/secrets/google/google.json:ro \
-		 gcr.io/${PROJECT_ID}/hbgate:${TAG} \
-	   /bin/bash
-
-local/run-kubeconfig:
-	docker run  -e KUBECONFIG=/var/run/kubeconfig -v ${HOME}/.kube/config:/var/run/kubeconfig:ro -it  \
-		${KRUN_IMAGE}  /bin/bash
-
-push/fortio:
-	(cd samples/fortio; make image push)
-
-all: images push/fortio deploy/fortio
+push/fortio: build/fortio
+	(cd samples/fortio; make push)
 
 deploy/fortio:
 	(cd samples/fortio; make deploy)
+
+deploy/fortio-auth:
+	gcloud alpha run deploy fortio-auth \
+    		  --execution-environment=gen2 \
+    		  --platform managed --project ${PROJECT_ID} --region ${REGION} \
+    		  --service-account=${WORKLOAD_SERVICE_ACCOUNT} \
+              --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
+             \
+             --use-http2 \
+             --port 15009 \
+             \
+             --image ${FORTIO_IMAGE} \
+
+
+logs:
+	(cd samples/fortio; make logs)
+
+ssh:
+	(cd samples/fortio; make ssh)
+
+################# Testing / local dev #################
+# For testing/dev in local docker
+
+docker/_run: ADC?=${HOME}/.config/gcloud/legacy_credentials/$(shell gcloud config get-value core/account)/adc.json
+docker/_run:
+	docker run -it --rm \
+		-e CLUSTER_NAME=${CLUSTER_NAME} \
+		-e PROJECT_ID=${PROJECT_ID} \
+		-e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
+		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
+		-v ${ADC}:/var/run/secrets/google/google.json:ro \
+		${_RUN_EXTRA} \
+		${_RUN_IMAGE} \
+	   /bin/bash
+
+# Run krun in a docker image, get a shell. Will use MCP.
+docker/run-mcp:
+	_RUN_IMAGE=${KRUN_IMAGE} $(MAKE) docker/_run
+
+# Run in local docker, using ADC for auth and an explicit XDS address
+docker/run-xds-adc:
+	_RUN_EXTRA="-e XDS_ADDR=istiod.wlhe.i.webinf.info:443"   _RUN_IMAGE=${KRUN_IMAGE} $(MAKE) docker/_run
+
+# Run hgate in a local docker container, for testing. Will connect to the cluster.
+#
+# ISTIO_META_INTERCEPTION_MODE disable interception (not using it).
+# DISABLE_ENVOY also disables envoy - only using the cert part in istio-agent
+docker/run-hgate:
+	_RUN_EXTRA="-e DISABLE_ENVOY=true -e ISTIO_META_INTERCEPTION_MODE=NONE -p 15441:15441" \
+ 	_RUN_IMAGE=${HGATE_IMAGE}  \
+ 		$(MAKE) docker/_run
+
+# Run without ADC, only kubeconfig
+docker/run-kubeconfig:
+	docker run  -e KUBECONFIG=/var/run/kubeconfig -v ${HOME}/.kube/config:/var/run/kubeconfig:ro -it  \
+		${KRUN_IMAGE}  /bin/bash
+
+################## Setup/preparation
 
 ## Cluster setup for samples and testing
 deploy/k8s-fortio:
@@ -132,8 +164,6 @@ deploy/k8s-fortio:
 
 # Update base images, for build/krun ( local build )
 pull:
-	# Custom build
-	#docker pull gcr.io/wlhe-cr/proxyv2:cloudrun
 	docker pull gcr.io/istio-testing/proxyv2:latest
 
 # Get deps
@@ -142,33 +172,9 @@ deps:
 	chmod +x kubectl
 	# TODO: helm, ko
 
-
-test:
-	go test -timeout 2m -v ./...
-
-canary/all: canary/build canary
-
-canary/build: images
-	(cd samples/fortio; make push)
-
-# Canary will deploy a 'canary' version of a cloudrun instance using the current golden image, and verify it works
-canary: canary/deploy canary/test
-
-canary/deploy:
-    # OSS/ASM with Istiod exposed in Gateway, with ACME certs
-	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=istio CLUSTER_NAME=istio CLUSTER_LOCATION=us-central1-c \
-		EXTRA="--set-env-vars XDS_ADDR=istiod.wlhe.i.webinf.info:443" \
-		make deploy)
-	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=asm-cr CLUSTER_NAME=asm-cr CLUSTER_LOCATION=us-central1-c \
-    	make deploy)
-
-# Example: MCP_URL=https://fortio-asm-cr-icq63pqnqq-uc.a.run.app
-canary/test: CR_MCP_URL=$(shell gcloud run services describe fortio-asm-cr --region ${REGION} --project ${PROJECT_ID} --format="value(status.address.url)")
-canary/test: CR_ASM_URL=$(shell gcloud run services describe fortio-istio --region ${REGION} --project ${PROJECT_ID} --format="value(status.address.url)")
-canary/test:
-	curl  -v  ${CR_MCP_URL}/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
-	curl  -v ${CR_ASM_URL}/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
-	curl -v  ${CR_MCP_URL}/fortio/fetch2/?url=http%3A%2F%2Flocalhost%3A15000%2Fconfig_dump
+# Used for the target installing in-cluster istio, not required when testing with MCP
+ISTIO_CHARTS?=../istio/manifests/charts
+REV?=v1-11
 
 # A single version of Istiod - using a version-based revision name.
 # The version will be associated with labels using in the other charts.
@@ -193,9 +199,46 @@ deploy/istiod:
 		--set pilot.env.PILOT_ENABLE_WORKLOAD_ENTRY_AUTOREGISTRATION=true \
 		--set pilot.env.PILOT_ENABLE_WORKLOAD_ENTRY_HEALTHCHECKS=true
 
-# Whitebox:
-# Istio install:
-# 		--set meshConfig.proxyHttpPort=15007
+############ Canary (stability/e2e) ##############
+
+canary/all: push/fortio canary
+
+# Canary will deploy a 'canary' version of a cloudrun instance using the current golden image, and verify it works
+# Used in GCB, where the images are built with Kaniko
+canary: canary/deploy canary/test
+
+canary/deploy: canary/deploy-mcp canary/deploy-asm
+
+canary/deploy-mcp:
+	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=fortio-mcp  \
+    	make deploy)
+
+# Deploy in another cluster
+canary/deploy-mcp2:
+	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=fortio-asm-cr CLUSTER_NAME=asm-cr CLUSTER_LOCATION=us-central1-c \
+    	make deploy)
+
+canary/deploy-asm:
+    # OSS/ASM with Istiod exposed in Gateway, with ACME certs
+	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=fortio-istio CLUSTER_NAME=istio CLUSTER_LOCATION=us-central1-c \
+		EXTRA="--set-env-vars XDS_ADDR=istiod.wlhe.i.webinf.info:443" \
+		make deploy)
+
+# Example: MCP_URL=https://fortio-asm-cr-icq63pqnqq-uc.a.run.app
+canary/test: CR_MCP_URL=$(shell gcloud run services describe fortio-mcp --region ${REGION} --project ${PROJECT_ID} --format="value(status.address.url)")
+canary/test: CR_ASM_URL=$(shell gcloud run services describe fortio-istio --region ${REGION} --project ${PROJECT_ID} --format="value(status.address.url)")
+canary/test:
+	curl  -v  ${CR_MCP_URL}/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
+	curl  -v ${CR_ASM_URL}/fortio/fetch2/?url=http%3A%2F%2Ffortio.fortio.svc%3A8080%2Fecho
+	# Dump the envoy config, for reference/debugging
+	curl -v  ${CR_MCP_URL}/fortio/fetch2/?url=http%3A%2F%2Flocalhost%3A15000%2Fconfig_dump
+
+##### Logs
+
+logs/fortio-mcp:
+	(cd samples/fortio; WORKLOAD_NAME=fortio-mcp make logs)
+
+##### GCB related targets
 
 # Create the builder docker image, used in GCB
 gcb/builder:

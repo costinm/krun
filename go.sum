@@ -64,10 +64,14 @@ github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403/go.mod h1:WmhPx2Nbnht
 github.com/coreos/go-oidc v2.2.1+incompatible/go.mod h1:CgnwVTmzoESiwO9qyAFEMiHoZ1nMCKZlZ9V6mm3/LKc=
 github.com/costinm/cert-ssh/ssh v0.0.0-20210701135701-d50c5ca07d95 h1:f/WxibwBUGKx91FBAqRKZSHX2W7cdRNS7X5A4Zpnt6c=
 github.com/costinm/cert-ssh/ssh v0.0.0-20210701135701-d50c5ca07d95/go.mod h1:2ciafZwmj3a7AMC1qKq2WRQBlDKBYEiPzCJt/wAnmmI=
+github.com/costinm/cert-ssh/ssh v0.0.0-20210825233239-a732a424ec23 h1:7Vm//IpLKYkU1nTRqg6kWdp+kVQqwslZMvy22Fl5XrQ=
+github.com/costinm/cert-ssh/ssh v0.0.0-20210825233239-a732a424ec23/go.mod h1:2ciafZwmj3a7AMC1qKq2WRQBlDKBYEiPzCJt/wAnmmI=
 github.com/costinm/cert-ssh/sshca v0.0.0-20210628220432-a23b998ca61c h1:goDEJgDR91dk60sxmb3ROx6DWIHP3qWLJ32p9hUf6b8=
 github.com/costinm/cert-ssh/sshca v0.0.0-20210628220432-a23b998ca61c/go.mod h1:KBgj9uKIo3/Q+qsIJuc1mjyk8qF1lmlRSu2jNBLxoAI=
 github.com/costinm/hbone v0.0.0-20210824042322-d426d8983c73 h1:DuCx1W12ZUojzbca38RiAOJZuKEGsupaOLQRAbriZSU=
 github.com/costinm/hbone v0.0.0-20210824042322-d426d8983c73/go.mod h1:ae7UjCujWOqlFAjuoLT/KvKpzOTp/Cm/974KMKsLMVI=
+github.com/costinm/hbone v0.0.0-20210825233210-12f68538190c h1:ZClfg53d4ggGSiTBhSdROF8HbLM2OslrI/Oh8NaEas4=
+github.com/costinm/hbone v0.0.0-20210825233210-12f68538190c/go.mod h1:ae7UjCujWOqlFAjuoLT/KvKpzOTp/Cm/974KMKsLMVI=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/creack/pty v1.1.13 h1:rTPnd/xocYRjutMfqide2zle1u96upp1gm6eUHKi7us=
 github.com/creack/pty v1.1.13/go.mod h1:MOBLtS5ELjhRRrroQr9kyvTxUAFNvYEK993ew/Vr4O4=

@@ -97,6 +97,7 @@ func InitSNIGate(kr *k8s.KRun, sniPort string, h2rPort string) (*SNIGate, error)
 		if parts[0] == "outbound_" {
 			remoteService = parts[3]
 			// TODO: extract 'version' from URL, convert it to cloudrun revision ?
+			// TODO: watcher on Service or ServiceEntry ( k8s or XDS ) to get annotation, allowing service name to be different
 		}
 		log.Println("Endpoint resolver, h2r not found", parts)
 
@@ -109,7 +110,11 @@ func InitSNIGate(kr *k8s.KRun, sniPort string, h2rPort string) (*SNIGate, error)
 	}
 	
 	h2r.H2RCallback = func(s string, conn *http2.ClientConn) {
+		if s == "" {
+			return
+		}
 		log.Println("H2R connection event", s, conn)
+
 		// TODO: save a WorkloadInstance of EndpontSlice
 
 	}

@@ -1,28 +1,43 @@
 # Using krun with CloudRun and ASM
 
-## Installation 
-
-Requirements:
-- The project should be allowed by policy to use 'allow-unauthenticated'. WIP to eliminate this limitation.
-- For each region, you need a Serverless connector, using the same network as the GKE cluster(s) the CloudRun service will
-communicate with.
-- Currently, 'sandbox=minivm' is required for iptables. 
-
-You need to have gcloud and kubectl, and credentials for the cluster. Few environment variables will be used across
-this doc:
+Common environment variables used in this document:
 
 ```shell
+
 export PROJECT_ID=wlhe-cr
 export CLUSTER_LOCATION=us-central1-c
 export CLUSTER_NAME=asm-cr
 # CloudRun region 
 export REGION=us-central1
 
-gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
+export WORKLOAD_NAMESPACE=fortio # Namespace where the CloudRun service will 'attach'
+export WORKLOAD_NAME=cloudrun
 
-```
+# Derived - name is important, if using an existing GSA you must set WORKLOAD_NAMESPACE when deploying. 
+# By default the namespace is extracted from the GSA name. 
+# This may change as we polish the UX
+export WORKLOAD_SERVICE_ACCOUNT=k8s-${WORKLOAD_NAMESPACE}@${PROJECT_ID}.iam.gserviceaccount.com
 
-### Cluster setup
+# Name for the cloudrun service - will use the same as the workload.
+# Note that the service must be unique for region, if you want the same name in multiple namespace you must 
+# use explicit config for WORKLOAD_NAME when deploying and unique cloudrun service name
+export CLOUDRUN_SERVICE=${WORKLOAD_NAME}
+
+````
+
+
+## Installation 
+
+Requirements:
+- The project should be allowed by policy to use 'allow-unauthenticated'. WIP to eliminate this limitation.
+- For each region, you need a Serverless connector, using the same network as the GKE cluster(s) the CloudRun service will
+communicate with.
+- 'gen2' VM required for iptables. 'gen1' works in 'whitebox mode', using HTTP_PROXY. 
+
+You need to have gcloud and kubectl, and credentials for the cluster. 
+
+
+### Cluster setup (once per cluster)
 
 1. If you don't already have a cluster with managed ASM, follow [Install docs](https://cloud.google.com/service-mesh/docs/scripted-install/gke-install) 
 
@@ -35,18 +50,17 @@ chmod +x install_asm
 ./install_asm --mode install --output_dir ${CLUSTER_NAME} --enable_all --managed
 ```
 
-
 2. Allow read access to mesh config. This is needed to simplify the configuration - it is also possible to 
-   explicitly pass extra env variables to the CloudRun services instead of using this config, will be documented in 
-   separate doc for advanced users.
+   explicitly pass extra env variables to the CloudRun services instead of using this config, but it is simpler to just
+   directly parse the in-cluster config:
 
 ```shell 
 
-kubectl apply -f manifests/mcp-rbac.yaml
+kubectl apply -f manifests/istio-system-discovery-rbac.yaml
 
 ```
 
-### Connector setup
+### Connector setup (once per project)
 
 For each region where GKE and CloudRun will be used, [install CloudRun connector](https://cloud.google.com/vpc/docs/configure-serverless-vpc-access)
 Using the UI is usually easier - it does require a /28 range to be specified.
@@ -61,11 +75,10 @@ The connector MUST be on the same network with the GKE cluster.
 ### Namespace setup 
 
 Each CloudRun service will be mapped to a K8S namespace. The service account used by CloudRun must be granted access
-to the GKE APIserver with minimal permissions, and must be allowed to get tokens.
+to the GKE APIserver with minimal permissions, and must be allowed to get K8S tokens.
 
-This steps can be run by a user or service account with namespace permissions in K8S - does not require cluster admin.
+This steps can be run by a user or service account with namespace permissions in K8S - does not require k8s cluster admin.
 
-In this example we will use namespace 'fortio', set as WORKLOAD_NAMESPACE env variable.
 
 1. Create a google service account for the CloudRun app (once per namespace). If you already have a GSA you use for 
 your CloudRun service - only add '--role="roles/container.clusterViewer"' binding to the existing service account.
@@ -79,9 +92,9 @@ your CloudRun service - only add '--role="roles/container.clusterViewer"' bindin
 
 
 ```shell
-export WORKLOAD_SERVICE_ACCOUNT=k8s-${WORKLOAD_NAMESPACE}@${PROJECT_ID}.iam.gserviceaccount.com
-export WORKLOAD_NAME=cloudrun
-export WORKLOAD_NAMESPACE=fortio # Namespace where the CloudRun service will 'attach'
+
+gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
+
 
 kubectl create ns ${WORKLOAD_NAMESPACE}
 
@@ -93,7 +106,7 @@ gcloud --project ${PROJECT_ID} projects add-iam-policy-binding \
             --member="serviceAccount:${WORKLOAD_SERVICE_ACCOUNT}" \
             --role="roles/container.clusterViewer"
 
-# Uses WORKLOAD_NAMESPACE and WORKLOAD_SERVICE_ACCOUNT 
+# Uses WORKLOAD_NAMESPACE and WORKLOAD_SERVICE_ACCOUNT to grant permissions to the 'default' KSA in the namespace.
 cat manifests/rbac.yaml | envsubst | kubectl apply -f -
 
 ```
@@ -110,14 +123,17 @@ You can build the app with the normal docker command:
 # Get the base image. You can also create a 'golden' base, starting with ASM proxy image and adding the 
 # startup helper (krun) and other files or configs you need. 
 # The application will be added to the base.
-docker pull gcr.io/wlhe-cr/krun:main
+export GOLDEN_IMAGE=gcr.io/wlhe-cr/krun:main
+
+docker pull ${GOLDEN_IMAGE}
 
 # Target image 
 export IMAGE=gcr.io/${PROJECT_ID}/fortio-cr:main
 
-(cd samples/fortio && docker build . -t ${IMAGE} )
+(cd samples/fortio && docker build . -t ${IMAGE} --build-arg=BASE=${GOLDEN_IMAGE} )
 
 docker push ${IMAGE}
+
 ```
 
 
@@ -128,8 +144,6 @@ Deploy the service, with explicit configuration:
 
 
 ```shell
-export CLOUDRUN_SERVICE=${WORKLOAD_NAMESPACE}-${WORKLOAD_NAME}
-export REGION=us-central1
 
 gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
           --platform managed \

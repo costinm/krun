@@ -101,6 +101,3 @@ steps:
 
 
 
-images:
-  - 'gcr.io/wlhe-cr/krun:$BRANCH_NAME'
-

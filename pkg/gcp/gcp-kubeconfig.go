@@ -3,16 +3,16 @@ package gcp
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"cloud.google.com/go/compute/metadata"
 	container "cloud.google.com/go/container/apiv1"
 	"github.com/costinm/krun/pkg/k8s"
 	"k8s.io/client-go/kubernetes"
@@ -29,9 +29,14 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
-// TODO: if project/location not specified, get from local metadata server.
-// TODO: if cluster not specified, list clusters
-// TODO: use hub as well.
+// Integration with GCP - use metadata server or GCP-specific env variables to auto-configure connection to a
+// GKE cluster and extract metadata.
+
+// Using the metadata package, which connects to 169.254.169.254, metadata.google.internal or $GCE_METADATA_HOST (http, no prefix)
+// Will attempt to guess if running on GCP if env variable is not set.
+// Note that requests are using a 2 sec timeout.
+
+// TODO:  finish hub.
 
 // Cluster wraps cluster information for a discovered hub or gke cluster.
 type Cluster struct {
@@ -51,7 +56,7 @@ var (
 
 // configFromEnvAndMD will use env variables to locate the
 // k8s cluster and create a client.
-func configFromEnvAndMD(kr *k8s.KRun)  {
+func configFromEnvAndMD(ctx context.Context, kr *k8s.KRun) {
 	if kr.ProjectId == "" {
 		kr.ProjectId = os.Getenv("PROJECT_ID")
 	}
@@ -68,22 +73,55 @@ func configFromEnvAndMD(kr *k8s.KRun)  {
 		kr.ProjectNumber = os.Getenv("PROJECT_NUMBER")
 	}
 
-	if os.Getenv("APPLICATION_DEFAULT_CREDENTIALS") == "" || kr.InCluster {
+	if os.Getenv("APPLICATION_DEFAULT_CREDENTIALS") != "" {
+		// Not using metadata server, except for project number if not set
+		if kr.ProjectNumber == "" && kr.ProjectId != "" {
+			kr.ProjectNumber = ProjectNumber(kr.ProjectId)
+			log.Println("Got project number from GCP API", kr.ProjectNumber)
+		}
+		return
+	}
+
+	t0 := time.Now()
+	if metadata.OnGCE() {
 		// TODO: detect if the cluster is k8s from some env ?
 		// If ADC is set, we will only use the env variables. Else attempt to init from metadata server.
+		log.Println("Detecting GCE ", time.Since(t0))
+		metaProjectId, _ := metadata.ProjectID()
 		if kr.ProjectId == "" {
-			kr.ProjectId, _ = ProjectFromMetadata()
+			kr.ProjectId = metaProjectId
 		}
 
+		//instanceID, _ := metadata.InstanceID()
+		//instanceName, _ := metadata.InstanceName()
+		//zone, _ := metadata.Zone()
+		//pAttr, _ := metadata.ProjectAttributes()
+		//hn, _ := metadata.Hostname()
+		//iAttr, _ := metadata.InstanceAttributes()
+
+		email, _ := metadata.Email("default")
+		// In CloudRun: Additional metadata: iid 00bf4b...f23 iname  iattr [] zone us-central1-1 hostname  pAttr [] email k8s-fortio@wlhe-cr.iam.gserviceaccount.com
+
+		//log.Println("Additional metadata:", "iid", instanceID, "iname", instanceName, "iattr", iAttr,
+		//	"zone", zone, "hostname", hn, "pAttr", pAttr, "email", email)
+
+
+		if kr.Namespace == "" {
+			if strings.HasPrefix(email, "k8s-") {
+				parts := strings.Split(email[4:], "@")
+				kr.Namespace = parts[0]
+				log.Println("Defaulting Namespace based on email: ", kr.Namespace, email)
+			}
+		}
 		var err error
 		if kr.InCluster && kr.ClusterName == "" {
-			kr.ClusterName, err = queryMetadata("instance/attributes/cluster-name")
+			kr.ClusterName, err = metadata.Get("instance/attributes/cluster-name")
 			if err != nil {
 				log.Println("Can't find cluster name")
 			}
 		}
 		if kr.InCluster && kr.ClusterLocation == "" {
-			kr.ClusterLocation, err = queryMetadata("instance/attributes/cluster-location")
+			kr.ClusterLocation, err = metadata.Get("instance/attributes/cluster-location")
 			if err != nil {
 				log.Println("Can't find cluster location")
 			}
@@ -93,21 +131,20 @@ func configFromEnvAndMD(kr *k8s.KRun)  {
 			kr.ClusterLocation, _ = RegionFromMetadata()
 		}
 
-		if kr.ProjectNumber == "" {
-			kr.ProjectNumber, _ = ProjectNumberFromMetadata()
+		if kr.ProjectNumber == "" && kr.ProjectId == metaProjectId {
+			// If project Id explicitly set, and not same as what metadata reports - fallback to getting it from GCP
+			kr.ProjectNumber, _ = metadata.NumericProjectID()
 		}
 		if kr.ProjectNumber == "" {
 			kr.ProjectNumber = ProjectNumber(kr.ProjectId)
 		}
+		log.Println("Configs from metadata ", time.Since(t0))
 	}
 
-	if kr.ProjectNumber == "" && kr.ProjectId != "" {
-		kr.ProjectNumber = ProjectNumber(kr.ProjectId)
-	}
 }
 
 func RegionFromMetadata() (string, error) {
-	v, err := queryMetadata("instance/region")
+	v, err := metadata.Get("instance/region")
 	if err != nil {
 		return "", err
 	}
@@ -118,48 +155,74 @@ func RegionFromMetadata() (string, error) {
 	return vs[1], nil
 }
 
-func ProjectFromMetadata() (string, error) {
-	v, err := queryMetadata("project/project-id")
+func Token(ctx context.Context, aud string) (string, error) {
+	uri := fmt.Sprintf("instance/service-accounts/default/identity?audience=%s&format=full", aud)
+	tok, err := metadata.Get(uri)
 	if err != nil {
 		return "", err
 	}
-	return v, nil
+	return tok, nil
 }
 
-func ProjectNumberFromMetadata() (string, error) {
-	v, err := queryMetadata("project/numeric-project-id")
-	if err != nil {
-		return "", err
+// detectAuthEnv will use the JWT token that is mounted in istiod to set the default audience
+// and trust domain for Istiod, if not explicitly defined.
+// K8S will use the same kind of tokens for the pods, and the value in istiod's own token is
+// simplest and safest way to have things match.
+//
+// Note that K8S is not required to use JWT tokens - we will fallback to the defaults
+// or require explicit user option for K8S clusters using opaque tokens.
+//
+// Use with:
+//		t,err := Token(ctx, kr.ProjectId + ".svc.id.goog")
+//		if err != nil {
+//			log.Println("Failed to get id token ", err)
+//		} else {
+//			detectAuthEnv(t)
+//		}
+//
+// Copied from Istio
+func detectAuthEnv(jwt string) (*JwtPayload, error) {
+	jwtSplit := strings.Split(jwt, ".")
+	if len(jwtSplit) != 3 {
+		return nil, fmt.Errorf("invalid JWT parts: %s", jwt)
 	}
-	return v, nil
+	//azp,"email","exp":1629832319,"iss":"https://accounts.google.com","sub":"1118295...
+	payload := jwtSplit[1]
+
+
+	payloadBytes, err := base64.RawStdEncoding.DecodeString(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode jwt: %v", err.Error())
+	}
+
+	structuredPayload := &JwtPayload{}
+	err = json.Unmarshal(payloadBytes, &structuredPayload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal jwt: %v", err.Error())
+	}
+
+	return structuredPayload, nil
 }
 
+type JwtPayload struct {
+	// Aud is the expected audience, defaults to istio-ca - but is based on istiod.yaml configuration.
+	// If set to a different value - use the value defined by istiod.yaml. Env variable can
+	// still override
+	Aud []string `json:"aud"`
 
-func queryMetadata(path string) (string, error) {
-	req, err := http.NewRequest("GET", "http://metadata.google.internal/computeMetadata/v1/" + path, nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Metadata-Flavor", "Google")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("metadata server responeded with code=%d %s", resp.StatusCode, resp.Status)
-	}
-	defer resp.Body.Close()
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(b)), err
+	// Exp is not currently used - we don't use the token for authn, just to determine k8s settings
+	Exp int `json:"exp"`
+
+	// Issuer - configured by K8S admin for projected tokens. Will be used to verify all tokens.
+	Iss string `json:"iss"`
+
+	Sub string `json:"sub"`
 }
 
 
 func InitGCP(ctx context.Context, kr *k8s.KRun) error {
 	// Load GCP env variables - will be needed.
-	configFromEnvAndMD(kr)
+	configFromEnvAndMD(ctx, kr)
 
 	if kr.Client != nil {
 		// Running in-cluster or using kube config
@@ -365,7 +428,7 @@ func AllClusters(ctx context.Context, kr *k8s.KRun, defCluster string, label str
 	clustersL := []*Cluster{}
 
 	if kr.ProjectId == "" {
-		configFromEnvAndMD(kr)
+		configFromEnvAndMD(nil, kr)
 	}
 	if kr.ProjectId == "" {
 		return nil, errors.New("requires PROJECT_ID")

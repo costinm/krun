@@ -1,94 +1,103 @@
-# Configuration for connecting from pods to cloudrun using the SNI gateway
-#
-# This can (and will be) auto-generated.
+apiVersion: v1
+kind: Service
+metadata:
+  name: fortio-cr-icq63pqnqq-uc
+  namespace: fortio
+spec:
+  # Service name matches the actual service name in CloudRun.
+  # This is used to acccess only the service in cloudrun, in a region. Can be used as a subset
+  # TODO: auto-create this if it doesn't exist, in SNIGate
+  ports:
+    # Standard port for SNI routing in gateways, same as east-west gateway
+    - port: 8080
+      name: http
+      targetPort: 15443
+  selector:
+    app: fortio-cr
 
-apiVersion: networking.istio.io/v1beta1
+---
+
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: fortio-cr
+  namespace: fortio
+spec:
+  host: fortio-cr-icq63pqnqq-uc.fortio.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+
+---
+
+apiVersion: networking.istio.io/v1alpha3
+kind: WorkloadGroup
+metadata:
+  name: fortio-cr
+  namespace: fortio
+spec:
+  metadata:
+    labels:
+      app: fortio-cr
+    annotations:
+      security.cloud.google.com/IdentityProvider: google
+  template:
+    ports:
+      http: 8080
+    serviceAccount: k8s-fortio@wlhe-cr.iam.gserviceaccount.com
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: WorkloadEntry
+metadata:
+  name: fortio-cr-sni
+  namespace: fortio
+spec:
+  labels:
+    app: fortio-cr
+  serviceAccount: default
+  address: 34.136.46.192
+  ports:
+    http: 15443
+---
+
+apiVersion: networking.istio.io/v1alpha3
 kind: ServiceEntry
 metadata:
-  # Name should match the workload name used in cloudrun
-  name: cloudrun
-  labels:
-    topology.istio.io/network: hbone
+  namespace: fortio
+  name: fortio-cr-icq63pqnqq-uc
+#  labels:
+#    topology.istio.io/network: hbone
 spec:
   hosts:
-    # Will match in DR and VirtualServices
-    - fortio-cloudrun-icq63pqnqq-uc.a.run.app
-    - cloudrun.fortio.svc
+    - fortio-cr-icq63pqnqq-uc.fortio.svc.cluster.local
   location: MESH_INTERNAL
   ports:
     - number: 8080
       name: http
-      protocol: TLS
-  resolution: DNS
-
----
-# Service name matches the actual service name in CloudRun.
-# This is used to acccess only the service in cloudrun, in a region. Can be used as a subset
-
-# TODO: auto-create this if it doesn't exist, in SNIGate
-apiVersion: v1
-kind: Service
-metadata:
-  name: fortio-asm-cr-icq63pqnqq-uc
-spec:
-  ports:
-    # Standard port for SNI routing in gateways, same as east-west gateway
-    - port: 8080
-      name: http
-  selector:
-    app: cloudrun
-
----
-
-apiVersion: v1
-kind: Service
-metadata:
-  name: cloudrun
-spec:
-  ports:
-    # Standard port for SNI routing in gateways, same as east-west gateway
-    - port: 8080
-      name: http
-  selector:
-    app: cloudrun
-
----
-apiVersion: networking.istio.io/v1alpha3
-kind: WorkloadGroup
-metadata:
-  name: cloudrun
-spec:
-  metadata:
+      protocol: HTTP
+      targetPort: 15443
+  resolution: STATIC
+  workloadSelector:
     labels:
-      app: cloudrun
-  template:
-    ports:
-      http: 8080
-    serviceAccount: default
+      app: fortio-cr
+#---
 #
-# TODO: declare probe, use it on the cloudrun !
-
----
-
-apiVersion: networking.istio.io/v1alpha3
-kind: WorkloadEntry
-metadata:
-  name: cloudrun-local
-spec:
-  address: 127.0.0.1
-  serviceAccount: default
-  #network: %q
-  labels:
-    app: cloudrun
-
----
-apiVersion: networking.istio.io/v1alpha3
-kind: WorkloadEntry
-metadata:
-  name: cloudrun-sni
-spec:
-  address: 127.0.0.1
-  serviceAccount: default
-  network: hbone
-  labels:
-    app: cloudrun
+#apiVersion: networking.istio.io/v1alpha3
+#kind: ServiceEntry
+#metadata:
+#  namespace: fortio
+#  name: local-fortio-cr-icq63pqnqq-uc
+#spec:
+#  hosts:
+#    #- fortio-cr-icq63pqnqq-uc.a.run.app
+#    - fortio-cr-icq63pqnqq-uc.fortio.svc.cluster.local
+#  location: MESH_INTERNAL
+#  ports:
+#    - number: 8080
+#      name: http
+#      protocol: TLS
+#  resolution: DNS
+#  endpoints:
+#    - address:  34.136.46.192
+#      ports:
+#        http: 15443

@@ -27,6 +27,7 @@ type ProxyConfig struct {
 	DiscoveryAddress string `yaml:"discoveryAddress,omitempty"`
 	MeshId string `yaml:"meshId,omitempty"`
 	ProxyMetadata map[string]string `yaml:"proxyMetadata,omitempty"`
+	CaCertificatesPem    []string `yaml:"caCertificatesPem,omitempty"`
 }
 
 // When running as root:
@@ -133,25 +134,64 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 	return exec.Command("/usr/local/bin/pilot-agent", args...)
 }
 
+// InitCARoots will create a file with the root certs detected in the cluster.
+// This is used for proxyless grpc or cases where envoy is not present, and to allow connection to in-cluster
+// Istio.
+// Normally this is handled via injection and ProxyConfig-over-XDS - but to connect to XDS we need the cert, which
+// is volume mounted in Istio.
+func (kr *KRun) InitCARoots(ctx context.Context, prefix string) {
+	cm, err := kr.GetCM(ctx, "istio-system", "istio-ca-root-cert")
+	if err != nil {
+		log.Println("Istio root not found, citadel compat disabled", err)
+	} else {
+		// normally mounted to /var/run/secrets/istio
+		rootCert := cm["root-cert.pem"]
+		if rootCert == "" {
+			log.Println("Istio root missing, citadel compat disabled")
+		} else {
+			kr.CARoots = append(kr.CARoots, rootCert)
+		}
+		ioutil.WriteFile(prefix + "/var/run/secrets/istio/root-cert.pem", []byte(rootCert), 0755)
+	}
+}
+
 // StartIstioAgent creates the env and starts istio agent.
 // If running as root, will also init iptables and change UID to 1337.
 func (kr *KRun) StartIstioAgent() error {
 	if kr.XDSAddr == "-" {
 		return nil
 	}
+
+	prefix := "."
+	if os.Getuid() == 0 {
+		prefix = ""
+	}
+	os.MkdirAll(prefix + "/etc/istio/proxy", 0755)
+
+	// Save the istio certificates - for proxyless or app use.
+	os.MkdirAll(prefix + "/var/run/secrets/istio", 0755)
+	os.MkdirAll(prefix + "/var/run/secrets/mesh", 0755)
+	os.MkdirAll(prefix + "/var/run/secrets/istio.io", 0755)
+	os.MkdirAll(prefix + "/etc/istio/pod", 0755)
+	if os.Getuid() == 0 {
+		os.Chown(prefix + "/var/run/secrets/istio.io", 1337, 1337)
+		os.Chown(prefix + "/var/run/secrets/istio", 1337, 1337)
+		os.Chown(prefix + "/var/run/secrets/mesh", 1337, 1337)
+		os.Chown(prefix + "/etc/istio/pod", 1337, 1337)
+		os.Chown(prefix + "/etc/istio/proxy", 1337, 1337)
+	}
+
 	if kr.XDSAddr == "" {
 		err := kr.FindXDSAddr()
 		if err != nil {
 			return err
 		}
 	}
+	kr.InitCARoots(context.Background(), prefix)
+
 	proxyConfig := fmt.Sprintf(`{"discoveryAddress": "%s"}`, kr.XDSAddr)
 	// /dev/stdout is rejected - it is a pipe.
 	// https://github.com/envoyproxy/envoy/issues/8297#issuecomment-620659781
-	prefix := "."
-	if os.Getuid() == 0 {
-		prefix = ""
-	}
 
 	if kr.Name == "" && kr.Gateway != "" {
 		kr.Name = kr.Gateway
@@ -170,16 +210,6 @@ func (kr *KRun) StartIstioAgent() error {
 		env = append(env, kr.ExtraEnv...)
 	}
 
-	os.MkdirAll(prefix + "/etc/istio/proxy", 0755)
-
-	// Save the istio certificates - for proxyless or app use.
-	os.MkdirAll(prefix + "/var/run/secrets/istio.io", 0755)
-	os.MkdirAll(prefix + "/etc/istio/pod", 0755)
-	if os.Getuid() == 0 {
-		os.Chown(prefix + "/var/run/secrets/istio.io", 1337, 1337)
-		os.Chown(prefix + "/etc/istio/pod", 1337, 1337)
-		os.Chown(prefix + "/etc/istio/proxy", 1337, 1337)
-	}
 
 	kr.initLabelsFile()
 
@@ -204,10 +234,10 @@ func (kr *KRun) StartIstioAgent() error {
 			log.Println("iptables disabled ", err)
 			kr.WhiteboxMode = true
 		} else {
-			log.Println("iptables done ")
+			log.Println("iptables interception enabled")
 		}
 	} else {
-		log.Println("No iptables")
+		log.Println("No iptables - starting with INTERCEPTION_MODE=NONE")
 	}
 
 	// Currently broken in iptables - use whitebox interception, but still run it
@@ -320,7 +350,7 @@ func (kr *KRun) StartIstioAgent() error {
 	os.MkdirAll(prefix+"/var/lib/istio/envoy/", 0700)
 
 	go func() {
-		log.Println("Starting istio agent with ", cmd.Env)
+		log.Println("Starting mesh agent ")
 		err := cmd.Start()
 		if err != nil {
 			log.Println("Failed to start ", cmd, err)

@@ -1,5 +1,5 @@
 # Allow all system-authenticated KSAs to read the
-# mesh config in istio-system for MCP.
+# mesh config and root cert in istio-system for MCP.
 #
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -12,6 +12,8 @@ rules:
       - "configmaps"
     resourceNames:
       - "istio-asm-managed"
+      - "istio-ca-root-cert"
+      - "istio"
     verbs:
       - "get"
 ---

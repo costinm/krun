@@ -16,14 +16,16 @@ import (
 var initDebug func(run *k8s.KRun)
 
 func main() {
+	log.Println("Starting mesh launcher")
 	kr := k8s.New()
 
 	kr.VendorInit = gcp.InitGCP
 
 	err := kr.InitK8SClient(context.Background())
 	if err != nil {
-		log.Fatal("Failed to connect to GKE ", time.Since(kr.StartTime), kr, os.Environ(), err)
+		log.Fatal("Failed to connect to K8S ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}
+	log.Println("K8S Client initialized")
 
 	kr.LoadConfig()
 
@@ -42,7 +44,7 @@ func main() {
 		// Use k8s client to autoconfigure, reading from cluster.
 		err := kr.StartIstioAgent()
 		if err != nil {
-			log.Fatal("Failed to start the mesh agent")
+			log.Fatal("Failed to start the mesh agent", err)
 		}
 		// TODO: wait for proxy ready before starting app.
 	}

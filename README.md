@@ -28,8 +28,9 @@ KRun can also be used as regular user, howerver:
 
 - iptables will not be set
 - envoy (if found) will run with the current UID
+- if envoy is not found, pilot-agent will still be started and generate proxyless gRPC config and certs
 - all files will be created relative to current dir instead of root dir.
-- envoy will be started with interception mode NONE.
+- Istio will use interception mode NONE - this enables 127.0.0.1:PORT bindings for mesh TCP services.
 
 In this mode Istio can't capture traffic - it works in 'whitebox' mode, using HTTP_PROXY environment variable to 
 capture HTTP and Sidecar API for forwarding local ports to services. 
@@ -88,3 +89,34 @@ When running on a local docker or dev machine, since metadata server is not avai
 - CLUSTER_LOCATION and PROJECT_ID are required
 - WORKLOAD_NAMESPACE or K_SERVICE are required
 
+# Similar projects, other ideas
+
+WIP to incorporate some ideas and UX, for consistency - and to replace equivalent 
+functionality. I discovered the projects too late.
+
+- https://github.com/kelseyhightower/konfig 
+  - uses CloudRun API to get the Service manifest with  
+    the original env
+  - directly connect to APIServer using http client - just get.
+  - can get ConfigMap and Secret from ANY cluster (if RBAC is in place)
+
+UX: 
+```shell
+CLUSTER_ID=/projects/hightowerlabs/zones/us-central1-a/clusters/k0
+
+gcloud run ...
+  -set-env-vars FOO=\$SecretKeyRef:${CLUSTER_ID}/namespaces/default/secrets/env/keys/foo,CONFIG_FILE=\$SecretKeyRef:${CLUSTER_ID}/namespaces/default/secrets/env/keys/config.json?tempFile=true,ENVIRONMENT=\$ConfigMapKeyRef:${CLUSTER_ID}/namespaces/default/configmaps/env/keys/environment"
+```
+
+- https://github.com/GoogleCloudPlatform/berglas
+  - replaces env variable using berglas://<bucket>/<secret>?<params>
+  - destination=path to write to file
+  - secrets only, using Cloud KMS or Secret Manager.
+
+- https://ahmet.im/blog/cloud-run-deploy-api/ - useful for automating testing and possibly controlling scale automatically from the SNI gate.
+
+- https://github.com/ahmetb/runsd 
+  - DNS interception - redirects to localhost, http transparent proxy
+  - includes a magic map of region codes
+  - gets the JWT, use regular TLS
+  - `http://<SERVICE_NAME>.<REGION>`

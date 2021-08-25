@@ -84,6 +84,10 @@ type KRun struct {
 	// WhiteboxMode indicates no iptables capture
 	WhiteboxMode bool
 	InCluster    bool
+
+	// PEM cert roots detected in the cluster - Citadel, custom CAs from mesh config.
+	// Will be saved to a file.
+	CARoots      []string
 }
 
 

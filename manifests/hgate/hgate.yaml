@@ -48,7 +48,7 @@ spec:
 #      - name: istio-proxy
 #        image: auto # The image will automatically update each time the pod starts.
       - name: app
-        image: gcr.io/wlhe-cr/hbgate:latest
+        image: gcr.io/wlhe-cr/krun/gate:latest
 
         env:
           # Disables iptables interception, makes envoy run as sidecar
