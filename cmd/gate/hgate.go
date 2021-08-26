@@ -29,6 +29,6 @@ func main() {
 	}
 	log.Println("Started SNIGate", os.Environ())
 
-	select{}
+	select {}
 
 }

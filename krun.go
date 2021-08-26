@@ -12,7 +12,6 @@ import (
 	"github.com/costinm/hbone"
 )
 
-
 var initDebug func(run *k8s.KRun)
 
 func main() {
@@ -49,7 +48,6 @@ func main() {
 		// TODO: wait for proxy ready before starting app.
 	}
 
-
 	kr.StartApp()
 
 	// Start internal SSH server, for debug and port forwarding. Can be conditionally compiled.
@@ -57,7 +55,6 @@ func main() {
 		// Split for conditional compilation (to compile without ssh dep)
 		initDebug(kr)
 	}
-
 
 	// TODO: wait for app and proxy ready
 
@@ -80,13 +77,13 @@ func main() {
 		} else {
 			attachC := hb.NewClient(kr.Name + "." + kr.Namespace + ":15009")
 			attachE := attachC.NewEndpoint("")
-			attachE.SNI = fmt.Sprintf("outbound_.8080_._.%s.%s.svc.cluster.local", kr.Name,kr.Namespace)
+			attachE.SNI = fmt.Sprintf("outbound_.8080_._.%s.%s.svc.cluster.local", kr.Name, kr.Namespace)
 			go func() {
-					_, err := attachE.DialH2R(context.Background(), hg+":15441")
-					log.Println("H2R connected", hg, err)
+				_, err := attachE.DialH2R(context.Background(), hg+":15441")
+				log.Println("H2R connected", hg, err)
 			}()
 		}
 
 	}
-	select{}
+	select {}
 }

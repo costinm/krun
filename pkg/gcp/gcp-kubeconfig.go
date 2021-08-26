@@ -40,9 +40,9 @@ import (
 
 // Cluster wraps cluster information for a discovered hub or gke cluster.
 type Cluster struct {
-	ClusterName string
+	ClusterName     string
 	ClusterLocation string
-	ProjectId string
+	ProjectId       string
 
 	GKECluster *containerpb.Cluster
 	HubCluster *gkehubpb.Membership
@@ -104,7 +104,6 @@ func configFromEnvAndMD(ctx context.Context, kr *k8s.KRun) {
 
 		//log.Println("Additional metadata:", "iid", instanceID, "iname", instanceName, "iattr", iAttr,
 		//	"zone", zone, "hostname", hn, "pAttr", pAttr, "email", email)
-
 
 		if kr.Namespace == "" {
 			if strings.HasPrefix(email, "k8s-") {
@@ -189,7 +188,6 @@ func detectAuthEnv(jwt string) (*JwtPayload, error) {
 	//azp,"email","exp":1629832319,"iss":"https://accounts.google.com","sub":"1118295...
 	payload := jwtSplit[1]
 
-
 	payloadBytes, err := base64.RawStdEncoding.DecodeString(payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode jwt: %v", err.Error())
@@ -219,7 +217,6 @@ type JwtPayload struct {
 	Sub string `json:"sub"`
 }
 
-
 func InitGCP(ctx context.Context, kr *k8s.KRun) error {
 	// Load GCP env variables - will be needed.
 	configFromEnvAndMD(ctx, kr)
@@ -241,7 +238,7 @@ func InitGCP(ctx context.Context, kr *k8s.KRun) error {
 	var cl *Cluster
 	if kr.ClusterName == "" || kr.ClusterLocation == "" {
 		// ~500ms
-		cll ,err := AllClusters(ctx, kr, "", "mesh_id", "")
+		cll, err := AllClusters(ctx, kr, "", "mesh_id", "")
 		if err != nil {
 			return err
 		}
@@ -309,18 +306,18 @@ func GKECluster(ctx context.Context, p, l, clusterName string) (*Cluster, error)
 		return nil, err
 	}
 
-	for i :=0; i < 5; i++ {
+	for i := 0; i < 5; i++ {
 		gcr := &containerpb.GetClusterRequest{
 			Name: fmt.Sprintf("projects/%s/locations/%s/cluster/%s", p, l, clusterName),
 		}
 		c, e := cl.GetCluster(ctx, gcr)
 		if e == nil {
 			rc := &Cluster{
-				ProjectId: p,
+				ProjectId:       p,
 				ClusterLocation: c.Location,
-				ClusterName: c.Name,
-				GKECluster: c,
-				KubeConfig: addClusterConfig(c, p, l, clusterName),
+				ClusterName:     c.Name,
+				GKECluster:      c,
+				KubeConfig:      addClusterConfig(c, p, l, clusterName),
 			}
 
 			return rc, nil
@@ -362,7 +359,6 @@ func AllHub(ctx context.Context, kr *k8s.KRun) ([]*Cluster, error) {
 		Parent: "projects/" + kr.ProjectId + "/locations/-",
 	})
 
-
 	// Also includes:
 	// - labels
 	// - Endpoint - including GkeCluster resource link ( the GKE name)
@@ -377,13 +373,13 @@ func AllHub(ctx context.Context, kr *k8s.KRun) ([]*Cluster, error) {
 		}
 		mna := strings.Split(r.Name, "/")
 		mn := mna[len(mna)-1]
-		ctxName := "connectgateway_" + kr.ProjectId + "_"  + mn
+		ctxName := "connectgateway_" + kr.ProjectId + "_" + mn
 		kc := kubeconfig.NewConfig()
-		kc.Contexts[ctxName] = &kubeconfig.Context {
+		kc.Contexts[ctxName] = &kubeconfig.Context{
 			Cluster:  ctxName,
 			AuthInfo: ctxName,
 		}
-		kc.Clusters[ctxName] = &kubeconfig.Cluster {
+		kc.Clusters[ctxName] = &kubeconfig.Cluster{
 			Server: fmt.Sprintf("https://connectgateway.googleapis.com/v1beta1/projects/%s/memberships/%s",
 				kr.ProjectNumber, mn),
 		}
@@ -396,16 +392,16 @@ func AllHub(ctx context.Context, kr *k8s.KRun) ([]*Cluster, error) {
 		// TODO: better way to select default
 		kc.CurrentContext = ctxName
 
-		c := &Cluster {
-			ProjectId: kr.ProjectId,
+		c := &Cluster{
+			ProjectId:   kr.ProjectId,
 			ClusterName: r.Name,
-			KubeConfig: kc,
-			HubCluster: r,
+			KubeConfig:  kc,
+			HubCluster:  r,
 		}
 		// ExternalId is an UUID.
 
 		// TODO: if GKE cluster, try to determine real cluster name, location, project
-		ep :=	r.GetEndpoint()
+		ep := r.GetEndpoint()
 		if ep != nil && ep.GkeCluster != nil {
 			// Format: //container.googleapis.com/projects/PID/locations/LOC/clusters/NAME
 			parts := strings.Split(ep.GkeCluster.ResourceLink, "/")
@@ -422,7 +418,6 @@ func AllHub(ctx context.Context, kr *k8s.KRun) ([]*Cluster, error) {
 	}
 	return ml, nil
 }
-
 
 func AllClusters(ctx context.Context, kr *k8s.KRun, defCluster string, label string, meshID string) ([]*Cluster, error) {
 	clustersL := []*Cluster{}
@@ -443,7 +438,7 @@ func AllClusters(ctx context.Context, kr *k8s.KRun, defCluster string, label str
 		Parent: "projects/" + kr.ProjectId + "/locations/-",
 	})
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
 	for _, c := range clusters.Clusters {
@@ -459,12 +454,11 @@ func AllClusters(ctx context.Context, kr *k8s.KRun, defCluster string, label str
 			}
 		}
 		clustersL = append(clustersL, &Cluster{
-			ProjectId: kr.ProjectId,
-			ClusterName: c.Name,
+			ProjectId:       kr.ProjectId,
+			ClusterName:     c.Name,
 			ClusterLocation: c.Location,
-			GKECluster: c,
-			KubeConfig:		addClusterConfig(c, kr.ProjectId, c.Location, c.Name),
-
+			GKECluster:      c,
+			KubeConfig:      addClusterConfig(c, kr.ProjectId, c.Location, c.Name),
 		})
 	}
 	return clustersL, nil
@@ -481,12 +475,12 @@ func addClusterConfig(c *containerpb.Cluster, p, l, clusterName string) *kubecon
 
 	// We need a KUBECONFIG - tools/clientcmd/api/Config object
 	kc.CurrentContext = ctxName
-	kc.Contexts[ctxName]= &kubeconfig.Context {
-		Cluster: ctxName,
+	kc.Contexts[ctxName] = &kubeconfig.Context{
+		Cluster:  ctxName,
 		AuthInfo: ctxName,
 	}
 	kc.Clusters[ctxName] = &kubeconfig.Cluster{
-		Server: "https://" + c.Endpoint,
+		Server:                   "https://" + c.Endpoint,
 		CertificateAuthorityData: caCert,
 	}
 	kc.AuthInfos[ctxName] = &kubeconfig.AuthInfo{

@@ -24,10 +24,10 @@ func (kr *KRun) Refresh() {
 		initCM(kr.Client, kr.Namespace, k, v)
 	}
 
-	time.AfterFunc(30 * time.Minute, kr.Refresh)
+	time.AfterFunc(30*time.Minute, kr.Refresh)
 }
 
-func (kr *KRun) GetToken(ctx context.Context, aud string) (string, error){
+func (kr *KRun) GetToken(ctx context.Context, aud string) (string, error) {
 	treq := &authenticationv1.TokenRequest{
 		Spec: authenticationv1.TokenRequestSpec{
 			Audiences: []string{aud},

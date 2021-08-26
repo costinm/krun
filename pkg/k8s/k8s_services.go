@@ -15,7 +15,7 @@ import (
 // TODO: detect cert-ssh, use it to enable debug
 func (kr *KRun) CheckServices(ctx context.Context, client *kubernetes.Clientset) error {
 	ts, err := client.CoreV1().Services("istio-system").List(ctx,
-		 metav1.ListOptions{})
+		metav1.ListOptions{})
 	if err != nil {
 		log.Println("Error listing ", err)
 		return err
@@ -26,17 +26,15 @@ func (kr *KRun) CheckServices(ctx context.Context, client *kubernetes.Clientset)
 			log.Println("Found cert-ssh", s.Status)
 		}
 		if strings.HasPrefix(s.Name, "istiod") {
-			log.Println("Found istiod",  s.Name, s.Status)
+			log.Println("Found istiod", s.Name, s.Status)
 		}
 	}
 	return nil
 }
 
-
 // ConnectHGate will connect to an in-cluster reverse gateway, and maintain the connection.
 //
 func (kr *KRun) FindHGate(ctx context.Context) (string, error) {
-
 
 	ts, err := kr.Client.CoreV1().Services("hgate").Get(ctx, "hgate", metav1.GetOptions{})
 	if err != nil {
@@ -44,7 +42,7 @@ func (kr *KRun) FindHGate(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	if  len(ts.Status.LoadBalancer.Ingress) > 0 {
+	if len(ts.Status.LoadBalancer.Ingress) > 0 {
 		return ts.Status.LoadBalancer.Ingress[0].IP, nil
 	}
 

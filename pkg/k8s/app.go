@@ -36,7 +36,7 @@ func (kr *KRun) StartApp() {
 	// Set port to 8080 - some apps use the PORT from knative to start.a
 	cmd.Env = []string{"PORT=8080"}
 	for _, e := range os.Environ() {
-		if strings.HasPrefix(e,"PORT=") {
+		if strings.HasPrefix(e, "PORT=") {
 			continue
 		}
 		cmd.Env = append(cmd.Env, e)
@@ -62,5 +62,3 @@ func (kr *KRun) StartApp() {
 		kr.Exit(0)
 	}()
 }
-
-

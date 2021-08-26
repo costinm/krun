@@ -19,7 +19,6 @@ import (
 //
 //
 
-
 func UpdateSlice(ctx context.Context, kr *k8s.KRun, ns string,
 	name string) {
 	es := &discoveryv1.EndpointSlice{}
@@ -45,7 +44,7 @@ func NewSliceWatcher(kr *k8s.KRun) {
 
 }
 
-type EndpointSlices struct {}
+type EndpointSlices struct{}
 
 func (e EndpointSlices) OnAdd(obj interface{}) {
 	log.Println("Add", obj)
@@ -58,4 +57,3 @@ func (e EndpointSlices) OnUpdate(oldObj, newObj interface{}) {
 func (e EndpointSlices) OnDelete(obj interface{}) {
 	log.Println("Del", obj)
 }
-

@@ -11,12 +11,10 @@ import (
 	"github.com/costinm/hbone"
 )
 
-
 var (
 	port = flag.String("l", "", "local port")
-	tls = flag.String("tls", "", "Cert dir for mTLS over hbone")
+	tls  = flag.String("tls", "", "Cert dir for mTLS over hbone")
 )
-
 
 // Create a HBONE tunnel to a given URL.
 //
@@ -66,5 +64,3 @@ func main() {
 		log.Fatal(err)
 	}
 }
-
-

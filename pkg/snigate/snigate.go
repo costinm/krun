@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/costinm/hbone"
 	"github.com/costinm/cloud-run-mesh/pkg/k8s"
+	"github.com/costinm/hbone"
 	"golang.org/x/net/http2"
 )
 
@@ -21,7 +21,7 @@ type SNIGate struct {
 }
 
 type cachedToken struct {
-	token string
+	token      string
 	expiration time.Time
 }
 
@@ -49,7 +49,6 @@ func (c TokenCache) Token(ctx context2.Context, host string) (string, error) {
 	c.cache.Store(host, cachedToken{t, time.Now().Add(45 * time.Minute)})
 	return t, nil
 }
-
 
 func InitSNIGate(kr *k8s.KRun, sniPort string, h2rPort string) (*SNIGate, error) {
 
@@ -104,11 +103,11 @@ func InitSNIGate(kr *k8s.KRun, sniPort string, h2rPort string) (*SNIGate, error)
 		base := remoteService + ".a.run.app"
 		h2c := h2r.NewClient(sni)
 		ep := h2c.NewEndpoint("https://" + base + "/_hbone/mtls")
-		ep.SNI= base
+		ep.SNI = base
 
 		return ep
 	}
-	
+
 	h2r.H2RCallback = func(s string, conn *http2.ClientConn) {
 		if s == "" {
 			return
@@ -132,9 +131,8 @@ func InitSNIGate(kr *k8s.KRun, sniPort string, h2rPort string) (*SNIGate, error)
 	return &SNIGate{
 		SNIListener: sniL,
 		H2RListener: h2rL,
-		Auth: auth,
-		HBone: h2r,
+		Auth:        auth,
+		HBone:       h2r,
 	}, nil
-
 
 }

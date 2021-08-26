@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/costinm/hbone"
 	_ "github.com/costinm/cloud-run-mesh/pkg/gcp"
 	"github.com/costinm/cloud-run-mesh/pkg/k8s"
+	"github.com/costinm/hbone"
 )
 
 // TestSNIGate is e2e, requires a k8s connection (kube config is fine)
@@ -20,8 +20,6 @@ func xTestSNIGate(t *testing.T) {
 	gateK8S := k8s.New()
 	gateK8S.XDSAddr = "-" // prevent pilot-agent from starting
 	gateK8S.BaseDir = "../../"
-
-
 
 	gate, err := InitSNIGate(gateK8S, ":0", ":0")
 	if err != nil {
@@ -38,7 +36,6 @@ func xTestSNIGate(t *testing.T) {
 	aliceToFortio := alice.NewClient("fortio-cr.fortio.svc.cluster.local:8080")
 	aliceToFortio.NewEndpoint("")
 
-
 }
 
 func xTestSNIGateClient(t *testing.T) {
@@ -46,7 +43,7 @@ func xTestSNIGateClient(t *testing.T) {
 	kr.XDSAddr = "-" // prevent pilot-agent from starting
 	kr.BaseDir = "../../"
 
-	ctx, cf := context.WithTimeout(context.Background(), 5 * time.Second)
+	ctx, cf := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cf()
 
 	err := kr.InitK8SClient(ctx)
@@ -82,8 +79,8 @@ func xTestSNIGateClient(t *testing.T) {
 		ep := aliceToFortio.NewEndpoint("https://" + addr + ":15443/_hbone/tcp")
 		ep.SNI = "outbound_.8080_._.default.default.svc.cluster.local"
 
-		rin, lout:= io.Pipe()
-		lin, rout:= io.Pipe()
+		rin, lout := io.Pipe()
+		lin, rout := io.Pipe()
 
 		err = ep.Proxy(context.Background(), rin, rout)
 		if err != nil {

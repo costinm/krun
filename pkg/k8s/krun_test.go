@@ -34,4 +34,3 @@ func TestK8S(t *testing.T) {
 	t.Log(kr)
 
 }
-

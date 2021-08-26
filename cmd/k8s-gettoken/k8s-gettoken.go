@@ -11,7 +11,7 @@ import (
 
 var (
 	nsFlag  = flag.String("ns", "default", "namespace")
-	ksaFlag = flag.String("ksa","default", "kubernetes service account")
+	ksaFlag = flag.String("ksa", "default", "kubernetes service account")
 )
 
 // Minimal tool to get a K8S token with audience.
@@ -41,4 +41,3 @@ func main() {
 
 	fmt.Println(tok)
 }
-

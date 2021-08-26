@@ -14,7 +14,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-
 // IstioSecretTemplate generates a K8S Secret for GCP with istio annotations.
 // Requires a metadata server or ADC.json.
 //
@@ -44,7 +43,6 @@ func main() {
 
 	// Used to provide access to all clusteres in the mesh
 	//meshID := os.Getenv("MESH_ID")
-
 
 	kr := k8s.New()
 	//if meshID == "" {
@@ -79,7 +77,7 @@ func main() {
 		panic(err)
 	}
 
-	for _, c:= range cl {
+	for _, c := range cl {
 		buf := &bytes.Buffer{}
 		cn := "gke_" + gcpProj + "_" + c.ClusterLocation + "_" + c.ClusterName
 		cn = strings.ReplaceAll(cn, "_", "-")
@@ -88,11 +86,10 @@ func main() {
 			continue
 		}
 		tmpl.Execute(buf, map[string]string{
-			"name": cn,
+			"name":       cn,
 			"kubeConfig": string(cfgjs),
 		})
 
-		ioutil.WriteFile("secret-" + cn + ".yaml", buf.Bytes(), 0700)
+		ioutil.WriteFile("secret-"+cn+".yaml", buf.Bytes(), 0700)
 	}
 }
-

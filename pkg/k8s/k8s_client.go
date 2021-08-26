@@ -108,27 +108,27 @@ func (kr *KRun) initInCluster() error {
 // the cluster.
 func (kr *KRun) InitK8SClient(ctx context.Context) error {
 	if kr.Client != nil {
-		return  nil
+		return nil
 	}
 
 	err := kr.initUsingKubeConfig()
 	if err != nil {
-		return  err
+		return err
 	}
 
 	err = kr.initInCluster()
 	if err != nil {
-		return  err
+		return err
 	}
 
 	if kr.VendorInit != nil {
 		err = kr.VendorInit(ctx, kr)
 		if err != nil {
-			return  err
+			return err
 		}
 	}
 	if kr.Client != nil {
-		return  nil
+		return nil
 	}
 
 	return errors.New("not found")

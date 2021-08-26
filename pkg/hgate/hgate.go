@@ -10,7 +10,7 @@ import (
 
 type HGate struct {
 	auth *hbone.Auth
-	hb *hbone.HBone
+	hb   *hbone.HBone
 }
 
 func New(hg string, name, namespace string) *HGate {
@@ -26,7 +26,7 @@ func New(hg string, name, namespace string) *HGate {
 		log.Fatal("Failed to start h2c on 15009", err)
 	}
 
-	if  hg == "" {
+	if hg == "" {
 		log.Println("hgate not found, not attaching to the cluster", err)
 	} else {
 		attachC := hb.NewClient(name + "." + namespace + ":15009")

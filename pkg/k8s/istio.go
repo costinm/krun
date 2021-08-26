@@ -17,23 +17,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-
 // MeshConfig is a minimal mesh config.
 type MeshConfig struct {
-	TrustDomain string `yaml:"trustDomain,omitempty"`
+	TrustDomain   string      `yaml:"trustDomain,omitempty"`
 	DefaultConfig ProxyConfig `yaml:"defaultConfig,omitempty"`
 }
 type ProxyConfig struct {
-	DiscoveryAddress string `yaml:"discoveryAddress,omitempty"`
-	MeshId string `yaml:"meshId,omitempty"`
-	ProxyMetadata map[string]string `yaml:"proxyMetadata,omitempty"`
-	CaCertificatesPem    []string `yaml:"caCertificatesPem,omitempty"`
+	DiscoveryAddress  string            `yaml:"discoveryAddress,omitempty"`
+	MeshId            string            `yaml:"meshId,omitempty"`
+	ProxyMetadata     map[string]string `yaml:"proxyMetadata,omitempty"`
+	CaCertificatesPem []string          `yaml:"caCertificatesPem,omitempty"`
 }
 
 // When running as root:
 // - if /var/lib/istio/resolv.conf is found, use it.
 // - else, copy /etc/resolv.conf to /var/lib/istio/resolv.conf and create a new resolv.conf
-func resolvConfForRoot()  {
+func resolvConfForRoot() {
 	if _, err := os.Stat("/var/lib/istio/resolv.conf"); !os.IsNotExist(err) {
 		log.Println("Alternate resolv.conf exists")
 		return
@@ -64,7 +63,7 @@ func (kr *KRun) FindXDSAddr() error {
 	// TODO: find default tag, label, etc.
 	// Current code is written for MCP, use XDS_ADDR explicitly
 	// otherwise.
-	s, err :=  kr.Client.CoreV1().ConfigMaps("istio-system").Get(context.Background(),
+	s, err := kr.Client.CoreV1().ConfigMaps("istio-system").Get(context.Background(),
 		"istio-asm-managed", metav1.GetOptions{})
 	if err != nil {
 		return err
@@ -84,7 +83,7 @@ func (kr *KRun) FindXDSAddr() error {
 		}
 	}
 	kr.XDSAddr = mc.DefaultConfig.DiscoveryAddress
-	kr.MCPAddr = mc.DefaultConfig.ProxyMetadata[ "ISTIO_META_CLOUDRUN_ADDR"]
+	kr.MCPAddr = mc.DefaultConfig.ProxyMetadata["ISTIO_META_CLOUDRUN_ADDR"]
 	meshId := mc.DefaultConfig.MeshId
 	mid := strings.Split(meshId, "-")
 	if len(mid) > 1 {
@@ -93,7 +92,6 @@ func (kr *KRun) FindXDSAddr() error {
 
 	return nil
 }
-
 
 func (kr *KRun) agentCommand() *exec.Cmd {
 	// From the template:
@@ -118,17 +116,17 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 	//{{- if .Values.global.proxy.lifecycle }}
 	args := []string{"proxy"}
 	if kr.Gateway != "" {
-		args = append(args,"router")
+		args = append(args, "router")
 	} else {
-		args = append(args,"sidecar")
+		args = append(args, "sidecar")
 	}
 	args = append(args, "--domain")
-	args = append(args, kr.Namespace +".svc.cluster.local")
+	args = append(args, kr.Namespace+".svc.cluster.local")
 	args = append(args, "--serviceCluster")
-	args = append(args, kr.Name + "." + kr.Namespace)
+	args = append(args, kr.Name+"."+kr.Namespace)
 
 	if kr.AgentDebug != "" {
-		args = append(args,	"--log_output_level=" + kr.AgentDebug)
+		args = append(args, "--log_output_level="+kr.AgentDebug)
 	}
 	args = append(args, "--stsPort=15463")
 	return exec.Command("/usr/local/bin/pilot-agent", args...)
@@ -151,7 +149,7 @@ func (kr *KRun) InitCARoots(ctx context.Context, prefix string) {
 		} else {
 			kr.CARoots = append(kr.CARoots, rootCert)
 		}
-		ioutil.WriteFile(prefix + "/var/run/secrets/istio/root-cert.pem", []byte(rootCert), 0755)
+		ioutil.WriteFile(prefix+"/var/run/secrets/istio/root-cert.pem", []byte(rootCert), 0755)
 	}
 }
 
@@ -166,19 +164,19 @@ func (kr *KRun) StartIstioAgent() error {
 	if os.Getuid() == 0 {
 		prefix = ""
 	}
-	os.MkdirAll(prefix + "/etc/istio/proxy", 0755)
+	os.MkdirAll(prefix+"/etc/istio/proxy", 0755)
 
 	// Save the istio certificates - for proxyless or app use.
-	os.MkdirAll(prefix + "/var/run/secrets/istio", 0755)
-	os.MkdirAll(prefix + "/var/run/secrets/mesh", 0755)
-	os.MkdirAll(prefix + "/var/run/secrets/istio.io", 0755)
-	os.MkdirAll(prefix + "/etc/istio/pod", 0755)
+	os.MkdirAll(prefix+"/var/run/secrets/istio", 0755)
+	os.MkdirAll(prefix+"/var/run/secrets/mesh", 0755)
+	os.MkdirAll(prefix+"/var/run/secrets/istio.io", 0755)
+	os.MkdirAll(prefix+"/etc/istio/pod", 0755)
 	if os.Getuid() == 0 {
-		os.Chown(prefix + "/var/run/secrets/istio.io", 1337, 1337)
-		os.Chown(prefix + "/var/run/secrets/istio", 1337, 1337)
-		os.Chown(prefix + "/var/run/secrets/mesh", 1337, 1337)
-		os.Chown(prefix + "/etc/istio/pod", 1337, 1337)
-		os.Chown(prefix + "/etc/istio/proxy", 1337, 1337)
+		os.Chown(prefix+"/var/run/secrets/istio.io", 1337, 1337)
+		os.Chown(prefix+"/var/run/secrets/istio", 1337, 1337)
+		os.Chown(prefix+"/var/run/secrets/mesh", 1337, 1337)
+		os.Chown(prefix+"/etc/istio/pod", 1337, 1337)
+		os.Chown(prefix+"/etc/istio/proxy", 1337, 1337)
 	}
 
 	if kr.XDSAddr == "" {
@@ -204,12 +202,11 @@ func (kr *KRun) StartIstioAgent() error {
 	env = append(env, "XDS_ROOT_CA=SYSTEM")
 	env = append(env, "PILOT_CERT_PROVIDER=system")
 	env = append(env, "CA_ROOT_CA=SYSTEM")
-	env = append(env, "POD_NAMESPACE=" + kr.Namespace)
+	env = append(env, "POD_NAMESPACE="+kr.Namespace)
 
 	if kr.ExtraEnv != nil {
 		env = append(env, kr.ExtraEnv...)
 	}
-
 
 	kr.initLabelsFile()
 
@@ -252,19 +249,19 @@ func (kr *KRun) StartIstioAgent() error {
 	env = append(env, fmt.Sprintf("GKE_CLUSTER_URL=https://container.googleapis.com/v1/projects/%s/locations/%s/clusters/%s",
 		kr.ProjectId, kr.ClusterLocation, kr.ClusterName))
 	env = append(env, fmt.Sprintf("GCP_METADATA=%s|%s|%s|%s",
-		kr.ProjectId, kr.ProjectNumber, kr.ClusterName, kr.ClusterLocation ))
+		kr.ProjectId, kr.ProjectNumber, kr.ClusterName, kr.ClusterLocation))
 
-	env = append(env, "XDS_ADDR=" + kr.XDSAddr)
+	env = append(env, "XDS_ADDR="+kr.XDSAddr)
 	//env = append(env, "CA_ROOT_CA=/etc/ssl/certs/ca-certificates.crt")
 	//env = append(env, "XDS_ROOT_CA=/etc/ssl/certs/ca-certificates.crt")
 	env = append(env, "JWT_POLICY=third-party-jwt")
 
-	env = append(env, "TRUST_DOMAIN=" + kr.TrustDomain)
+	env = append(env, "TRUST_DOMAIN="+kr.TrustDomain)
 
 	if kr.MCPAddr != "" {
 		env = append(env, "CA_ADDR=meshca.googleapis.com:443")
 		env = append(env, "XDS_AUTH_PROVIDER=gcp")
-		env = append(env, "ISTIO_META_CLOUDRUN_ADDR=" + kr.MCPAddr)
+		env = append(env, "ISTIO_META_CLOUDRUN_ADDR="+kr.MCPAddr)
 		// This is required for MCP - does not work for OSS primary cluster.
 		// Will be used to set a clusterid metadata, which will locate the remote cluster id
 		env = append(env, fmt.Sprintf("ISTIO_META_CLUSTER_ID=cn-%s-%s-%s",
@@ -284,8 +281,8 @@ func (kr *KRun) StartIstioAgent() error {
 	bootstrapIstiod := os.Getenv("BOOTSTRAP_XDS_AGENT")
 	if bootstrapIstiod == "" {
 		if _, err := os.Stat(prefix + "/var/lib/istio/envoy/hbone_tmpl.json"); os.IsNotExist(err) {
-			os.MkdirAll(prefix + "/var/lib/istio/envoy/", 0755)
-			err = ioutil.WriteFile(prefix + "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json",
+			os.MkdirAll(prefix+"/var/lib/istio/envoy/", 0755)
+			err = ioutil.WriteFile(prefix+"/var/lib/istio/envoy/envoy_bootstrap_tmpl.json",
 				[]byte(EnvoyBootstrapTmpl), 0755)
 			if err != nil {
 				panic(err)
@@ -295,7 +292,7 @@ func (kr *KRun) StartIstioAgent() error {
 			if err != nil {
 				panic(err) // no point continuing
 			}
-			err = ioutil.WriteFile(prefix + "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json",
+			err = ioutil.WriteFile(prefix+"/var/lib/istio/envoy/envoy_bootstrap_tmpl.json",
 				[]byte(custom), 0755)
 			if err != nil {
 				panic(err)
@@ -385,7 +382,7 @@ func (kr *KRun) Exit(code int) {
 func (kr *KRun) initLabelsFile() {
 	if kr.Gateway != "" {
 		ioutil.WriteFile("/etc/istio/pod/labels", []byte(
-				`version="v1"
+			`version="v1"
 security.istio.io/tlsMode="istio"
 istio="ingressgateway"
 `), 0777)
@@ -410,7 +407,7 @@ func (kr *KRun) runIptablesSetup(env []string) error {
 		//"-z", "15006", - no inbound interception
 		"-u", "1337",
 		"-m", "REDIRECT",
-		"-i",  "10.0.0.0/8", // all outbound captured
+		"-i", "10.0.0.0/8", // all outbound captured
 		"-b", "", // disable all inbound redirection
 		// "-d", "15090,15021,15020", // exclude specific ports
 		"-x", "")

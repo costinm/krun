@@ -31,7 +31,7 @@ func SaveKubeConfig(kc *kubeconfig.Config, dir, file string) error {
 	return nil
 }
 
-func  restConfig(kc *kubeconfig.Config) (*rest.Config, error) {
+func restConfig(kc *kubeconfig.Config) (*rest.Config, error) {
 	// TODO: set default if not set ?
 	return clientcmd.NewNonInteractiveClientConfig(*kc, "", &clientcmd.ConfigOverrides{}, nil).ClientConfig()
 }

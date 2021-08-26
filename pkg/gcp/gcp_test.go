@@ -25,7 +25,7 @@ func TestK8S(t *testing.T) {
 		return
 	}
 	// For the entire test
-	ctx, cf := context.WithTimeout(context.Background(), 10 * time.Second)
+	ctx, cf := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cf()
 
 	kr := k8s.New()

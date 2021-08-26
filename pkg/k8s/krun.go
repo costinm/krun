@@ -87,16 +87,15 @@ type KRun struct {
 
 	// PEM cert roots detected in the cluster - Citadel, custom CAs from mesh config.
 	// Will be saved to a file.
-	CARoots      []string
+	CARoots []string
 }
-
 
 func New() *KRun {
 	kr := &KRun{
-		StartTime: time.Now(),
-		Aud2File: map[string]string{},
-		CM2Dirs: map[string]string{},
-		Labels: map[string]string{},
+		StartTime:    time.Now(),
+		Aud2File:     map[string]string{},
+		CM2Dirs:      map[string]string{},
+		Labels:       map[string]string{},
 		Secrets2Dirs: map[string]string{},
 	}
 	return kr
@@ -168,10 +167,10 @@ func (kr *KRun) LoadConfig() *KRun {
 			kr.CM2Dirs[kvl[0][7:]] = prefix + kvl[1]
 		}
 		if strings.HasPrefix(kvl[0], "K8S_TOKEN_") {
-			kr.Aud2File[kvl[0][10:]] =  prefix + kvl[1]
+			kr.Aud2File[kvl[0][10:]] = prefix + kvl[1]
 		}
 		if strings.HasPrefix(kvl[0], "LABEL_") {
-			kr.Labels[kvl[0][6:]] =  prefix + kvl[1]
+			kr.Labels[kvl[0][6:]] = prefix + kvl[1]
 		}
 	}
 
