@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/costinm/krun/pkg/k8s"
+	"github.com/costinm/cloud-run-mesh/pkg/k8s"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"

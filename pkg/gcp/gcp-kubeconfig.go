@@ -14,7 +14,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	container "cloud.google.com/go/container/apiv1"
-	"github.com/costinm/krun/pkg/k8s"
+	"github.com/costinm/cloud-run-mesh/pkg/k8s"
 	"k8s.io/client-go/kubernetes"
 
 	gkehub "cloud.google.com/go/gkehub/apiv1beta1"

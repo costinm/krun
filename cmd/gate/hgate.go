@@ -5,10 +5,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/costinm/krun/pkg/gcp"
-	_ "github.com/costinm/krun/pkg/gcp"
-	"github.com/costinm/krun/pkg/k8s"
-	"github.com/costinm/krun/pkg/snigate"
+	"github.com/costinm/cloud-run-mesh/pkg/gcp"
+	_ "github.com/costinm/cloud-run-mesh/pkg/gcp"
+	"github.com/costinm/cloud-run-mesh/pkg/k8s"
+	"github.com/costinm/cloud-run-mesh/pkg/snigate"
 )
 
 // Based on krun, start pilot-agent to get the certs and create the XDS proxy, and implement

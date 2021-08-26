@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/costinm/krun/pkg/k8s"
+	"github.com/costinm/cloud-run-mesh/pkg/k8s"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"

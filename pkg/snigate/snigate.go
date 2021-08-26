@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/costinm/hbone"
-	"github.com/costinm/krun/pkg/k8s"
+	"github.com/costinm/cloud-run-mesh/pkg/k8s"
 	"golang.org/x/net/http2"
 )
 

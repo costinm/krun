@@ -9,8 +9,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/costinm/krun/pkg/gcp"
-	"github.com/costinm/krun/pkg/k8s"
+	"github.com/costinm/cloud-run-mesh/pkg/gcp"
+	"github.com/costinm/cloud-run-mesh/pkg/k8s"
 	"k8s.io/client-go/tools/clientcmd"
 )
 

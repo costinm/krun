@@ -1,4 +1,4 @@
-module github.com/costinm/krun
+module github.com/costinm/cloud-run-mesh
 
 go 1.16
 

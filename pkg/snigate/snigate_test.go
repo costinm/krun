@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/costinm/hbone"
-	_ "github.com/costinm/krun/pkg/gcp"
-	"github.com/costinm/krun/pkg/k8s"
+	_ "github.com/costinm/cloud-run-mesh/pkg/gcp"
+	"github.com/costinm/cloud-run-mesh/pkg/k8s"
 )
 
 // TestSNIGate is e2e, requires a k8s connection (kube config is fine)

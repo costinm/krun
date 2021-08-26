@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/costinm/cloud-run-mesh/pkg/gcp"
+	"github.com/costinm/cloud-run-mesh/pkg/k8s"
 	"github.com/costinm/hbone"
-	"github.com/costinm/krun/pkg/gcp"
-	"github.com/costinm/krun/pkg/k8s"
 )
 
 

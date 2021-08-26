@@ -79,7 +79,7 @@ deploy:
 # Port 15009 for using KRun and 'native' hbone.
 
 pull:
-	docker pull ghcr.io/costinm/krun/krun:latest # Get latest
+	docker pull ghcr.io/costinm/cloud-run-mesh/krun:latest # Get latest
 
 # SSH to the deployed CloudRun using HBONE
 ssh: CR_URL=$(shell gcloud run services describe ${SERVICE} --format="value(status.address.url)")

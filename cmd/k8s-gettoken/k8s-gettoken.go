@@ -5,8 +5,8 @@ import (
 	"flag"
 	"fmt"
 
-	_ "github.com/costinm/krun/pkg/gcp"
-	k8s "github.com/costinm/krun/pkg/k8s"
+	_ "github.com/costinm/cloud-run-mesh/pkg/gcp"
+	k8s "github.com/costinm/cloud-run-mesh/pkg/k8s"
 )
 
 var (

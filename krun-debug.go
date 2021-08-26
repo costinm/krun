@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/costinm/cert-ssh/ssh"
-	"github.com/costinm/krun/pkg/k8s"
+	"github.com/costinm/cloud-run-mesh/pkg/k8s"
 )
 
 // Optional debug dependency, using cert-based SSH or loaded from a secret.
