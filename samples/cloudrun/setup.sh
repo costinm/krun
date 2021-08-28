@@ -10,7 +10,7 @@ export NS=${NS:-fortio}
 # Example command to create a regular cluster.
 function create_cluster() {
 
-  cloud beta container --project "${PROJECT_ID}" clusters create \
+  gcloud beta container --project "${PROJECT_ID}" clusters create \
     "${CLUSTER_NAME}" --zone "${CLUSTER_LOCATION}" \
     --no-enable-basic-auth \
     --cluster-version "1.20.8-gke.700" \
