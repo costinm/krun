@@ -14,8 +14,6 @@ export  GOLDEN_IMAGE=gcr.io/wlhe-cr/krun:main
 # Target image 
 export  IMAGE=gcr.io/${PROJECT_ID}/fortio-cr:main
 
-export NS=${NS:-fortio}
-
 # Example command to create a regular cluster.
 function create_cluster() {
   gcloud beta container --project "${PROJECT_ID}" clusters create \
@@ -91,12 +89,12 @@ function setup_project() {
 
 
 function setup_service_account() {
-  gcloud --project ${PROJECT_ID} iam service-accounts create k8s-${NS} \
-        --display-name "Service account with access to ${NS} k8s namespace"
+  gcloud --project ${PROJECT_ID} iam service-accounts create k8s-${WORKLOAD_NAMESPACE} \
+        --display-name "Service account with access to ${WORKLOAD_NAMESPACE} k8s namespace"
 
   gcloud --project ${PROJECT_ID} projects add-iam-policy-binding \
               ${PROJECT_ID} \
-              --member="serviceAccount:k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com" \
+              --member="serviceAccount:k8s-${WORKLOAD_NAMESPACE}@${PROJECT_ID}.iam.gserviceaccount.com" \
               --role="roles/container.clusterViewer"
 }
 
@@ -134,7 +132,8 @@ function deploy_app() {
           --port 15009 \
           --image ${IMAGE} \
           --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
+          --service-account=k8s-${WORKLOAD_NAMESPACE}@${PROJECT_ID}.iam.gserviceaccount.com \
           --set-env-vars="CLUSTER_NAME=${CLUSTER_NAME}" \
-         --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}"
+          --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}"
 }
 
