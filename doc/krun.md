@@ -22,25 +22,6 @@ All krun configurations are based environment variables and env detection (inclu
 the cluster) - the parameters on the command line are passed directly to the application.
 
 
-## Running as non-root
-
-KRun can also be used as regular user, howerver:
-
-- iptables will not be set
-- envoy (if found) will run with the current UID
-- if envoy is not found, pilot-agent will still be started and generate proxyless gRPC config and certs
-- all files will be created relative to current dir instead of root dir.
-- Istio will use interception mode NONE - this enables 127.0.0.1:PORT bindings for mesh TCP services.
-
-In this mode Istio can't capture traffic - it works in 'whitebox' mode, using HTTP_PROXY environment variable to 
-capture HTTP and Sidecar API for forwarding local ports to services. 
-
-It currently requires MeshConfig HttpProxyPort to be set - in 1.12 this will be automatically set for the workload,
-no need for global config (PR#...)
-
-Non-root mode is useful in Docker environments where iptables and/or running as root are not possible. For example
-CI/CDs, current CloudRun VMs (minivm supports iptables), developer machine.  
-
 ## Authentication
 
 Connection to K8S and Istiod will authenticate using:

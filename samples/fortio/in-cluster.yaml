@@ -37,12 +37,10 @@ spec:
         # Override container ports
         #traffic.sidecar.istio.io/includeInboundPorts: "*"
         sidecar.istio.io/proxyCPU: 10m
-
       labels:
         app: fortio
         version: v1
-        # This can be used to override - if not set, use the namespace or cluster default
-        #istio.io/rev: canary
+        sidecar.istio.io/inject: "true"
     spec:
       containers:
       - name: fortio

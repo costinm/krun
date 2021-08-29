@@ -34,6 +34,10 @@ func main() {
 	}
 	url := flag.Arg(0)
 
+	// TODO: k8s discovery for hgate
+	// TODO: -R to register to the gate, reverse proxy
+	// TODO: get certs
+
 	hb := &hbone.HBone{}
 	hc := hb.NewEndpoint(url)
 
@@ -58,7 +62,6 @@ func main() {
 		}
 	}
 
-	fmt.Println("Connecting to ", url)
 	err := hc.Proxy(context.Background(), os.Stdin, os.Stdout)
 	if err != nil {
 		log.Fatal(err)

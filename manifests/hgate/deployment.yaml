@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hgate
+  namespace: istio-gate
+spec:
+  selector:
+    matchLabels:
+      app: hgate
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        inject.istio.io/templates: gateway
+      labels:
+        app: hgate
+        version: v1
+        # Turns off injection, regardless of namespace label
+        # To add a gateway - set to true
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        #      - name: istio-proxy
+        #        image: auto # The image will automatically update each time the pod starts.
+        - name: app
+          image: gcr.io/wlhe-cr/krun/gate:latest
+
+          env:
+            # Disables iptables interception, makes envoy run as sidecar
+            - name: GATEWAY_NAME
+              value: hgate
+
+            - name: WORKLOAD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+          ports:
+            - containerPort: 15443
+              name: tls
+            - containerPort: 15441
+              name: https-h2r
+          resources:
+            requests:
+              cpu: 10m
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1G"

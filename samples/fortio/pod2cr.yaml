@@ -1,3 +1,7 @@
+# Manual config for routing to a CloudRun service using the SNI
+# gateway. This will be automated, but useful to see the actual config.
+#
+# TODO: turn into template (envsubst) first
 apiVersion: v1
 kind: Service
 metadata:

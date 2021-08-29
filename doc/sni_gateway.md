@@ -14,6 +14,14 @@ networking.istio.io/gatewayPort can be used to override the default port 15443 -
 ## SNI routes
 
 Istio generates clusters with:
+
 ```
   "sni": "outbound_.8080_._.fortio.fortio.svc.cluster.local"
 ```
+
+The SNI gateway currently also supports the 'natural' format, without mangling:
+
+``` 
+  fortio.fortio.svc.cluster.local
+```
+
