@@ -1,0 +1,66 @@
+# Allow the principal to get audience-based tokens and directly
+# access a configmap
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hgate-default-tokens
+rules:
+  - apiGroups: [""]
+    resources:
+      - "serviceaccounts/token"
+    resourceNames:
+      - "default"
+    verbs:
+      - "create"
+      - "get"
+  - apiGroups: [""]
+    resources:
+      - "configmaps"
+    resourceNames:
+      - "istio-ca-root-cert"
+      - "krun"
+    verbs:
+      - "get"
+---
+# Grant all authenticated users permission to view the hgate service.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hgate-service-view
+rules:
+  - apiGroups: [""]
+    resources:
+      - "services"
+      - "endpoints"
+    resourceNames:
+      - "hgate"
+      - "internal-hgate"
+    verbs:
+      - "get"
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hgate-tokens-default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hgate-default-tokens
+subjects:
+  - kind: ServiceAccount
+    name: default
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hgate-service-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hgate-service-view
+subjects:
+  - kind: Group
+    name: system:authenticated
+    apiGroup: rbac.authorization.k8s.io

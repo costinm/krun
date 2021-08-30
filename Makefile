@@ -102,7 +102,7 @@ push/fortio: build/fortio
 	(cd samples/fortio; make push)
 
 deploy/fortio:
-	(cd samples/fortio; make deploy)
+	(cd samples/fortio; make deploy setup-sni)
 
 deploy/fortio-auth:
 	gcloud alpha run deploy fortio-auth \
