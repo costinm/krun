@@ -92,7 +92,7 @@ function setup_namespace() {
               --member="serviceAccount:k8s-${NS}@${PROJECT_ID}.iam.gserviceaccount.com" \
               --role="roles/container.clusterViewer"
 
-  cat manifests/rbac.yaml | envsubst | kubectl apply -f -
+  cat manifests/google-service-account-template.yaml | envsubst | kubectl apply -f -
 }
 
 function setup_fortio() {

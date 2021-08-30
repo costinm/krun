@@ -109,12 +109,15 @@ deploy command.
 The connector MUST be on the same network with the GKE cluster.
 
 
-### Namespace setup 
+### Google Service Account Setup
 
-Each CloudRun service will be mapped to a K8S namespace. The service account used by CloudRun must be granted access
-to the GKE APIserver with minimal permissions, and must be allowed to get K8S tokens.
+The Google Service Account running the CloudRun service will be mapped to a K8S namespace. 
 
-This steps can be run by a user or service account with namespace permissions in K8S - does not require k8s cluster admin.
+The service account used by CloudRun must be granted access to the GKE APIserver with minimal permissions, and must 
+be allowed to get K8S tokens.
+
+This steps can be run by a user or service account with namespace permissions in K8S - does not require k8s 
+cluster admin. It does require IAM permissions on the project running the CloudRun service.
 
 
 1. Create a google service account for the CloudRun app (recommended - one per namespace, to reduce permission  scope).
@@ -127,21 +130,24 @@ This steps can be run by a user or service account with namespace permissions in
 
 ```shell
 
-gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
-
-
-kubectl create ns ${WORKLOAD_NAMESPACE}
 
 gcloud --project ${PROJECT_ID} iam service-accounts create k8s-${WORKLOAD_NAMESPACE} \
       --display-name "Service account with access to ${WORKLOAD_NAMESPACE} k8s namespace"
 
+# Allow the GSA to access GKE clusters, as viewer
 gcloud --project ${PROJECT_ID} projects add-iam-policy-binding \
             ${PROJECT_ID} \
             --member="serviceAccount:${WORKLOAD_SERVICE_ACCOUNT}" \
             --role="roles/container.clusterViewer"
 
-# Uses WORKLOAD_NAMESPACE and WORKLOAD_SERVICE_ACCOUNT to grant permissions to the 'default' KSA in the namespace.
-cat manifests/rbac.yaml | envsubst | kubectl apply -f -
+# Make sure we use the current config cluster
+gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
+
+# Make sure the namespace is created
+kubectl create ns ${WORKLOAD_NAMESPACE} 
+
+# Uses WORKLOAD_NAMESPACE and PROJECT_ID to associate the Google Service Account with the K8S Namespace.
+cat manifests/google-service-account-template.yaml | envsubst | kubectl apply -f -
 
 ```
 
@@ -167,7 +173,6 @@ export IMAGE=gcr.io/${PROJECT_ID}/fortio-cr:main
 docker push ${IMAGE}
 
 ```
-
 
 
 ### Deploy the image to CloudRun

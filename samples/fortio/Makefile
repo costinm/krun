@@ -109,7 +109,7 @@ setup-gsa:
             --role="roles/container.clusterViewer"
 
 setup-rbac:
-	cat ../../manifests/rbac.yaml | envsubst  | kubectl apply -f -
+	cat ../../manifests/google-service-account-template.yaml | envsubst  | kubectl apply -f -
 
 logs-project:
 	gcloud logging read 'resource.type = "project" OR resource.type = "cloud_run_revision"'

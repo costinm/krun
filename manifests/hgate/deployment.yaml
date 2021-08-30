@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: hgate
-  namespace: istio-gate
+  namespace: istio-system
 spec:
   selector:
     matchLabels:
