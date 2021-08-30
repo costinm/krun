@@ -1,9 +1,12 @@
-# Istio gRPC support
+# Proxyless gRPC support
 
-Istio uses injection for proxyless gRPC support. 
+In-cluster Istio uses injection for proxyless gRPC support. The KRun project automatically generates the bootstrap file
+and sets GRPC_XDS_BOOTSTRAP env variable - any gRPC application that has XDS integration compiled in can use it directly. 
 
-Agent uses 2 env variables:
-- GRPC_XDS_BOOTSTRAP - path to the to-be-generated bootstrap file. To simplify UX, this is set automatically.
-- DISABLE_ENVOY - Disables all Envoy agent features. Krun automatically sets this if envoy is not detected in the image.
+The only setting for the user is:
+- DISABLE_ENVOY - Disables all Envoy agent features. Krun will also automatically sets this if envoy is not detected
+  in the image.
+
+
 
 

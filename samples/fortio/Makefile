@@ -38,6 +38,8 @@ export WORKLOAD_NAMESPACE
 WORKLOAD_NAME?=fortio-cr
 export WORKLOAD_NAME
 
+SERVICE?=${WORKLOAD_NAME}
+
 # Create fortio+proxy image, deploy to CloudRun
 all: image push deploy
 
@@ -47,9 +49,6 @@ image:
 
 push:
 	docker push ${FORTIO_IMAGE}
-
-
-SERVICE?=${WORKLOAD_NAME}
 
 # Enable the built-in sshd server, with cert auth. Temp, will move to a config map in cluster
 SSH_DEBUG_ARGS=--set-env-vars="SSH_AUTH=$(shell cat ~/.ssh/id_ecdsa.pub)"
@@ -78,8 +77,9 @@ deploy:
 # Port 8080 for going directly to the app
 # Port 15009 for using KRun and 'native' hbone.
 
+# Get latest golden image
 pull:
-	docker pull ghcr.io/costinm/cloud-run-mesh/krun:latest # Get latest
+	docker pull ${GOLDEN_IMAGE}
 
 # SSH to the deployed CloudRun using HBONE
 ssh: CR_URL=$(shell gcloud run services describe ${SERVICE} --format="value(status.address.url)")
@@ -98,7 +98,7 @@ config_dump:
 ###########################################
 
 # Run first, to create the permissions
-setup: setup-gsa setup-rbac
+setup: setup-gsa setup-rbac setup-sni
 
 setup-gsa:
 	gcloud --project ${PROJECT_ID} iam service-accounts create k8s-${WORKLOAD_NAMESPACE} \
@@ -109,7 +109,23 @@ setup-gsa:
             --role="roles/container.clusterViewer"
 
 setup-rbac:
+	kubectl create ns ${WORKLOAD_NAMESPACE} || true
 	cat ../../manifests/google-service-account-template.yaml | envsubst  | kubectl apply -f -
+
+setup-sni: K_SERVICE=$(shell gcloud run services describe ${SERVICE} --format="value(status.address.url)" | sed s,https://,, | sed s/.a.run.app// )
+setup-sni: SNI_GATE_IP=$(shell kubectl -n istio-system get service internal-hgate -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+setup-sni:
+	echo Setting up SNI route ${K_SERVICE} ${SNI_GATE_IP}
+	cat ../../manifests/sni-service-template.yaml | SNI_GATE_IP=${SNI_GATE_IP} K_SERVICE=${K_SERVICE} envsubst  | kubectl apply -f -
+
+cleanup:
+	kubectl delete ns ${WORKLOAD_NAMESPACE} || true
+	gcloud --project ${PROJECT_ID} projects remove-iam-policy-binding \
+            ${PROJECT_ID} \
+            --member="serviceAccount:k8s-${WORKLOAD_NAMESPACE}@${PROJECT_ID}.iam.gserviceaccount.com" \
+            --role="roles/container.clusterViewer" || true
+	gcloud --project ${PROJECT_ID} iam service-accounts -q delete k8s-${WORKLOAD_NAMESPACE}@${PROJECT_ID}.iam.gserviceaccount.com || true
+	gcloud alpha run -q services delete ${SERVICE}
 
 logs-project:
 	gcloud logging read 'resource.type = "project" OR resource.type = "cloud_run_revision"'

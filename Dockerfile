@@ -11,7 +11,6 @@ ENV CGO_ENABLED=0
 ENV GOOS=linux
 ENV GOPROXY=https://proxy.golang.org
 
-COPY go.* ./
 # Helps speed up local builds
 #RUN go mod download
 
@@ -19,7 +18,7 @@ COPY *.go ./
 COPY cmd ./cmd/
 COPY pkg ./pkg/
 
-RUN go build -a -gcflags='all=-N -l' -ldflags '-extldflags "-static"' -o /ws/krun ./
+RUN go build -a -gcflags='all=-N -l' -ldflags '-extldflags "-static"' -o /ws/krun ./cmd/krun
 
 
 FROM ${BASE} AS istio

@@ -4,7 +4,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   namespace: istio-system
-  name: default-tokens
+  name: hgate-default-tokens
 rules:
   - apiGroups: [""]
     resources:
@@ -28,11 +28,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   namespace: istio-system
-  name: service-view
+  name: hgate-service-view
 rules:
   - apiGroups: [""]
     resources:
-      - "service"
+      - "services"
       - "endpoints"
     resourceNames:
       - "hgate"
@@ -45,11 +45,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   namespace: istio-system
-  name: default-tokens-default
+  name: hgate-tokens-default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: default-tokens
+  name: hgate-default-tokens
 subjects:
   - kind: ServiceAccount
     name: default
@@ -59,11 +59,11 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   namespace: istio-system
-  name: service-view
+  name: hgate-service-view
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: service-view
+  name: hgate-service-view
 subjects:
   - kind: Group
     name: system:authenticated

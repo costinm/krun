@@ -36,7 +36,7 @@ func (kr *KRun) CheckServices(ctx context.Context, client *kubernetes.Clientset)
 //
 func (kr *KRun) FindHGate(ctx context.Context) (string, error) {
 
-	ts, err := kr.Client.CoreV1().Services("hgate").Get(ctx, "hgate", metav1.GetOptions{})
+	ts, err := kr.Client.CoreV1().Services("istio-system").Get(ctx, "hgate", metav1.GetOptions{})
 	if err != nil {
 		log.Println("Error getting service hgate ", err)
 		return "", err

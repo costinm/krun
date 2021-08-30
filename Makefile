@@ -37,6 +37,9 @@ HGATE_IMAGE?=${KO_DOCKER_REPO}/gate:latest
 
 WORKLOAD_NAME?=fortio-cr
 
+FORTIO_IMAGE?=gcr.io/${PROJECT_ID}/fortio-mesh:latest
+export FORTIO_IMAGE
+
 # Build krun, fortio, push fortio, deploy to main test cloudrun config
 all: build/krun push/fortio deploy/fortio
 
@@ -62,7 +65,7 @@ build/fortio: build/krun
 
 build/krun:
 	# Will also tag ko.local/krun:latest
-	KO_IMAGE=$(shell ko publish -L -B ./) TAG_IMAGE=${KRUN_IMAGE} $(MAKE) _ko_tag_local
+	KO_IMAGE=$(shell ko publish -L -B ./cmd/krun) TAG_IMAGE=${KRUN_IMAGE} $(MAKE) _ko_tag_local
 
 build/hgate:
 	# Will also tag ko.local/krun:latest
@@ -125,14 +128,16 @@ ssh:
 docker/_run: ADC?=${HOME}/.config/gcloud/legacy_credentials/$(shell gcloud config get-value core/account)/adc.json
 docker/_run:
 	docker run -it --rm \
-		-e CLUSTER_NAME=${CLUSTER_NAME} \
 		-e PROJECT_ID=${PROJECT_ID} \
-		-e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
 		-e GOOGLE_APPLICATION_CREDENTIALS=/var/run/secrets/google/google.json \
 		-v ${ADC}:/var/run/secrets/google/google.json:ro \
 		${_RUN_EXTRA} \
 		${_RUN_IMAGE} \
 	   /bin/bash
+
+# 		-e CLUSTER_NAME=${CLUSTER_NAME} \
+  #		-e CLUSTER_LOCATION=${CLUSTER_LOCATION} \
+
 
 # Run krun in a docker image, get a shell. Will use MCP.
 docker/run-mcp:
@@ -155,6 +160,12 @@ docker/run-hgate:
 docker/run-kubeconfig:
 	docker run  -e KUBECONFIG=/var/run/kubeconfig -v ${HOME}/.kube/config:/var/run/kubeconfig:ro -it  \
 		${KRUN_IMAGE}  /bin/bash
+
+docker/build-run-fortio: build/krun build/fortio
+	_RUN_IMAGE=${FORTIO_IMAGE} $(MAKE) docker/_run
+
+docker/run-fortio:
+	_RUN_IMAGE=${FORTIO_IMAGE} $(MAKE) docker/_run
 
 ################## Setup/preparation
 

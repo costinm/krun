@@ -1,5 +1,7 @@
 Sample for running Fortio with Istio sidecar in CloudRun.
 
-This is using 'krun' base image, which is based on proxyv2 - and adds the app
-files.
+The Dockerfile uses the golden image, and adds Fortio binaries. 
 
+Makefile includes examples for configuring the service account mapping and deploying the CloudRun service.
+
+It also includes few debug targets - ssh, logs, config_dump
