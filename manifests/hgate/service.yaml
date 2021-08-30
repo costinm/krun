@@ -13,12 +13,11 @@ metadata:
 spec:
   ports:
     # Standard port for SNI routing in gateways, same as east-west gateway
-    # Used by envoy.
+    # Used by envoy, for Istio multi-network inbound traffic.
     - port: 15443
       name: tls
-    # Dedicated port for SNI to mTLS-over-hbone tunneling.
-    - port: 15442
-      name: tls-tun
+    # 15442 is the dedicated port for SNI to mTLS-over-hbone outbound tunneling.
+    # Not exposed on the public endpoint
     # Reverse connections
     - port: 15441
       name: https-h2r
@@ -32,9 +31,8 @@ spec:
       targetPort: 8080
   selector:
     app: hgate
-
-  # Can also be configured behind the gateway, using SNI routes - but istio is looking for the IP to handle multi-network
   type: LoadBalancer
+
 ---
 # https://cloud.google.com/kubernetes-engine/docs/how-to/internal-load-balancing
 #
@@ -58,21 +56,11 @@ spec:
     # Dedicated port for SNI to mTLS-over-hbone tunneling.
     - port: 15442
       name: tls-tun
-    # Reverse connections
+    # Reverse connection support.
     - port: 15441
       name: https-h2r
-    # Since we're deploying a Gateway, also include the std ports.
-    # It is possible to share the gateway for regular ingress.
-    - port: 443
-      name: https
-      targetPort: 8443
-    - port: 80
-      name: http
-      targetPort: 8080
   selector:
     app: hgate
-
-  # Can also be configured behind the gateway, using SNI routes - but istio is looking for the IP to handle multi-network
   type: LoadBalancer
 
 ---
