@@ -11,10 +11,11 @@ ENV CGO_ENABLED=0
 ENV GOOS=linux
 ENV GOPROXY=https://proxy.golang.org
 
+COPY go.* ./
+
 # Helps speed up local builds
 #RUN go mod download
 
-COPY *.go ./
 COPY cmd ./cmd/
 COPY pkg ./pkg/
 

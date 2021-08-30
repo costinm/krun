@@ -41,9 +41,10 @@ FORTIO_IMAGE?=gcr.io/${PROJECT_ID}/fortio-mesh:latest
 export FORTIO_IMAGE
 
 # Build krun, fortio, push fortio, deploy to main test cloudrun config
+# Expects Istio cluster and in-cluster fortio to be running
 all: build/krun push/fortio deploy/fortio
 
-# Build, push, deploy hgate,
+# Build, push, deploy hgate.
 all-hgate: push/hgate
 	kubectl -n hgate delete rs -l app=hgate || true
 	kubectl apply -f manifests/hgate/hgate.yaml
