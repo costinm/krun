@@ -87,4 +87,3 @@ func TokenPayload(jwt string) string {
 
 	return string(payloadBytes)
 }
-

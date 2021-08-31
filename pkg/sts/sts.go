@@ -24,11 +24,11 @@ var (
 	// SecureTokenEndpoint is the Endpoint the STS client calls to.
 	SecureTokenEndpoint = "https://sts.googleapis.com/v1/token"
 
-	httpTimeout = time.Second * 5
-	contentType = "application/json"
-	Scope       = "https://www.googleapis.com/auth/cloud-platform"
-	accessTokenEndpoint    = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
-	idTokenEndpoint    = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateIdToken"
+	httpTimeout         = time.Second * 5
+	contentType         = "application/json"
+	Scope               = "https://www.googleapis.com/auth/cloud-platform"
+	accessTokenEndpoint = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
+	idTokenEndpoint     = "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateIdToken"
 
 	// Server side
 	// TokenPath is url path for handling STS requests.
@@ -58,16 +58,14 @@ const (
 	stsIssuedTokenType = "urn:ietf:params:oauth:token-type:access_token"
 )
 
-
 // STS provides token exchanges. Implements grpc and golang.org/x/oauth2.TokenSource
 // The source of trust is the K8S token with TrustDomain audience, it is exchanged with access or ID tokens.
 type STS struct {
 	httpClient *http.Client
-	kr *k8s.KRun
+	kr         *k8s.KRun
 }
 
-
-func NewSTS(kr *k8s.KRun) (*STS, error){
+func NewSTS(kr *k8s.KRun) (*STS, error) {
 	caCertPool, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, err
@@ -75,7 +73,7 @@ func NewSTS(kr *k8s.KRun) (*STS, error){
 
 	return &STS{
 		kr: kr,
-		httpClient: &http.Client {
+		httpClient: &http.Client{
 			Timeout: 5 * time.Second,
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
@@ -94,7 +92,7 @@ func (s *STS) Token() (*oauth2.Token, error) {
 
 // Implements credentials.PerRPCCredentials
 func (s *STS) GetRequestMetadata(ctx context.Context, aud ...string) (map[string]string, error) {
-	kt,err  := s.kr.GetToken(ctx, s.kr.TrustDomain)
+	kt, err := s.kr.GetToken(ctx, s.kr.TrustDomain)
 	if err != nil {
 		return nil, err
 	}
@@ -116,10 +114,9 @@ func (s *STS) GetRequestMetadata(ctx context.Context, aud ...string) (map[string
 	}, nil
 }
 
-func (s *STS) RequireTransportSecurity() (bool) {
+func (s *STS) RequireTransportSecurity() bool {
 	return false
 }
-
 
 // TokenFederated exchanges the K8S JWT with a federated token
 // (former ExchangeToken)
@@ -247,7 +244,6 @@ func (s *STS) constructFederatedTokenRequest(aud, jwt string) ([]byte, error) {
 
 // from security/security.go
 
-
 // StsRequestParameters stores all STS request attributes defined in
 // https://tools.ietf.org/html/draft-ietf-oauth-token-exchange-16#section-2.1
 type StsRequestParameters struct {
@@ -280,7 +276,6 @@ type StsRequestParameters struct {
 }
 
 // From stsservice/sts.go
-
 
 // StsResponseParameters stores all attributes sent as JSON in a successful STS
 // response. These attributes are defined in
@@ -323,9 +318,9 @@ type accessTokenRequest struct {
 }
 
 type idTokenRequest struct {
-	Audience      string   `json:"audience"` // nolint: structcheck, unused
-	Delegates []string `json:"delegates"`
-	IncludeEmail  bool `json:"includeEmail"`
+	Audience     string   `json:"audience"` // nolint: structcheck, unused
+	Delegates    []string `json:"delegates"`
+	IncludeEmail bool     `json:"includeEmail"`
 }
 
 type accessTokenResponse struct {
@@ -336,6 +331,7 @@ type accessTokenResponse struct {
 type idTokenResponse struct {
 	Token string `json:"token"`
 }
+
 // constructFederatedTokenRequest returns an HTTP request for access token.
 // Example of an access token request:
 // POST https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/
@@ -370,7 +366,7 @@ func (s *STS) constructGenerateAccessTokenRequest(fResp string, audience string)
 		// Request for access token with a lifetime of 3600 seconds.
 		query := idTokenRequest{
 			IncludeEmail: true,
-			Audience: audience,
+			Audience:     audience,
 		}
 
 		jsonQuery, err = json.Marshal(query)
@@ -390,7 +386,6 @@ func (s *STS) constructGenerateAccessTokenRequest(fResp string, audience string)
 	req.Header.Add("Authorization", "Bearer "+fResp) // the AccessToken
 	return req, nil
 }
-
 
 // ServeStsRequests handles STS requests and sends exchanged token in responses.
 func (s *STS) ServeStsRequests(w http.ResponseWriter, req *http.Request) {
@@ -422,7 +417,7 @@ func (s *STS) ServeStsRequests(w http.ResponseWriter, req *http.Request) {
 	s.sendSuccessfulResponse(w, s.generateSTSRespInner(at))
 }
 
-func (p *STS) generateSTSRespInner(token string) ([]byte) {
+func (p *STS) generateSTSRespInner(token string) []byte {
 	//exp, err := time.Parse(time.RFC3339Nano, atResp.ExpireTime)
 	// Default token life time is 3600 seconds
 	var expireInSec int64 = 3600
@@ -435,10 +430,9 @@ func (p *STS) generateSTSRespInner(token string) ([]byte) {
 		TokenType:       "Bearer",
 		ExpiresIn:       expireInSec,
 	}
-	statusJSON,_ := json.MarshalIndent(stsRespParam, "", " ")
+	statusJSON, _ := json.MarshalIndent(stsRespParam, "", " ")
 	return statusJSON
 }
-
 
 // validateStsRequest validates a STS request, and extracts STS parameters from the request.
 func (s *STS) validateStsRequest(req *http.Request) (StsRequestParameters, error) {
@@ -485,8 +479,6 @@ func (s *STS) validateStsRequest(req *http.Request) (StsRequestParameters, error
 	return reqParam, nil
 }
 
-
-
 // StsErrorResponse stores all Error parameters sent as JSON in a STS Error response.
 // The Error parameters are defined in
 // https://tools.ietf.org/html/draft-ietf-oauth-token-exchange-16#section-2.2.2.
@@ -520,6 +512,7 @@ func (s *STS) sendErrorResponse(w http.ResponseWriter, errorType string, errDeta
 		log.Printf("failure in marshaling error response (%v) into JSON: %v", errResp, err)
 	}
 }
+
 // sendSuccessfulResponse takes token data and generates a successful STS response, and sends out the STS response.
 func (s *STS) sendSuccessfulResponse(w http.ResponseWriter, tokenData []byte) {
 	w.Header().Add("Content-Type", "application/json")

@@ -76,8 +76,7 @@ func StartSSHD(cfg *SSHDConfig) {
 			"-t",
 			"ecdsa",
 		},
-		&os.ProcAttr{
-		})
+		&os.ProcAttr{})
 
 	ioutil.WriteFile("/tmp/sshd/sshd_confing", []byte(SshdConfig), 0700)
 

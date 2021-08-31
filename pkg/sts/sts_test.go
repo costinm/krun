@@ -14,7 +14,7 @@ import (
 func TestSTS(t *testing.T) {
 	kr := k8s.New()
 
-	ctx, cf := context.WithTimeout(context.Background(), 10 * time.Second)
+	ctx, cf := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cf()
 
 	err := kr.InitK8SClient(ctx)
@@ -36,7 +36,7 @@ func TestSTS(t *testing.T) {
 
 	log.Println(k8s.TokenPayload(masterT), kr.ProjectNumber)
 
-	s, err  := NewSTS(kr)
+	s, err := NewSTS(kr)
 	if err != nil {
 		t.Fatal(err)
 	}
