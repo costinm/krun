@@ -41,6 +41,8 @@ var (
 	TokenExchangeGrantType = "urn:ietf:params:oauth:grant-type:token-exchange"
 	// SubjectTokenType is the required token type in a STS request.
 	SubjectTokenType = "urn:ietf:params:oauth:token-type:jwt"
+
+	Debug = false
 )
 
 // error code sent in a STS error response. A full list of error code is
@@ -57,12 +59,13 @@ const (
 )
 
 
+// STS provides token exchanges. Implements grpc and golang.org/x/oauth2.TokenSource
+// The source of trust is the K8S token with TrustDomain audience, it is exchanged with access or ID tokens.
 type STS struct {
 	httpClient *http.Client
 	kr *k8s.KRun
 }
 
-// TODO: implement grpc and golang.org/x/oauth2.TokenSource
 
 func NewSTS(kr *k8s.KRun) (*STS, error){
 	caCertPool, err := x509.SystemCertPool()
@@ -104,7 +107,7 @@ func (s *STS) GetRequestMetadata(ctx context.Context, aud ...string) (map[string
 		a0 = aud[0]
 	}
 	if len(aud) > 1 {
-		log.Println("Single audience supported ", aud)
+		return nil, errors.New("Single audience supporte")
 	}
 	token, err := s.TokenAccess(ctx, ft, a0)
 
@@ -380,7 +383,7 @@ func (s *STS) constructGenerateAccessTokenRequest(fResp string, audience string)
 		return nil, fmt.Errorf("failed to create get access token request: %+v", err)
 	}
 	req.Header.Add("Content-Type", contentType)
-	if true {
+	if Debug {
 		reqDump, _ := httputil.DumpRequest(req, true)
 		log.Println("Prepared access token request: ", string(reqDump))
 	}

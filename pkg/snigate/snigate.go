@@ -42,7 +42,6 @@ func (c TokenCache) Token(ctx context2.Context, host string) (string, error) {
 		}
 	}
 
-
 	mt, err := c.sts.GetRequestMetadata(ctx, host)
 	if err != nil {
 		return "", err
@@ -52,7 +51,7 @@ func (c TokenCache) Token(ctx context2.Context, host string) (string, error) {
 		return "", errors.New("Invalid prefix")
 	}
 	t := bt[7:]
-	log.Println("XXX debug Gettoken from metadata", host, k8s.TokenPayload(t), err)
+	//log.Println("XXX debug Gettoken from metadata", host, k8s.TokenPayload(t), err)
 
 	c.cache.Store(host, cachedToken{t, time.Now().Add(45 * time.Minute)})
 	return t, nil
