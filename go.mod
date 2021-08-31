@@ -2,7 +2,7 @@ module github.com/costinm/cloud-run-mesh
 
 go 1.16
 
-//replace github.com/costinm/hbone => ../hbone
+replace github.com/costinm/hbone => ../hbone
 //replace github.com/costinm/cert-ssh/ssh => ../cert-ssh/ssh
 
 require (
@@ -11,6 +11,7 @@ require (
 	github.com/costinm/hbone v0.0.0-20210825233210-12f68538190c
 	github.com/creack/pty v1.1.13
 	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d
+	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/api v0.48.0
 	google.golang.org/genproto v0.0.0-20210608205507-b6d2f5bf0d7d

@@ -22,7 +22,7 @@ REPO?=gcr.io/${PROJECT_ID}
 # Base image, including istio-proxy, envoy, starter. Built by the CI/CD on the test project.
 GOLDEN_IMAGE?=gcr.io/wlhe-cr/krun:main
 
-FORTIO_IMAGE?=${REPO}/fortio-cr:latest
+FORTIO_IMAGE?=${REPO}/fortio-mesh:latest
 
 # Namespace to attach to.
 WORKLOAD_NAMESPACE?=fortio
@@ -73,6 +73,38 @@ deploy:
   		 ${SSH_DEBUG_ARGS} ${EXTRA} \
  		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
 
+deploy-auto:
+	gcloud alpha run deploy ${SERVICE}-auto \
+		  --execution-environment=gen2 \
+		  --platform managed --project ${PROJECT_ID} --region ${REGION} \
+		  --service-account=${WORKLOAD_SERVICE_ACCOUNT} \
+          --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
+         \
+         --allow-unauthenticated \
+         \
+         --use-http2 \
+         --port 15009 \
+         \
+         --image ${FORTIO_IMAGE} \
+         ${SSH_DEBUG_ARGS} ${EXTRA} \
+ 		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
+
+deploy-auth:
+	gcloud alpha run deploy ${SERVICE}-auth \
+		  --execution-environment=gen2 \
+		  --platform managed --project ${PROJECT_ID} --region ${REGION} \
+		  --service-account=${WORKLOAD_SERVICE_ACCOUNT} \
+          --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
+         \
+         --use-http2 \
+         --port 15009 \
+         \
+         --image ${FORTIO_IMAGE} \
+         --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}" \
+         --set-env-vars="CLUSTER_NAME=${CLUSTER_NAME}" \
+  		 ${SSH_DEBUG_ARGS} ${EXTRA} \
+ 		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
+
 # Port 14009 for using envoy for ingress
 # Port 8080 for going directly to the app
 # Port 15009 for using KRun and 'native' hbone.
@@ -107,6 +139,17 @@ setup-gsa:
             ${PROJECT_ID} \
             --member="serviceAccount:k8s-${WORKLOAD_NAMESPACE}@${PROJECT_ID}.iam.gserviceaccount.com" \
             --role="roles/container.clusterViewer"
+
+setup-hgate: PROJECT_NUMBER=$(shell gcloud projects describe ${PROJECT_ID} --format="value(projectNumber)")
+setup-hgate:
+	#	gcloud --project ${PROJECT_ID} projects add-iam-policy-binding \
+	#            ${PROJECT_ID} \
+	#            --member="serviceAccount:${PROJECT_ID}.svc.id.goog[istio-system/default]" \
+	#            --role="roles/run.invoker"
+	gcloud --project ${PROJECT_ID} projects add-iam-policy-binding \
+            ${PROJECT_ID} \
+            --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-meshdataplane.iam.gserviceaccount.com" \
+            --role="roles/run.invoker"
 
 setup-rbac:
 	kubectl create ns ${WORKLOAD_NAMESPACE} || true

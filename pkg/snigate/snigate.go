@@ -2,6 +2,7 @@ package snigate
 
 import (
 	context2 "context"
+	"errors"
 	"log"
 	"net"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/costinm/cloud-run-mesh/pkg/k8s"
+	sts2 "github.com/costinm/cloud-run-mesh/pkg/sts"
 	"github.com/costinm/hbone"
 	"golang.org/x/net/http2"
 )
@@ -28,6 +30,7 @@ type cachedToken struct {
 type TokenCache struct {
 	cache sync.Map
 	kr    *k8s.KRun
+	sts   *sts2.STS
 }
 
 func (c TokenCache) Token(ctx context2.Context, host string) (string, error) {
@@ -39,12 +42,17 @@ func (c TokenCache) Token(ctx context2.Context, host string) (string, error) {
 		}
 	}
 
-	t, err := c.kr.GetToken(ctx, host)
-	// TODO: cache error state or throttle
+
+	mt, err := c.sts.GetRequestMetadata(ctx, host)
 	if err != nil {
 		return "", err
 	}
-	log.Println("XXX debug Gettoken", host, t)
+	bt := mt["authorization"]
+	if !strings.HasPrefix(bt, "Bearer ") {
+		return "", errors.New("Invalid prefix")
+	}
+	t := bt[7:]
+	log.Println("XXX debug Gettoken from metadata", host, k8s.TokenPayload(t), err)
 
 	c.cache.Store(host, cachedToken{t, time.Now().Add(45 * time.Minute)})
 	return t, nil
@@ -77,7 +85,12 @@ func InitSNIGate(kr *k8s.KRun, sniPort string, h2rPort string) (*SNIGate, error)
 
 	h2r := hbone.New(auth)
 
-	tcache := &TokenCache{kr: kr}
+	stsc, err := sts2.NewSTS(kr)
+	if err != nil {
+		return nil, err
+	}
+
+	tcache := &TokenCache{kr: kr, sts: stsc}
 	h2r.TokenCallback = tcache.Token
 
 	h2r.EndpointResolver = func(sni string) *hbone.Endpoint {

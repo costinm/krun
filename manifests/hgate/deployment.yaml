@@ -14,7 +14,7 @@ spec:
         inject.istio.io/templates: gateway
       labels:
         app: hgate
-        version: v1
+        version: v2.2
         # Turns off injection, regardless of namespace label
         # To add a gateway - set to true
         sidecar.istio.io/inject: "false"

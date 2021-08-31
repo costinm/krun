@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"encoding/base64"
 	"io/ioutil"
 	"log"
 	"os"
@@ -70,3 +71,20 @@ func InitToken(client *kubernetes.Clientset, ns string, ksa string, audience str
 
 	return nil
 }
+
+func TokenPayload(jwt string) string {
+	jwtSplit := strings.Split(jwt, ".")
+	if len(jwtSplit) != 3 {
+		return ""
+	}
+	//azp,"email","exp":1629832319,"iss":"https://accounts.google.com","sub":"1118295...
+	payload := jwtSplit[1]
+
+	payloadBytes, err := base64.RawStdEncoding.DecodeString(payload)
+	if err != nil {
+		return ""
+	}
+
+	return string(payloadBytes)
+}
+

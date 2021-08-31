@@ -46,8 +46,9 @@ all: build/krun push/fortio deploy/fortio
 
 # Build, push, deploy hgate.
 all-hgate: push/hgate
-	kubectl -n hgate delete rs -l app=hgate || true
-	kubectl apply -f manifests/hgate/hgate.yaml
+	kubectl apply -f manifests/hgate/
+	kubectl -n istio-system delete rs -l app=hgate || true
+
 
 
 test:

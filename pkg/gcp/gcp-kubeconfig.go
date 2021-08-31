@@ -154,6 +154,15 @@ func RegionFromMetadata() (string, error) {
 	return vs[1], nil
 }
 
+func TokenGKE(ctx context.Context, aud string) (string, error) {
+	uri := fmt.Sprintf("instance/service-accounts/default/identity?audience=%s", aud)
+	tok, err := metadata.Get(uri)
+	if err != nil {
+		return "", err
+	}
+	return tok, nil
+}
+
 func Token(ctx context.Context, aud string) (string, error) {
 	uri := fmt.Sprintf("instance/service-accounts/default/identity?audience=%s&format=full", aud)
 	tok, err := metadata.Get(uri)
