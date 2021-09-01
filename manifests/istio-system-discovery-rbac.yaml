@@ -2,11 +2,6 @@
 # The config is indirectly available to pods via injection, no secrets inside.
 # Istiod public cert is replicated in all namespaces and available - reading the one in istio-system to avoid
 # replication details. In future we should be able to use this method instead of having the replication controller.
-#
-# This is likely to be replaced with a more generic solution, should be replaced by beta.
-#
-# TODO(beta): remove this step.
-#
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
