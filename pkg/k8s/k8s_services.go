@@ -46,22 +46,5 @@ func (kr *KRun) FindHGate(ctx context.Context) (string, error) {
 		return ts.Status.LoadBalancer.Ingress[0].IP, nil
 	}
 
-	//te, err := client.CoreV1().Endpoints("hgate").Get(ctx, "hgate", metav1.GetOptions{})
-	//if err != nil {
-	//	log.Println("Error listing ", err)
-	//	return err
-	//}
-	//
-	//for _, s := range ts.Items {
-	//	if s.Name == "hgate" {
-	//		log.Println("Found hgate", s.Status)
-	//	}
-	//	if s.Name == "cert-ssh" {
-	//		log.Println("Found cert-ssh", s.Status)
-	//	}
-	//	if strings.HasPrefix(s.Name, "istiod") {
-	//		log.Println("Found istiod",  s.Name, s.Status)
-	//	}
-	//}
 	return "", nil
 }

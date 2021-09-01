@@ -78,26 +78,15 @@ After installation, new services can be configured for namespaces using only nam
 
 1. If you don't already have a cluster with managed ASM, follow [Install docs](https://cloud.google.com/service-mesh/docs/scripted-install/gke-install) 
 
-Short version:
-
-```shell
-curl https://storage.googleapis.com/csm-artifacts/asm/install_asm_1.10 > install_asm
-chmod +x install_asm
-
-./install_asm --mode install --output_dir ${CLUSTER_NAME} --enable_all --managed
-```
-
-2. Allow read access to mesh config. This is needed to simplify the configuration - it is also possible to 
-   explicitly pass extra env variables to the CloudRun services instead of using this config, but it is simpler to just
-   directly parse the in-cluster config. This step is temporary, WIP to remove it.
+2. Configure the in-cluster gateway and permissions. (this step is temporary, WIP to remove it and have the controller created automatically)
 
 ```shell 
 
-kubectl apply -f manifests/istio-system-discovery-rbac.yaml
+kubectl apply -k github.com/costinm/cloud-run-mesh/manifests/
 
 ```
 
-### Connector setup (once per project)
+### Serverless connector setup (once per project / region / VPC network)
 
 For each region where GKE and CloudRun will be used, [install CloudRun connector](https://cloud.google.com/vpc/docs/configure-serverless-vpc-access)
 Using the UI is usually easier - it does require a /28 range to be specified.
@@ -109,7 +98,7 @@ deploy command.
 The connector MUST be on the same network with the GKE cluster.
 
 
-### Google Service Account Setup
+### Google Service Account and Namespace Setup
 
 The Google Service Account running the CloudRun service will be mapped to a K8S namespace. 
 

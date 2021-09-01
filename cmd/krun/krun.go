@@ -43,7 +43,7 @@ func main() {
 		// Use k8s client to autoconfigure, reading from cluster.
 		err := kr.StartIstioAgent()
 		if err != nil {
-			log.Fatal("Failed to start the mesh agent", err)
+			log.Fatal("Failed to start the mesh agent ", err)
 		}
 		// TODO: wait for proxy ready before starting app.
 	}

@@ -9,11 +9,10 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"strings"
 	"syscall"
 
 	"github.com/creack/pty"
-	"gopkg.in/yaml.v2"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -57,38 +56,89 @@ func resolvConfForRoot() {
 	log.Println("Adjusted resolv.conf")
 }
 
-// FindXDSAddr will try to find the XDSAddr using in-cluster info.
-// This is called after K8S client has been initialized.
-func (kr *KRun) FindXDSAddr() error {
-	// TODO: find default tag, label, etc.
-	// Current code is written for MCP, use XDS_ADDR explicitly
-	// otherwise.
-	s, err := kr.Client.CoreV1().ConfigMaps("istio-system").Get(context.Background(),
-		"istio-asm-managed", metav1.GetOptions{})
+func (kr *KRun) FindInClusterAddr(ctx context.Context) error {
+	hg, err := kr.FindHGate(ctx)
 	if err != nil {
-		return err
-	}
-	meshCfg := s.Data["mesh"]
-	mc := MeshConfig{}
-	err = yaml.Unmarshal([]byte(meshCfg), &mc)
-	if err != nil {
+		log.Println("Failed to find in-cluster, missing 'hgate' service ", err)
 		return err
 	}
 
-	kr.TrustDomain = mc.TrustDomain
-	if kr.ProjectId == "" {
-		td := strings.Split(kr.TrustDomain, ".")
-		if len(td) > 1 {
-			kr.ProjectId = td[0]
+	kr.XDSAddr = hg + ":15012"
+
+	//cmname := "istio"
+	//s, err := kr.Client.CoreV1().ConfigMaps("istio-system").Get(ctx,
+	//	cmname, metav1.GetOptions{})
+	//if err != nil {
+	//	if se, ok := err.(*errors.StatusError); ok {
+	//		if se.ErrStatus.Code == 404 {
+	//			return kr.FindInClusterAddr()
+	//		}
+	//	}
+	//	return err
+	//}
+	//
+	//kr.MCPAddr = s.Data["CLOUDRUN_ADDR"]
+	//kr.XDSAddr = "meshconfig.googleapis.com:443"
+	//log.Println("Istiod MCP discovered ", kr.MCPAddr, kr.XDSAddr,
+	//	kr.ProjectId, kr.ProjectNumber, kr.TrustDomain)
+	//
+	//meshCfg := s.Data["mesh"]
+	//mc := MeshConfig{}
+	//err = yaml.Unmarshal([]byte(meshCfg), &mc)
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//kr.TrustDomain = mc.TrustDomain
+	//if kr.ProjectId == "" {
+	//	td := strings.Split(kr.TrustDomain, ".")
+	//	if len(td) > 1 {
+	//		kr.ProjectId = td[0]
+	//	}
+	//}
+	//kr.XDSAddr = mc.DefaultConfig.DiscoveryAddress
+	//kr.MCPAddr = mc.DefaultConfig.ProxyMetadata["ISTIO_META_CLOUDRUN_ADDR"]
+	//meshId := mc.DefaultConfig.MeshId
+	//mid := strings.Split(meshId, "-")
+	//if len(mid) > 1 {
+	//	kr.ProjectNumber = mid[1]
+	//}
+
+	return nil
+}
+
+// FindXDSAddr will try to find the XDSAddr using in-cluster info.
+// This is called after K8S client has been initialized.
+//
+// For MCP, will expect a config map named 'env-asm-managed'
+//
+func (kr *KRun) FindXDSAddr(ctx context.Context) error {
+	if kr.ProjectNumber == "" {
+		log.Println("MCP requires PROJECT_NUMBER, attempting to use in-cluster")
+		return kr.FindInClusterAddr(ctx)
+	}
+	cmname := os.Getenv("MCP_CONFIG")
+	if cmname == "" {
+		cmname = "env-asm-managed"
+	}
+	// TODO: find default tag, label, etc.
+	// Current code is written for MCP, use XDS_ADDR explicitly
+	// otherwise.
+	s, err := kr.Client.CoreV1().ConfigMaps("istio-system").Get(ctx,
+		cmname, metav1.GetOptions{})
+	if err != nil {
+		if se, ok := err.(*errors.StatusError); ok {
+			if se.ErrStatus.Code == 404 {
+				return kr.FindInClusterAddr(ctx)
+			}
 		}
+		return err
 	}
-	kr.XDSAddr = mc.DefaultConfig.DiscoveryAddress
-	kr.MCPAddr = mc.DefaultConfig.ProxyMetadata["ISTIO_META_CLOUDRUN_ADDR"]
-	meshId := mc.DefaultConfig.MeshId
-	mid := strings.Split(meshId, "-")
-	if len(mid) > 1 {
-		kr.ProjectNumber = mid[1]
-	}
+
+	kr.MCPAddr = s.Data["CLOUDRUN_ADDR"]
+	kr.XDSAddr = "meshconfig.googleapis.com:443"
+	log.Println("Istiod MCP discovered ", kr.MCPAddr, kr.XDSAddr,
+		kr.ProjectId, kr.ProjectNumber, kr.TrustDomain)
 
 	return nil
 }
@@ -180,7 +230,7 @@ func (kr *KRun) StartIstioAgent() error {
 	}
 
 	if kr.XDSAddr == "" {
-		err := kr.FindXDSAddr()
+		err := kr.FindXDSAddr(context.Background())
 		if err != nil {
 			return err
 		}

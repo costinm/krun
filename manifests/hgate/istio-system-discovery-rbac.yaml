@@ -6,27 +6,33 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   namespace: istio-system
-  name: asm-meshconfig
+  name: istio-autoconf
 rules:
   - apiGroups: [""]
     resources:
       - "configmaps"
     resourceNames:
-      - "istio-asm-managed"
+      - "env-asm-managed"
       - "istio-ca-root-cert"
       - "istio"
     verbs:
       - "get"
+  - apiGroups: [""]
+    resources:
+      - "services"
+    verbs:
+      - "get"
+      - "list"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   namespace: istio-system
-  name: asm-meshconfig
+  name: istio-autoconf-all
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: asm-meshconfig
+  name: istio-autoconf
 subjects:
   - kind: Group
     name: system:authenticated

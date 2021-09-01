@@ -71,37 +71,3 @@ subjects:
     name: system:authenticated
     apiGroup: rbac.authorization.k8s.io
 
----
-# Allow all system-authenticated KSAs to read the mesh config and root cert in istio-system for MCP.
-# The config is indirectly available to pods via injection, no secrets inside.
-# Istiod public cert is replicated in all namespaces and available - reading the one in istio-system to avoid
-# replication details. In future we should be able to use this method instead of having the replication controller.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  namespace: istio-system
-  name: asm-meshconfig
-rules:
-  - apiGroups: [""]
-    resources:
-      - "configmaps"
-    resourceNames:
-      - "istio-asm-managed"
-      - "istio-ca-root-cert"
-      - "istio"
-    verbs:
-      - "get"
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  namespace: istio-system
-  name: asm-meshconfig
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: asm-meshconfig
-subjects:
-  - kind: Group
-    name: system:authenticated
-    apiGroup: rbac.authorization.k8s.io

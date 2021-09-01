@@ -4,5 +4,6 @@ kind: Kustomization
 resources:
   - hgate/cluster-rbac.yaml
   - hgate/rbac.yaml
+  - hgate/istio-system-discovery-rbac.yaml
   - hgate/service.yaml
   - hgate/deployment.yaml
