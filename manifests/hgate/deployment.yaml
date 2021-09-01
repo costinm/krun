@@ -10,23 +10,18 @@ spec:
   replicas: 1
   template:
     metadata:
-      annotations:
-        inject.istio.io/templates: gateway
       labels:
         app: hgate
         version: v2.2
-        # Turns off injection, regardless of namespace label
-        # To add a gateway - set to true
+        # Turns off injection, regardless of namespace label.
+        # The docker image includes envoy, knows how to start without injection.
         sidecar.istio.io/inject: "false"
     spec:
       containers:
-        #      - name: istio-proxy
-        #        image: auto # The image will automatically update each time the pod starts.
         - name: app
           image: gcr.io/wlhe-cr/krun/gate:latest
-
           env:
-            # Disables iptables interception, makes envoy run as sidecar
+            # Disables iptables interception, makes envoy run as gateway instead of sidecar, sets the name of the gateway
             - name: GATEWAY_NAME
               value: hgate
 
