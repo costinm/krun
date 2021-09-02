@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"golang.org/x/net/context"
 	// Required for k8s client to link in the authenticator
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
@@ -27,7 +29,7 @@ func TestK8S(t *testing.T) {
 
 	kr.Refresh()
 
-	kr.FindXDSAddr()
+	kr.FindXDSAddr(context.Background())
 
 	kr.StartIstioAgent()
 

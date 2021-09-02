@@ -27,8 +27,11 @@ func TestSTS(t *testing.T) {
 	kr.Refresh()
 
 	// Has the side-effect of loading the project number
-	kr.FindXDSAddr()
+	kr.FindXDSAddr(ctx)
 
+	if kr.ProjectNumber == "" {
+		t.Skip("Skipping STS test, PROJECT_NUMBER required")
+	}
 	masterT, err := kr.GetToken(ctx, kr.TrustDomain)
 	if err != nil {
 		t.Fatal(err)
