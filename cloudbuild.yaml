@@ -48,27 +48,6 @@ steps:
     waitFor:
       - base-kaniko
 
-  # Ko or docker based build moved to local - too slow compared with kaniko
-
-  # Deploy the canary, run tests
-  # Missing alpha command
-  #- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  - name: gcr.io/wlhe-cr/gcloud-alpha
-  #- name: gcr.io/$PROJECT_ID/krun-builder:latest
-    entrypoint: /bin/sh
-    env:
-      - PROJECT_ID=$PROJECT_ID
-      - CLUSTER_NAME=asm-cr
-      - CLUSTER_LOCATION=us-central1-c
-      - FORTIO_IMAGE=gcr.io/$PROJECT_ID/fortio-mesh:$BRANCH_NAME
-    waitFor:
-      - fortio
-    args:
-      - -c
-      - |
-        make canary
-
-
   # Run tests. We need a docker image with cloudrun (for get credentials) and go
   #  get-credentials generate a file with exec gcloud - so it must be present.
   # TODO: use krun to generate a config using metadata server, or add golang to alpine
@@ -89,6 +68,39 @@ steps:
       - |
         gcloud container clusters get-credentials asm-cr --zone us-central1-c --project $PROJECT_ID
         make test
+
+  # Ko or docker based build moved to local - too slow compared with kaniko
+  - name: "gcr.io/cloud-builders/gke-deploy"
+    entrypoint: /bin/sh
+    env:
+      - PROJECT_ID=$PROJECT_ID
+      - CLUSTER_NAME=asm-cr
+      - CLUSTER_LOCATION=us-central1-c
+      - FORTIO_IMAGE=gcr.io/$PROJECT_ID/fortio-mesh:$BRANCH_NAME
+      - KUBECONFIG=/workspace/kubeconfig
+    waitFor:
+      - fortio
+    args:
+      - kubectl apply -k manifests
+
+  # Deploy the canary, run tests
+  # Missing alpha command
+  #- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: gcr.io/wlhe-cr/gcloud-alpha
+    #- name: gcr.io/$PROJECT_ID/krun-builder:latest
+    entrypoint: /bin/sh
+    env:
+      - PROJECT_ID=$PROJECT_ID
+      - CLUSTER_NAME=asm-cr
+      - CLUSTER_LOCATION=us-central1-c
+      - FORTIO_IMAGE=gcr.io/$PROJECT_ID/fortio-mesh:$BRANCH_NAME
+      - KUBECONFIG=/workspace/kubeconfig
+    waitFor:
+      - fortio
+    args:
+      - -c
+      - |
+        make canary
 
   # TODO: combine gcloud, go, etc in single image - Istio build image is huge
   # Also includes gcloud 349.0.0
