@@ -7,3 +7,4 @@ resources:
   - hgate/istio-system-discovery-rbac.yaml
   - hgate/service.yaml
   - hgate/deployment.yaml
+  - hgate/istio.yaml

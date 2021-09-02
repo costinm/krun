@@ -61,8 +61,9 @@ func main() {
 	if meshMode {
 		auth, err := hbone.LoadAuth("")
 		if err != nil {
-			log.Fatal("Failed to find mesh certificates", err)
+			log.Fatal("Failed to find mesh certificates ", err)
 		}
+		auth.AddRoots([]byte(gcp.MeshCA))
 
 		hb := hbone.New(auth)
 		_, err = hbone.ListenAndServeTCP(":15009", hb.HandleAcceptedH2C)

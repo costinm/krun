@@ -62,16 +62,10 @@ github.com/cncf/udpa/go v0.0.0-20200629203442-efcf912fb354/go.mod h1:WmhPx2Nbnht
 github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403 h1:cqQfy1jclcSy/FwLjemeg3SR1yaINm74aQyupQ0Bl8M=
 github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403/go.mod h1:WmhPx2Nbnhtbo57+VJT5O0JRkEi1Wbu0z5j0R8u5Hbk=
 github.com/coreos/go-oidc v2.2.1+incompatible/go.mod h1:CgnwVTmzoESiwO9qyAFEMiHoZ1nMCKZlZ9V6mm3/LKc=
-github.com/costinm/cert-ssh/ssh v0.0.0-20210701135701-d50c5ca07d95 h1:f/WxibwBUGKx91FBAqRKZSHX2W7cdRNS7X5A4Zpnt6c=
-github.com/costinm/cert-ssh/ssh v0.0.0-20210701135701-d50c5ca07d95/go.mod h1:2ciafZwmj3a7AMC1qKq2WRQBlDKBYEiPzCJt/wAnmmI=
 github.com/costinm/cert-ssh/ssh v0.0.0-20210825233239-a732a424ec23 h1:7Vm//IpLKYkU1nTRqg6kWdp+kVQqwslZMvy22Fl5XrQ=
 github.com/costinm/cert-ssh/ssh v0.0.0-20210825233239-a732a424ec23/go.mod h1:2ciafZwmj3a7AMC1qKq2WRQBlDKBYEiPzCJt/wAnmmI=
 github.com/costinm/cert-ssh/sshca v0.0.0-20210628220432-a23b998ca61c h1:goDEJgDR91dk60sxmb3ROx6DWIHP3qWLJ32p9hUf6b8=
 github.com/costinm/cert-ssh/sshca v0.0.0-20210628220432-a23b998ca61c/go.mod h1:KBgj9uKIo3/Q+qsIJuc1mjyk8qF1lmlRSu2jNBLxoAI=
-github.com/costinm/hbone v0.0.0-20210824042322-d426d8983c73 h1:DuCx1W12ZUojzbca38RiAOJZuKEGsupaOLQRAbriZSU=
-github.com/costinm/hbone v0.0.0-20210824042322-d426d8983c73/go.mod h1:ae7UjCujWOqlFAjuoLT/KvKpzOTp/Cm/974KMKsLMVI=
-github.com/costinm/hbone v0.0.0-20210825233210-12f68538190c h1:ZClfg53d4ggGSiTBhSdROF8HbLM2OslrI/Oh8NaEas4=
-github.com/costinm/hbone v0.0.0-20210825233210-12f68538190c/go.mod h1:ae7UjCujWOqlFAjuoLT/KvKpzOTp/Cm/974KMKsLMVI=
 github.com/costinm/hbone v0.0.0-20210831233529-7442a0daa178 h1:XiSnvBJEBEHTU5AZ7S6vd/psIUlVTErzxObuxBGPs90=
 github.com/costinm/hbone v0.0.0-20210831233529-7442a0daa178/go.mod h1:ae7UjCujWOqlFAjuoLT/KvKpzOTp/Cm/974KMKsLMVI=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
@@ -363,7 +357,6 @@ golang.org/x/oauth2 v0.0.0-20201208152858-08078c50e5b5/go.mod h1:KelEdhl1UZF7XfJ
 golang.org/x/oauth2 v0.0.0-20210218202405-ba52d332ba99/go.mod h1:KelEdhl1UZF7XfJ4dDtk6s++YSgaE7mD/BuKKDLBl4A=
 golang.org/x/oauth2 v0.0.0-20210220000619-9bb904979d93/go.mod h1:KelEdhl1UZF7XfJ4dDtk6s++YSgaE7mD/BuKKDLBl4A=
 golang.org/x/oauth2 v0.0.0-20210313182246-cd4f82c27b84/go.mod h1:KelEdhl1UZF7XfJ4dDtk6s++YSgaE7mD/BuKKDLBl4A=
-golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c h1:pkQiBZBvdos9qq4wBAHqlzuZHEXo07pqV06ef90u1WI=
 golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c/go.mod h1:KelEdhl1UZF7XfJ4dDtk6s++YSgaE7mD/BuKKDLBl4A=
 golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f h1:Qmd2pbz05z7z6lm0DrgQVVPuBm92jqujBKMHMOlOQEw=
 golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f/go.mod h1:KelEdhl1UZF7XfJ4dDtk6s++YSgaE7mD/BuKKDLBl4A=

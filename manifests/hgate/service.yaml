@@ -29,6 +29,10 @@ spec:
     - port: 80
       name: http
       targetPort: 8080
+
+    # Used for docker containers on the public internet, or if CloudRun doesn't use a connector.
+    - port: 15012
+      name: tls-istiod
   selector:
     app: hgate
   type: LoadBalancer
@@ -59,6 +63,9 @@ spec:
     # Reverse connection support.
     - port: 15441
       name: https-h2r
+    # Used for docker containers/VMs on internal VPC, or CloudRun using connector - for in-cluster Istiod.
+    - port: 15012
+      name: tls-istiod
   selector:
     app: hgate
   type: LoadBalancer

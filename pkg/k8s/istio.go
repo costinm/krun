@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 
 	"github.com/creack/pty"
@@ -198,8 +199,8 @@ func (kr *KRun) InitCARoots(ctx context.Context, prefix string) {
 			log.Println("Istio root missing, citadel compat disabled")
 		} else {
 			kr.CARoots = append(kr.CARoots, rootCert)
+			ioutil.WriteFile(prefix+"/var/run/secrets/istio/root-cert.pem", []byte(rootCert), 0755)
 		}
-		ioutil.WriteFile(prefix+"/var/run/secrets/istio/root-cert.pem", []byte(rootCert), 0755)
 	}
 }
 
@@ -249,9 +250,13 @@ func (kr *KRun) StartIstioAgent() error {
 	// XDS and CA servers are using system certificates ( recommended ).
 	// If using a private CA - add it's root to the docker images, everything will be consistent
 	// and simpler !
-	env = append(env, "XDS_ROOT_CA=SYSTEM")
-	env = append(env, "PILOT_CERT_PROVIDER=system")
-	env = append(env, "CA_ROOT_CA=SYSTEM")
+	if strings.HasSuffix(kr.XDSAddr, ":15012") {
+		env = append(env, "ISTIOD_SAN=istiod.istio-system.svc")
+	} else {
+		env = append(env, "XDS_ROOT_CA=SYSTEM")
+		env = append(env, "PILOT_CERT_PROVIDER=system")
+		env = append(env, "CA_ROOT_CA=SYSTEM")
+	}
 	env = append(env, "POD_NAMESPACE="+kr.Namespace)
 
 	if kr.ExtraEnv != nil {
@@ -397,7 +402,7 @@ func (kr *KRun) StartIstioAgent() error {
 	os.MkdirAll(prefix+"/var/lib/istio/envoy/", 0700)
 
 	go func() {
-		log.Println("Starting mesh agent ")
+		log.Println("Starting mesh agent ", env)
 		err := cmd.Start()
 		if err != nil {
 			log.Println("Failed to start ", cmd, err)
@@ -430,19 +435,26 @@ func (kr *KRun) Exit(code int) {
 }
 
 func (kr *KRun) initLabelsFile() {
+	labels := ""
 	if kr.Gateway != "" {
-		ioutil.WriteFile("/etc/istio/pod/labels", []byte(
+		labels = fmt.Sprintf(
 			`version="v1"
 security.istio.io/tlsMode="istio"
-istio="ingressgateway"
-`), 0777)
+istio="%s"
+`, kr.Gateway)
 	} else {
-		ioutil.WriteFile("/etc/istio/pod/labels", []byte(fmt.Sprintf(
+		labels = fmt.Sprintf(
 			`version="v1"
 security.istio.io/tlsMode="istio"
 app="%s"
 service.istio.io/canonical-name="%s"
-`, kr.Name, kr.Name)), 0777)
+`, kr.Name, kr.Name)
+	}
+	err := ioutil.WriteFile("/etc/istio/pod/labels", []byte(labels), 0777)
+	if err == nil {
+		log.Println("Written labels: ", labels)
+	} else {
+		log.Println("Error writing labels", err)
 	}
 }
 
