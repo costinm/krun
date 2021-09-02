@@ -208,7 +208,7 @@ func (c *CitadelClient) buildConnection() (*grpc.ClientConn, error) {
 		grpc.WithPerRPCCredentials(c.opts.TokenProvider))
 		//security.CARetryInterceptor())
 	if err != nil {
-		log.Println("Failed to connect to endpoint %s: %v", c.opts.CAEndpoint, err)
+		log.Printf("Failed to connect to endpoint %s: %v", c.opts.CAEndpoint, err)
 		return nil, fmt.Errorf("failed to connect to endpoint %s", c.opts.CAEndpoint)
 	}
 
