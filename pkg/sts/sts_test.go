@@ -24,7 +24,7 @@ func TestSTS(t *testing.T) {
 
 	kr.LoadConfig()
 
-	kr.Refresh()
+	kr.RefreshAndSaveFiles()
 
 	// Has the side-effect of loading the project number
 	kr.FindXDSAddr(ctx)

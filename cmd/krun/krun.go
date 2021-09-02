@@ -15,7 +15,6 @@ import (
 var initDebug func(run *k8s.KRun)
 
 func main() {
-	log.Println("Starting mesh launcher")
 	kr := k8s.New()
 
 	kr.VendorInit = gcp.InitGCP
@@ -24,11 +23,14 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to K8S ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}
-	log.Println("K8S Client initialized")
 
 	kr.LoadConfig()
 
-	kr.Refresh()
+	log.Println("K8S Client initialized", kr.ProjectId, kr.ClusterLocation, kr.ClusterName, kr.ProjectNumber,
+		kr.KSA, kr.Namespace, kr.Name, kr.Labels, kr.XDSAddr)
+
+
+	kr.RefreshAndSaveFiles()
 
 	meshMode := true
 

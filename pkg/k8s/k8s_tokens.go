@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func (kr *KRun) Refresh() {
+func (kr *KRun) RefreshAndSaveFiles() {
 	for aud, f := range kr.Aud2File {
 		InitToken(kr.Client, kr.Namespace, kr.KSA, aud, f)
 	}
@@ -25,7 +25,7 @@ func (kr *KRun) Refresh() {
 		initCM(kr.Client, kr.Namespace, k, v)
 	}
 
-	time.AfterFunc(30*time.Minute, kr.Refresh)
+	time.AfterFunc(30*time.Minute, kr.RefreshAndSaveFiles)
 }
 
 func (kr *KRun) GetToken(ctx context.Context, aud string) (string, error) {

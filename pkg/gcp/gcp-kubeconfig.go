@@ -54,8 +54,8 @@ var (
 	GCPInitTime time.Duration
 )
 
-// configFromEnvAndMD will use env variables to locate the
-// k8s cluster and create a client.
+// configFromEnvAndMD will attempt to configure ProjectId, ClusterName, ClusterLocation, ProjectNumber, used on GCP
+// Metadata server will be tried if env variables don't exist.
 func configFromEnvAndMD(ctx context.Context, kr *k8s.KRun) {
 	if kr.ProjectId == "" {
 		kr.ProjectId = os.Getenv("PROJECT_ID")
@@ -109,7 +109,9 @@ func configFromEnvAndMD(ctx context.Context, kr *k8s.KRun) {
 			if strings.HasPrefix(email, "k8s-") {
 				parts := strings.Split(email[4:], "@")
 				kr.Namespace = parts[0]
-				log.Println("Defaulting Namespace based on email: ", kr.Namespace, email)
+				if k8s.Debug {
+					log.Println("Defaulting Namespace based on email: ", kr.Namespace, email)
+				}
 			}
 		}
 		var err error
@@ -137,9 +139,10 @@ func configFromEnvAndMD(ctx context.Context, kr *k8s.KRun) {
 		if kr.ProjectNumber == "" {
 			kr.ProjectNumber = ProjectNumber(kr.ProjectId)
 		}
-		log.Println("Configs from metadata ", time.Since(t0))
+		if k8s.Debug {
+			log.Println("Configs from metadata ", time.Since(t0))
+		}
 	}
-
 }
 
 func RegionFromMetadata() (string, error) {

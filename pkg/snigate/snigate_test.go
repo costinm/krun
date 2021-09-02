@@ -53,7 +53,7 @@ func xTestSNIGateClient(t *testing.T) {
 
 	kr.LoadConfig()
 
-	kr.Refresh() // create the tokens expected for Istio
+	kr.RefreshAndSaveFiles() // create the tokens expected for Istio
 
 	auth, err := hbone.LoadAuth(kr.BaseDir + "var/run/secrets/istio.io/")
 	if err != nil {

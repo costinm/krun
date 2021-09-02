@@ -27,7 +27,7 @@ func TestK8S(t *testing.T) {
 
 	kr.LoadConfig()
 
-	kr.Refresh()
+	kr.RefreshAndSaveFiles()
 
 	kr.FindXDSAddr(context.Background())
 

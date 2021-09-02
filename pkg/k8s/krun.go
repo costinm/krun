@@ -188,14 +188,6 @@ func (kr *KRun) LoadConfig() *KRun {
 		kr.KSA = "default"
 	}
 
-	if kr.ClusterName == "" {
-		kr.ClusterName = os.Getenv("CLUSTER_NAME")
-	}
-
-	if kr.ClusterLocation == "" {
-		kr.ClusterLocation = os.Getenv("CLUSTER_LOCATION")
-	}
-
 	if kr.XDSAddr == "" {
 		kr.XDSAddr = os.Getenv("XDS_ADDR")
 	}

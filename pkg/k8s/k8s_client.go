@@ -17,6 +17,8 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+var Debug = false
+
 // Init klog.InitFlags from an env (to avoid messing with the CLI of the app)
 func init() {
 	fs := &flag.FlagSet{}
@@ -66,7 +68,9 @@ func (kr *KRun) initUsingKubeConfig() error {
 			return err
 		}
 
-		log.Println("Using Kubeconfig", cf.CurrentContext, kc)
+		if Debug {
+			log.Println("Using Kubeconfig", cf.CurrentContext, kc)
+		}
 		return nil
 	}
 	return nil
@@ -77,21 +81,21 @@ func (kr *KRun) initInCluster() error {
 		return nil
 	}
 	hostInClustser := os.Getenv("KUBERNETES_SERVICE_HOST")
-	if hostInClustser != "" {
-		log.Println("Using in-cluster config: ", hostInClustser)
-		kr.InCluster = true
-		config, err := rest.InClusterConfig()
-		if err != nil {
-			panic(err)
-		}
-		kr.Client, err = kubernetes.NewForConfig(config)
-		if err != nil {
-			return err
-		}
-		log.Println("Using in-cluster k8s")
+	if hostInClustser == "" {
 		return nil
 	}
-
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err)
+	}
+	kr.Client, err = kubernetes.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+	if Debug {
+		log.Println("Using in-cluster k8s ", hostInClustser)
+	}
+	kr.InCluster = true
 	return nil
 }
 

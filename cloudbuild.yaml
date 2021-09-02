@@ -80,8 +80,11 @@ steps:
       - KUBECONFIG=/workspace/kubeconfig
     waitFor:
       - fortio
+      - hgate
     args:
-      - kubectl apply -k manifests
+      - -c
+      - |
+        kubectl apply  -k manifests/
 
   # Deploy the canary, run tests
   # Missing alpha command

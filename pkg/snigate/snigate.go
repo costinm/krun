@@ -66,7 +66,7 @@ func InitSNIGate(kr *k8s.KRun, sniPort string, h2rPort string) (*SNIGate, error)
 
 	kr.LoadConfig()
 
-	kr.Refresh() // create the tokens expected for Istio
+	kr.RefreshAndSaveFiles() // create the tokens expected for Istio
 
 	if kr.Gateway == "" {
 		kr.Gateway = "hgate"
