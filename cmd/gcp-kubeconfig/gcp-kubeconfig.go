@@ -10,7 +10,7 @@ import (
 	"text/template"
 
 	"github.com/costinm/cloud-run-mesh/pkg/gcp"
-	"github.com/costinm/cloud-run-mesh/pkg/k8s"
+	"github.com/costinm/cloud-run-mesh/pkg/mesh"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -44,7 +44,7 @@ func main() {
 	// Used to provide access to all clusteres in the mesh
 	//meshID := os.Getenv("MESH_ID")
 
-	kr := k8s.New()
+	kr := mesh.New("")
 	//if meshID == "" {
 	//  // if location is specified, create a single-cluster config.
 	//	err := kr.CreateClusterConfig(gcpProj, location, cluster)

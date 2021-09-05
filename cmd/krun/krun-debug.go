@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/costinm/cert-ssh/ssh"
-	"github.com/costinm/cloud-run-mesh/pkg/k8s"
+	"github.com/costinm/cloud-run-mesh/pkg/mesh"
 )
 
 // Optional debug dependency, using cert-based SSH or loaded from a secret.
@@ -14,7 +14,7 @@ func init() {
 	initDebug = InitDebug
 }
 
-func InitDebug(kr *k8s.KRun) {
+func InitDebug(kr *mesh.KRun) {
 	sshCM, _ := kr.GetSecret(context.Background(), kr.Namespace, "sshdebug")
 
 	ssh.InitFromSecret(sshCM, kr.Namespace)

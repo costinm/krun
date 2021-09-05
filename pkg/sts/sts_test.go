@@ -8,26 +8,20 @@ import (
 	"time"
 
 	_ "github.com/costinm/cloud-run-mesh/pkg/gcp"
-	"github.com/costinm/cloud-run-mesh/pkg/k8s"
+	"github.com/costinm/cloud-run-mesh/pkg/mesh"
 )
 
+// TestSTS uses a k8s connection and env to locate the mesh, and tests the token generation.
 func TestSTS(t *testing.T) {
-	kr := k8s.New()
+	kr := mesh.New("")
 
 	ctx, cf := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cf()
 
-	err := kr.InitK8SClient(ctx)
+	err := kr.LoadConfig(ctx)
 	if err != nil {
 		t.Skip("Failed to connect to GKE, missing kubeconfig ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}
-
-	kr.LoadConfig()
-
-	kr.RefreshAndSaveFiles()
-
-	// Has the side-effect of loading the project number
-	kr.FindXDSAddr(ctx)
 
 	if kr.ProjectNumber == "" {
 		t.Skip("Skipping STS test, PROJECT_NUMBER required")
@@ -37,7 +31,7 @@ func TestSTS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	log.Println(k8s.TokenPayload(masterT), kr.ProjectNumber)
+	log.Println(mesh.TokenPayload(masterT), kr.ProjectNumber)
 
 	s, err := NewSTS(kr)
 	if err != nil {
@@ -48,17 +42,15 @@ func TestSTS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	log.Println(f)
 
 	a, err := s.TokenAccess(ctx, f, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	log.Println(a)
 
 	a, err = s.TokenAccess(ctx, f, "https://foo.bar")
 	if err != nil {
 		t.Fatal(err)
 	}
-	log.Println(k8s.TokenPayload(a))
+	log.Println(mesh.TokenPayload(a))
 }

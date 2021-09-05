@@ -1,12 +1,16 @@
-package k8s
+package mesh
 
 import (
 	"context"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -25,16 +29,21 @@ type KRun struct {
 	// Config mounts are optional (for now)
 	CM2Dirs map[string]string
 
-	ExtraEnv []string
-
 	// Audience to files. For each key, a k8s token with the given audience
 	// will be created. Files should be under /var/run/secrets
 	Aud2File map[string]string
 
+	// ProxyConfig is a subset of istio ProxyConfig
+	ProxyConfig *ProxyConfig
+
 	// Address of the XDS server. If not specified, MCP is used.
 	XDSAddr string
-	// MCPAddr, extracted from cluster. Only set if using MCP
-	MCPAddr string
+
+	// IstiodTenant, extracted from cluster. Only set if using MCP or external Istiod
+	IstiodTenant string
+
+	MeshConnectorAddr         string
+	MeshConnectorInternalAddr string
 
 	// Canonical name for the application.
 	// Will be set as "app" and "service.istio.io/canonical-name" labels
@@ -88,24 +97,29 @@ type KRun struct {
 	// PEM cert roots detected in the cluster - Citadel, custom CAs from mesh config.
 	// Will be saved to a file.
 	CARoots []string
+
+	// MeshAddr is the location of the mesh environment file.
+	MeshAddr    string
+	CitadelRoot string
 }
 
-func New() *KRun {
+func New(addr string) *KRun {
 	kr := &KRun{
+		MeshAddr: addr,
 		StartTime:    time.Now(),
 		Aud2File:     map[string]string{},
 		CM2Dirs:      map[string]string{},
 		Labels:       map[string]string{},
 		Secrets2Dirs: map[string]string{},
+		ProxyConfig:  &ProxyConfig{},
 	}
 	return kr
 }
 
-// LoadConfig will use the env variables, metadata server and cluster configmaps
+// initFromEnv will use the env variables, metadata server and cluster configmaps
 // to get the initial configuration for Istio and KRun.
 //
-//
-func (kr *KRun) LoadConfig() *KRun {
+func (kr *KRun) initFromEnv()  {
 
 	if kr.KSA == "" {
 		// Same environment used for VMs
@@ -124,6 +138,9 @@ func (kr *KRun) LoadConfig() *KRun {
 	}
 	if kr.Gateway == "" {
 		kr.Gateway = os.Getenv("GATEWAY_NAME")
+	}
+	if kr.IstiodTenant == "" {
+		kr.IstiodTenant = os.Getenv("ISTIOD_TENANT")
 	}
 
 	ks := os.Getenv("K_SERVICE")
@@ -188,15 +205,107 @@ func (kr *KRun) LoadConfig() *KRun {
 		kr.KSA = "default"
 	}
 
+	// TODO: stop using this, use ProxyConfig.DiscoveryAddress instead
 	if kr.XDSAddr == "" {
 		kr.XDSAddr = os.Getenv("XDS_ADDR")
 	}
+
+	pc := os.Getenv("PROXY_CONFIG")
+	if pc != "" {
+		err := yaml.Unmarshal([]byte(pc), &kr.ProxyConfig)
+		if err != nil {
+			log.Println("Invalid ProxyConfig, ignoring", err)
+		}
+		if kr.ProxyConfig.DiscoveryAddress != "" {
+			kr.XDSAddr = kr.ProxyConfig.DiscoveryAddress
+		}
+	}
+
 	// Advanced options
 
 	// example dns:debug
 	kr.AgentDebug = cfg("XDS_AGENT_DEBUG", "")
+}
 
-	return kr
+// RefreshAndSaveFiles is run periodically to create token, secrets, config map files.
+// The primary use is istio token expected by pilot agent. This should not be called unless pilot-agent
+// and envoy are used. Certs for proxyless gRPC and 'direct' use can be created without saving the tokens.
+func (kr *KRun) RefreshAndSaveFiles() {
+	for aud, f := range kr.Aud2File {
+		kr.saveTokenToFile(kr.Namespace, aud, f)
+	}
+	for k, v := range kr.Secrets2Dirs {
+		kr.saveSecretToFile(k, v)
+	}
+	for k, v := range kr.CM2Dirs {
+		kr.saveConfigMapToFile(k, v)
+	}
+
+	time.AfterFunc(30*time.Minute, kr.RefreshAndSaveFiles)
+}
+
+// Internal implementation detail for the 'mesh-env' for Istio and MCP.
+// This may change, it is not a stable API - see loadMeshEnv for the other side.
+func (kr *KRun) SaveToMap(d map[string]string) bool {
+	needUpdate := false
+
+	// Set the GCP specific options, extracted from metadata - if not already set.
+	needUpdate = setIfEmpty(d, "PROJECT_NUMBER", kr.ProjectNumber, needUpdate)
+	needUpdate = setIfEmpty(d, "ISTIOD_TENANT", kr.IstiodTenant, needUpdate)
+	needUpdate = setIfEmpty(d, "XDS_ADDR", kr.XDSAddr, needUpdate)
+	needUpdate = setIfEmpty(d, "CLUSTER_NAME", kr.ClusterName, needUpdate)
+	needUpdate = setIfEmpty(d, "CLUSTER_LOCATION", kr.ClusterLocation, needUpdate)
+	needUpdate = setIfEmpty(d, "PROJECT_ID", kr.ProjectId, needUpdate)
+	needUpdate = setIfEmpty(d, "MCON_ADDR", kr.MeshConnectorAddr, needUpdate)
+	needUpdate = setIfEmpty(d, "IMCON_ADDR", kr.MeshConnectorInternalAddr, needUpdate)
+	needUpdate = setIfEmpty(d, "ISTIOD_ROOT", kr.CitadelRoot, needUpdate)
+
+	return needUpdate
+}
+
+// loadMeshEnv will lookup the 'mesh-env', an opaque config for the mesh.
+// Currently it is loaded from K8S
+// TODO: URL, like 'konfig' ( including gcp pseudo-URL like gcp://cluster.location.project/.... )
+//
+func (kr *KRun) loadMeshEnv(ctx context.Context) error {
+	s, err := kr.Client.CoreV1().ConfigMaps("istio-system").Get(ctx,
+		"mesh-env", metav1.GetOptions{})
+	if err != nil {
+		if Is404(err) {
+			return nil
+		}
+		return err
+	}
+	d := s.Data
+	// See connector for supported values
+	updateFromMap(d, "PROJECT_NUMBER", &kr.ProjectNumber)
+	updateFromMap(d, "ISTIOD_TENANT", &kr.IstiodTenant)
+	updateFromMap(d, "XDS_ADDR", &kr.XDSAddr)
+	updateFromMap(d, "CLUSTER_NAME", &kr.ClusterName)
+	updateFromMap(d, "CLUSTER_LOCATION", &kr.ClusterLocation)
+	updateFromMap(d, "PROJECT_ID", &kr.ProjectId)
+	updateFromMap(d, "MCON_ADDR", &kr.MeshConnectorAddr)
+	updateFromMap(d, "IMCON_ADDR", &kr.MeshConnectorInternalAddr)
+	updateFromMap(d, "ISTIOD_ROOT", &kr.CitadelRoot)
+
+	// Old style:
+	updateFromMap(d, "CLOUDRUN_ADDR", &kr.IstiodTenant)
+
+	return nil
+}
+
+func setIfEmpty(d map[string]string, key, val string, upd bool) bool {
+	if d[key] == "" && val != "" {
+		d[key] = val
+		return true
+	}
+	return upd
+}
+
+func updateFromMap(d map[string]string, key string, dest *string) {
+	if d[key] != "" && *dest == "" {
+		*dest = d[key]
+	}
 }
 
 func cfg(name, def string) string {
@@ -205,4 +314,13 @@ func cfg(name, def string) string {
 		return def
 	}
 	return v
+}
+
+func Is404(err error) bool {
+	if se, ok := err.(*errors.StatusError); ok {
+		if se.ErrStatus.Code == 404 {
+			return true
+		}
+	}
+	return false
 }

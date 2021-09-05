@@ -8,23 +8,21 @@ import (
 	"time"
 
 	"github.com/costinm/cloud-run-mesh/pkg/gcp"
-	"github.com/costinm/cloud-run-mesh/pkg/k8s"
-	"github.com/costinm/hbone"
+	"github.com/costinm/cloud-run-mesh/pkg/hbone"
+	"github.com/costinm/cloud-run-mesh/pkg/mesh"
 )
 
-var initDebug func(run *k8s.KRun)
+var initDebug func(run *mesh.KRun)
 
 func main() {
-	kr := k8s.New()
+	kr := mesh.New("")
 
 	kr.VendorInit = gcp.InitGCP
 
-	err := kr.InitK8SClient(context.Background())
+	err := kr.LoadConfig(context.Background())
 	if err != nil {
-		log.Fatal("Failed to connect to K8S ", time.Since(kr.StartTime), kr, os.Environ(), err)
+		log.Fatal("Failed to connect to mesh ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}
-
-	kr.LoadConfig()
 
 	log.Println("K8S Client initialized", kr.ProjectId, kr.ClusterLocation, kr.ClusterName, kr.ProjectNumber,
 		kr.KSA, kr.Namespace, kr.Name, kr.Labels, kr.XDSAddr)
@@ -61,7 +59,7 @@ func main() {
 	// TODO: wait for app and proxy ready
 
 	if meshMode {
-		auth, err := hbone.LoadAuth("")
+		auth, err := hbone.NewAuthFromDir("")
 		if err != nil {
 			log.Fatal("Failed to find mesh certificates ", err)
 		}

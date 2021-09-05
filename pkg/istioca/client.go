@@ -20,11 +20,9 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -43,28 +41,33 @@ const (
 type Options struct {
 	CAEndpoint string
 	CAEndpointSAN string
+
 	TokenProvider      credentials.PerRPCCredentials
+
 	CertSigner string
 	ClusterID string
+
+	TrustedRoots *x509.CertPool
+
+	// ProvCert contains a long-lived 'provider' certificate that will be
+	// exchanged with the workload certificate.
+	// It is a cert signed by same CA (or a CA trusted by Istiod).
+	// It is still exchanged because Istiod may add info to the cert.
 	ProvCert string
 }
 
 type CitadelClient struct {
 	enableTLS     bool
-	caTLSRootCert []byte
 	client        IstioCertificateServiceClient
 	conn          *grpc.ClientConn
 	opts          *Options
-	usingMtls     bool
 }
 
 // NewCitadelClient create a CA client for Citadel.
-func NewCitadelClient(opts *Options, tls bool, rootCert []byte) (*CitadelClient, error) {
+func NewCitadelClient(opts *Options) (*CitadelClient, error) {
 	c := &CitadelClient{
-		enableTLS:     tls,
-		caTLSRootCert: rootCert,
+		enableTLS:     true,
 		opts:          opts,
-		usingMtls:     false,
 	}
 
 	conn, err := c.buildConnection()
@@ -115,22 +118,17 @@ func (c *CitadelClient) getTLSDialOption() (grpc.DialOption, error) {
 	// Create a certificate pool
 	var certPool *x509.CertPool
 	var err error
-	if c.caTLSRootCert == nil {
+	if c.opts.TrustedRoots == nil {
 		// No explicit certificate - assume the citadel-compatible server uses a public cert
 		certPool, err = x509.SystemCertPool()
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		certPool = x509.NewCertPool()
-		ok := certPool.AppendCertsFromPEM(c.caTLSRootCert)
-		if !ok {
-			return nil, fmt.Errorf("failed to append certificates")
-		}
+		certPool = c.opts.TrustedRoots
 	}
 	var certificate tls.Certificate
 	config := tls.Config{
-		Certificates: []tls.Certificate{certificate},
 		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 			if c.opts.ProvCert != "" {
 				// Load the certificate from disk
@@ -145,17 +143,10 @@ func (c *CitadelClient) getTLSDialOption() (grpc.DialOption, error) {
 					log.Printf("cannot load key pair, using token instead: %v", err)
 					return &certificate, nil
 				}
-				var isExpired bool
-				isExpired, err = c.isCertExpired(filepath.Join(c.opts.ProvCert, "cert-chain.pem"))
-				if err != nil {
+				if certificate.Leaf.NotAfter.Before(time.Now()) {
 					log.Printf("cannot parse the cert chain, using token instead: %v", err)
 					return &tls.Certificate{}, nil
 				}
-				if isExpired {
-					log.Printf("cert expired, using token instead")
-					return &tls.Certificate{}, nil
-				}
-				c.usingMtls = true
 			}
 			return &certificate, nil
 		},
@@ -167,29 +158,14 @@ func (c *CitadelClient) getTLSDialOption() (grpc.DialOption, error) {
 	if strings.Contains(c.opts.CAEndpoint, "localhost") {
 		config.ServerName = "istiod.istio-system.svc"
 	}
+	if c.opts.CAEndpointSAN != "" {
+		config.ServerName = c.opts.CAEndpointSAN
+	}
 
 	transportCreds := credentials.NewTLS(&config)
 	return grpc.WithTransportCredentials(transportCreds), nil
 }
 
-func (c *CitadelClient) isCertExpired(filepath string) (bool, error) {
-	var err error
-	var certPEMBlock []byte
-	certPEMBlock, err = os.ReadFile(filepath)
-	if err != nil {
-		return true, fmt.Errorf("failed to read the cert, error is %v", err)
-	}
-	var certDERBlock *pem.Block
-	certDERBlock, _ = pem.Decode(certPEMBlock)
-	if certDERBlock == nil {
-		return true, fmt.Errorf("failed to decode certificate")
-	}
-	x509Cert, err := x509.ParseCertificate(certDERBlock.Bytes)
-	if err != nil {
-		return true, fmt.Errorf("failed to parse the cert, err is %v", err)
-	}
-	return x509Cert.NotAfter.Before(time.Now()), nil
-}
 
 func (c *CitadelClient) buildConnection() (*grpc.ClientConn, error) {
 	var opts grpc.DialOption

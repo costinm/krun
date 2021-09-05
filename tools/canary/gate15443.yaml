@@ -1,0 +1,16 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: hgate15444-a1
+  namespace: istio-system
+spec:
+  hosts:
+    - "fortio-cr-auth-icq63pqnqq-uc.fortio.svc"
+  gateways:
+    - hgate-istiod
+  http:
+    - route:
+        - destination:
+            host: fortio-cr-icq63pqnqq-uc
+            port:
+              number: 8080

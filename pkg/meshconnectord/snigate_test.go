@@ -1,4 +1,4 @@
-package snigate
+package meshconnectord
 
 import (
 	"context"
@@ -10,25 +10,27 @@ import (
 	"time"
 
 	_ "github.com/costinm/cloud-run-mesh/pkg/gcp"
-	"github.com/costinm/cloud-run-mesh/pkg/k8s"
-	"github.com/costinm/hbone"
+	"github.com/costinm/cloud-run-mesh/pkg/mesh"
+	"github.com/costinm/cloud-run-mesh/pkg/hbone"
 )
 
 // TestSNIGate is e2e, requires a k8s connection (kube config is fine)
 // Also requires certificates to be created - will not start agent or envoy
 func xTestSNIGate(t *testing.T) {
-	gateK8S := k8s.New()
+	gateK8S := mesh.New("")
 	gateK8S.XDSAddr = "-" // prevent pilot-agent from starting
 	gateK8S.BaseDir = "../../"
 
-	gate, err := InitSNIGate(gateK8S, ":0", ":0")
+	gate := New(gateK8S)
+
+	err := gate.InitSNIGate(context.Background(), ":0", ":0")
 	if err != nil {
 		t.Skip("Failed to connect to start gate ", time.Since(gateK8S.StartTime), gateK8S, os.Environ(), err)
 	}
 	t.Log("Gate listening on ", gate.SNIListener.Addr())
 
 	// Using same credentials - can be a separate service in same namespace
-	aliceAuth, err := hbone.LoadAuth("")
+	aliceAuth, err := hbone.NewAuthFromDir("")
 
 	alice := hbone.New(aliceAuth)
 	// TODO: use the full URL of CR, and a magic port ?
@@ -39,23 +41,19 @@ func xTestSNIGate(t *testing.T) {
 }
 
 func xTestSNIGateClient(t *testing.T) {
-	kr := k8s.New()
+	kr := mesh.New("")
 	kr.XDSAddr = "-" // prevent pilot-agent from starting
 	kr.BaseDir = "../../"
 
 	ctx, cf := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cf()
 
-	err := kr.InitK8SClient(ctx)
+	err := kr.LoadConfig(ctx)
 	if err != nil {
 		t.Skip("Skipping test, no k8s environment")
 	}
 
-	kr.LoadConfig()
-
-	kr.RefreshAndSaveFiles() // create the tokens expected for Istio
-
-	auth, err := hbone.LoadAuth(kr.BaseDir + "var/run/secrets/istio.io/")
+	auth, err := hbone.NewAuthFromDir(kr.BaseDir + "var/run/secrets/istio.io/")
 	if err != nil {
 		t.Skip("Skipping test, missing certificates.")
 	}

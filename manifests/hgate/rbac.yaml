@@ -32,15 +32,15 @@ metadata:
 rules:
   - apiGroups: [""]
     resources:
+      - "configmaps"
       - "services"
       - "endpoints"
-    resourceNames:
-      - "hgate"
-      - "internal-hgate"
     verbs:
       - "get"
----
-
+      - "list"
+      - "watch"
+      - "create"
+      - "update"
 ---
 
 apiVersion: rbac.authorization.k8s.io/v1
@@ -67,7 +67,6 @@ roleRef:
   kind: Role
   name: hgate-service-view
 subjects:
-  - kind: Group
-    name: system:authenticated
-    apiGroup: rbac.authorization.k8s.io
+  - kind: ServiceAccount
+    name: default
 

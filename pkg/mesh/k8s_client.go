@@ -1,4 +1,4 @@
-package k8s
+package mesh
 
 import (
 	"context"
@@ -19,12 +19,13 @@ import (
 
 var Debug = false
 
-// Init klog.InitFlags from an env (to avoid messing with the CLI of the app)
+// Init klog.InitFlags from an env (to avoid messing with the CLI of
+// the app). For example -v=9 lists full request content, -v=7 lists requests headers
 func init() {
 	fs := &flag.FlagSet{}
+	klog.InitFlags(fs)
 	kf := strings.Split(os.Getenv("KLOG_FLAGS"), " ")
 	fs.Parse(kf)
-	klog.InitFlags(fs)
 }
 
 // initUsingKubeConfig uses KUBECONFIG or $HOME/.kube/config
@@ -99,18 +100,41 @@ func (kr *KRun) initInCluster() error {
 	return nil
 }
 
-// InitK8SClient gets the default k8s client, using environment
+// LoadConfig gets the default k8s client, using environment
 // variables to decide how:
 //
 // - KUBECONFIG or $HOME/.kube/config will be tried first
-// - GKE is checked - using metadata server to get
-//   PROJECT_ID, CLUSTER_LOCATION (if not set).
+// - GKE is checked - using env or metadata server to get
+//   PROJECT_ID, CLUSTER_LOCATION, CLUSTER_NAME (if not set), and
+//   construct a kube config to use.
 // - (in future other vendor-specific methods may be added)
 // - finally in-cluster will be checked.
 //
 // Once the cluster is found, additional config can be loaded from
 // the cluster.
-func (kr *KRun) InitK8SClient(ctx context.Context) error {
+func (kr *KRun) LoadConfig(ctx context.Context) error {
+	err := kr.K8SClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Load additional settings from env.
+	kr.initFromEnv()
+
+	// It is possible to have only one of the 2 mesh connector services installed
+	if kr.XDSAddr == "" || kr.ProjectNumber == "" ||
+			(kr.MeshConnectorAddr == "" && kr.MeshConnectorInternalAddr == "") {
+		err := kr.loadMeshEnv(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
+	return err
+}
+
+// K8SClient will discover a K8S config cluster and return the client
+func (kr *KRun) K8SClient(ctx context.Context) error {
 	if kr.Client != nil {
 		return nil
 	}

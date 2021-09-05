@@ -12,9 +12,10 @@ import (
 	"log"
 	"net/http"
 	"net/http/httputil"
+	"strings"
 	"time"
 
-	"github.com/costinm/cloud-run-mesh/pkg/k8s"
+	"github.com/costinm/cloud-run-mesh/pkg/mesh"
 	"golang.org/x/oauth2"
 )
 
@@ -62,10 +63,10 @@ const (
 // The source of trust is the K8S token with TrustDomain audience, it is exchanged with access or ID tokens.
 type STS struct {
 	httpClient *http.Client
-	kr         *k8s.KRun
+	kr         *mesh.KRun
 }
 
-func NewSTS(kr *k8s.KRun) (*STS, error) {
+func NewSTS(kr *mesh.KRun) (*STS, error) {
 	caCertPool, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, err
@@ -90,7 +91,8 @@ func (s *STS) Token() (*oauth2.Token, error) {
 	return nil, nil
 }
 
-// Implements credentials.PerRPCCredentials
+// GetRequestMetadata implements credentials.PerRPCCredentials
+// This can be used for both ID tokens or access tokens - if the 'aud' containts googleapis.com, access tokens are returned.
 func (s *STS) GetRequestMetadata(ctx context.Context, aud ...string) (map[string]string, error) {
 	kt, err := s.kr.GetToken(ctx, s.kr.TrustDomain)
 	if err != nil {
@@ -107,8 +109,17 @@ func (s *STS) GetRequestMetadata(ctx context.Context, aud ...string) (map[string
 	if len(aud) > 1 {
 		return nil, errors.New("Single audience supporte")
 	}
-	token, err := s.TokenAccess(ctx, ft, a0)
 
+	if strings.Contains(a0, "googleapis.com/") {
+		return map[string]string{
+			"authorization": "Bearer " + ft,
+		}, nil
+	}
+
+	token, err := s.TokenAccess(ctx, ft, a0)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]string{
 		"authorization": "Bearer " + token,
 	}, nil

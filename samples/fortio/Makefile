@@ -155,6 +155,7 @@ setup-rbac:
 	kubectl create ns ${WORKLOAD_NAMESPACE} || true
 	cat ../../manifests/google-service-account-template.yaml | envsubst  | kubectl apply -f -
 
+# Setup the SNI routing for  SERVICE using hgate internal load balancer.
 setup-sni: K_SERVICE=$(shell gcloud run services describe ${SERVICE} --format="value(status.address.url)" | sed s,https://,, | sed s/.a.run.app// )
 setup-sni: SNI_GATE_IP=$(shell kubectl -n istio-system get service internal-hgate -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 setup-sni:

@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	_ "github.com/costinm/cloud-run-mesh/pkg/gcp"
-	k8s "github.com/costinm/cloud-run-mesh/pkg/k8s"
+	k8s "github.com/costinm/cloud-run-mesh/pkg/mesh"
 )
 
 var (
@@ -22,14 +22,14 @@ func main() {
 		aud = flag.Args()[0]
 	}
 
-	kr := k8s.New()
+	kr := k8s.New("")
 	if kr.Namespace == "" {
 		kr.Namespace = *nsFlag
 	}
 	if kr.KSA == "" {
 		kr.KSA = *ksaFlag
 	}
-	err := kr.InitK8SClient(context.Background())
+	err := kr.LoadConfig(context.Background())
 	if err != nil {
 		panic(err)
 	}

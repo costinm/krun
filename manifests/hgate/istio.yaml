@@ -10,6 +10,10 @@ spec:
   selector:
     istio: hgate
   servers:
+    # Port 15012 is using SNI routing, with mesh identities.
+    # Istiod is expected to use explicit ServerName istiod.istio-system.svc
+    # Other SNI routes can be added explicitly, expectation is to use mTLS or
+    # TLS+JWT
     - port:
         name: tls-istiod
         number: 15012
@@ -18,6 +22,15 @@ spec:
         mode: PASSTHROUGH
       hosts:
         - "*"
+    - port:
+        name: https
+        number: 15008
+        protocol: HTTPS
+      tls:
+        mode: ISTIO_MUTUAL
+      hosts:
+        - "*"
+    # Temp, testing
     - port:
         name: tls-istiodtest
         number: 15099
@@ -41,7 +54,7 @@ spec:
     - match:
         - port: 15012
           sniHosts:
-            - "*"
+            - "istiod.istio-system.svc"
       route:
         - destination:
             host: istiod.istio-system.svc.cluster.local

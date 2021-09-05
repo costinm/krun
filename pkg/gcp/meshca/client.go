@@ -37,6 +37,9 @@ type GoogleCAClient struct {
 
 // NewGoogleCAClient create a CA client for Google CA.
 func NewGoogleCAClient(endpoint string, tokenProvider credentials.PerRPCCredentials) (*GoogleCAClient, error) {
+	if endpoint == "" {
+		endpoint = "meshca.googleapis.com:443"
+	}
 	c := &GoogleCAClient{
 		caEndpoint: endpoint,
 	}

@@ -1,4 +1,4 @@
-package k8s
+package mesh
 
 import (
 	context2 "context"
@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/context"
 	// Required for k8s client to link in the authenticator
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
@@ -18,18 +17,15 @@ func TestK8S(t *testing.T) {
 	os.Mkdir("../../../out", 0775)
 	os.Chdir("../../../out")
 
-	kr := New()
+	kr := New("")
 
-	err := kr.InitK8SClient(context2.Background())
+	err := kr.LoadConfig(context2.Background())
 	if err != nil {
 		t.Skip("Failed to connect to GKE, missing kubeconfig ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}
 
-	kr.LoadConfig()
-
+	// For Istio agent
 	kr.RefreshAndSaveFiles()
-
-	kr.FindXDSAddr(context.Background())
 
 	kr.StartIstioAgent()
 

@@ -16,6 +16,8 @@ spec:
     # Used by envoy, for Istio multi-network inbound traffic.
     - port: 15443
       name: tls
+    - port: 15008
+      name: https-hbone
     # 15442 is the dedicated port for SNI to mTLS-over-hbone outbound tunneling.
     # Not exposed on the public endpoint
     # Reverse connections
@@ -60,6 +62,8 @@ spec:
     # Dedicated port for SNI to mTLS-over-hbone tunneling.
     - port: 15442
       name: tls-tun
+    - port: 15008
+      name: https-hbone
     # Reverse connection support.
     - port: 15441
       name: https-h2r

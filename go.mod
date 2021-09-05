@@ -8,10 +8,8 @@ go 1.16
 require (
 	cloud.google.com/go v0.84.0
 	github.com/costinm/cert-ssh/ssh v0.0.0-20210825233239-a732a424ec23
-	github.com/costinm/hbone v0.0.0-20210831233529-7442a0daa178
 	github.com/creack/pty v1.1.13
 	github.com/envoyproxy/go-control-plane v0.9.9-0.20210217033140-668b12f5399d
-	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.1.2
 	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d
@@ -21,6 +19,7 @@ require (
 	google.golang.org/genproto v0.0.0-20210608205507-b6d2f5bf0d7d
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/api v0.21.2
 	k8s.io/apimachinery v0.21.2
 	k8s.io/client-go v0.21.2

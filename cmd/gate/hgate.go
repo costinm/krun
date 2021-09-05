@@ -1,14 +1,15 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"time"
 
 	"github.com/costinm/cloud-run-mesh/pkg/gcp"
 	_ "github.com/costinm/cloud-run-mesh/pkg/gcp"
-	"github.com/costinm/cloud-run-mesh/pkg/k8s"
-	"github.com/costinm/cloud-run-mesh/pkg/snigate"
+	"github.com/costinm/cloud-run-mesh/pkg/mesh"
+	"github.com/costinm/cloud-run-mesh/pkg/meshconnectord"
 )
 
 // Based on krun, start pilot-agent to get the certs and create the XDS proxy, and implement
@@ -19,11 +20,12 @@ import (
 // However it does not depend directly on Istio or XDS - the certificates can be mounted or generated with
 // krun+pilot-agent.
 func main() {
-	kr := k8s.New()
+	kr := mesh.New("")
 
 	kr.VendorInit = gcp.InitGCP
 
-	_, err := snigate.InitSNIGate(kr, ":15443", ":15441")
+	sg := meshconnectord.New(kr)
+	err := sg.InitSNIGate(context.Background(), ":15442", ":15441")
 	if err != nil {
 		log.Fatal("Failed to connect to GKE ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}

@@ -1,10 +1,10 @@
-package snigate
+package meshconnectord
 
 import (
 	"context"
 	"log"
 
-	"github.com/costinm/cloud-run-mesh/pkg/k8s"
+	"github.com/costinm/cloud-run-mesh/pkg/mesh"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -19,7 +19,7 @@ import (
 //
 //
 
-func UpdateSlice(ctx context.Context, kr *k8s.KRun, ns string,
+func UpdateSlice(ctx context.Context, kr *mesh.KRun, ns string,
 	name string) {
 	es := &discoveryv1.EndpointSlice{}
 	kr.Client.DiscoveryV1().EndpointSlices(ns).Get(
@@ -33,7 +33,7 @@ func UpdateSlice(ctx context.Context, kr *k8s.KRun, ns string,
 // NewSliceWatcher keeps track of endpoint slices.
 // Currently for debugging/dev - long term we may re-forward
 // if the reverse tunnel moves to a new instance.
-func NewSliceWatcher(kr *k8s.KRun) {
+func NewSliceWatcher(kr *mesh.KRun) {
 	inF := informers.NewSharedInformerFactory(kr.Client, 0)
 	stop := make(chan struct{})
 	inF.Start(stop)

@@ -14,7 +14,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	container "cloud.google.com/go/container/apiv1"
-	"github.com/costinm/cloud-run-mesh/pkg/k8s"
+	"github.com/costinm/cloud-run-mesh/pkg/mesh"
 	"k8s.io/client-go/kubernetes"
 
 	gkehub "cloud.google.com/go/gkehub/apiv1beta1"
@@ -56,7 +56,7 @@ var (
 
 // configFromEnvAndMD will attempt to configure ProjectId, ClusterName, ClusterLocation, ProjectNumber, used on GCP
 // Metadata server will be tried if env variables don't exist.
-func configFromEnvAndMD(ctx context.Context, kr *k8s.KRun) {
+func configFromEnvAndMD(ctx context.Context, kr *mesh.KRun) {
 	if kr.ProjectId == "" {
 		kr.ProjectId = os.Getenv("PROJECT_ID")
 	}
@@ -109,7 +109,7 @@ func configFromEnvAndMD(ctx context.Context, kr *k8s.KRun) {
 			if strings.HasPrefix(email, "k8s-") {
 				parts := strings.Split(email[4:], "@")
 				kr.Namespace = parts[0]
-				if k8s.Debug {
+				if mesh.Debug {
 					log.Println("Defaulting Namespace based on email: ", kr.Namespace, email)
 				}
 			}
@@ -139,7 +139,7 @@ func configFromEnvAndMD(ctx context.Context, kr *k8s.KRun) {
 		if kr.ProjectNumber == "" {
 			kr.ProjectNumber = ProjectNumber(kr.ProjectId)
 		}
-		if k8s.Debug {
+		if mesh.Debug {
 			log.Println("Configs from metadata ", time.Since(t0))
 		}
 	}
@@ -229,7 +229,7 @@ type JwtPayload struct {
 	Sub string `json:"sub"`
 }
 
-func InitGCP(ctx context.Context, kr *k8s.KRun) error {
+func InitGCP(ctx context.Context, kr *mesh.KRun) error {
 	// Load GCP env variables - will be needed.
 	configFromEnvAndMD(ctx, kr)
 
@@ -361,7 +361,7 @@ func ProjectNumber(p string) string {
 // AllHub connects to GKE Hub and gets all clusters registered in the hub.
 // TODO: document/validate GKE Connect auth mode
 //
-func AllHub(ctx context.Context, kr *k8s.KRun) ([]*Cluster, error) {
+func AllHub(ctx context.Context, kr *mesh.KRun) ([]*Cluster, error) {
 	cl, err := gkehub.NewGkeHubMembershipClient(ctx)
 	if err != nil {
 		return nil, err
@@ -381,6 +381,7 @@ func AllHub(ctx context.Context, kr *k8s.KRun) ([]*Cluster, error) {
 		r, err := mi.Next()
 		//fmt.Println(r, err)
 		if err != nil || r == nil {
+			log.Println("Listing hub", kr.ProjectId, err)
 			break
 		}
 		mna := strings.Split(r.Name, "/")
@@ -422,7 +423,7 @@ func AllHub(ctx context.Context, kr *k8s.KRun) ([]*Cluster, error) {
 				c.ClusterLocation = parts[6]
 				c.ClusterName = parts[8]
 			}
-			log.Println(parts)
+			log.Println("HUB:", parts)
 		}
 
 		ml = append(ml, c)
@@ -431,7 +432,7 @@ func AllHub(ctx context.Context, kr *k8s.KRun) ([]*Cluster, error) {
 	return ml, nil
 }
 
-func AllClusters(ctx context.Context, kr *k8s.KRun, defCluster string, label string, meshID string) ([]*Cluster, error) {
+func AllClusters(ctx context.Context, kr *mesh.KRun, defCluster string, label string, meshID string) ([]*Cluster, error) {
 	clustersL := []*Cluster{}
 
 	if kr.ProjectId == "" {
