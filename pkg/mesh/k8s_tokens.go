@@ -81,13 +81,7 @@ func (kr *KRun) GetToken(ctx context.Context, aud string) (string, error) {
 }
 
 func  (kr *KRun) saveTokenToFile(ns string, audience string, destFile string) error {
-	treq := &authenticationv1.TokenRequest{
-		Spec: authenticationv1.TokenRequestSpec{
-			Audiences: []string{audience},
-		},
-	}
-	ts, err := kr.Client.CoreV1().ServiceAccounts(ns).CreateToken(context.Background(),
-		kr.KSA, treq, metav1.CreateOptions{})
+	t, err := kr.GetToken(context.TODO(), audience)
 	if err != nil {
 		log.Println("Error creating ", ns, kr.KSA, audience, err)
 		return err
@@ -100,7 +94,7 @@ func  (kr *KRun) saveTokenToFile(ns string, audience string, destFile string) er
 	}
 	// Save the token, readable by app. Little value to have istio token as different user,
 	// for this separate container/sandbox is needed.
-	err = ioutil.WriteFile(destFile, []byte(ts.Status.Token), 0644)
+	err = ioutil.WriteFile(destFile, []byte(t), 0644)
 	if err != nil {
 		log.Println("Error creating ", ns, kr.KSA, audience, destFile, err)
 		return err

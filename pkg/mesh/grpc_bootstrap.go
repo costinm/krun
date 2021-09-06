@@ -22,7 +22,6 @@ import (
 	"path"
 	"time"
 
-	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -49,7 +48,7 @@ const (
 // TODO use structs from gRPC lib if created/exported
 type Bootstrap struct {
 	XDSServers                 []XdsServer                    `json:"xds_servers,omitempty"`
-	Node                       *corev3.Node                   `json:"node,omitempty"`
+	Node                       *Node                   `json:"node,omitempty"`
 	CertProviders              map[string]CertificateProvider `json:"certificate_providers,omitempty"`
 	ServerListenerNameTemplate string                         `json:"server_listener_resource_name_template,omitempty"`
 }
@@ -113,10 +112,12 @@ func LoadBootstrap(file string) (*Bootstrap, error) {
 	return b, err
 }
 
+// Duplicated from github.com/envoyproxy/go-control-plane/envoy/config/core/v3
+// to avoid deps to large package. Only what we use.
 type Node struct {
-	ID string
-	Locality *corev3.Locality
-	Metadata map[string]string
+	Id       string    `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Locality *Locality `protobuf:"bytes,4,opt,name=locality,proto3" json:"locality,omitempty"`
+	Metadata *structpb.Struct `protobuf:"bytes,3,opt,name=metadata,proto3" json:"metadata,omitempty"`
 }
 
 type GenerateBootstrapOptions struct {
@@ -126,9 +127,27 @@ type GenerateBootstrapOptions struct {
 	CertDir          string
 }
 
+type Locality struct {
+	// Region this :ref:`zone <envoy_api_field_config.core.v3.Locality.zone>` belongs to.
+	Region string `protobuf:"bytes,1,opt,name=region,proto3" json:"region,omitempty"`
+	// Defines the local service zone where Envoy is running. Though optional, it
+	// should be set if discovery service routing is used and the discovery
+	// service exposes :ref:`zone data <envoy_api_field_config.endpoint.v3.LocalityLbEndpoints.locality>`,
+	// either in this message or via :option:`--service-zone`. The meaning of zone
+	// is context dependent, e.g. `Availability Zone (AZ)
+	// <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html>`_
+	// on AWS, `Zone <https://cloud.google.com/compute/docs/regions-zones/>`_ on
+	// GCP, etc.
+	Zone string `protobuf:"bytes,2,opt,name=zone,proto3" json:"zone,omitempty"`
+	// When used for locality of upstream hosts, this field further splits zone
+	// into smaller chunks of sub-zones so they can be load balanced
+	// independently.
+	SubZone string `protobuf:"bytes,3,opt,name=sub_zone,json=subZone,proto3" json:"sub_zone,omitempty"`
+}
+
 // GenerateBootstrap generates the bootstrap structure for gRPC XDS integration.
-func GenerateBootstrap(opts GenerateBootstrapOptions) (*Bootstrap, error) {
-	xdsMeta, err := extractMeta(opts.Node)
+func GenerateBootstrap(opts GenerateBootstrapOptions, meta map[string]string) (*Bootstrap, error) {
+	xdsMeta, err := extractMeta(meta)
 	if err != nil {
 		return nil, fmt.Errorf("failed extracting xds metadata: %v", err)
 	}
@@ -146,8 +165,8 @@ func GenerateBootstrap(opts GenerateBootstrapOptions) (*Bootstrap, error) {
 			ChannelCreds:   []ChannelCreds{{Type: "insecure"}},
 			ServerFeatures: []string{"xds_v3"},
 		}},
-		Node: &corev3.Node{
-			Id:       opts.Node.ID,
+		Node: &Node{
+			Id:       opts.Node.Id,
 			Locality: opts.Node.Locality,
 			Metadata: xdsMeta,
 		},
@@ -177,8 +196,8 @@ func GenerateBootstrap(opts GenerateBootstrapOptions) (*Bootstrap, error) {
 	return &bootstrap, err
 }
 
-func extractMeta(node *Node) (*structpb.Struct, error) {
-	bytes, err := json.Marshal(node.Metadata)
+func extractMeta(meta map[string]string) (*structpb.Struct, error) {
+	bytes, err := json.Marshal(meta)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +214,7 @@ func extractMeta(node *Node) (*structpb.Struct, error) {
 
 // GenerateBootstrapFile generates and writes atomically as JSON to the given file path.
 func GenerateBootstrapFile(opts GenerateBootstrapOptions, path string) (*Bootstrap, error) {
-	bootstrap, err := GenerateBootstrap(opts)
+	bootstrap, err := GenerateBootstrap(opts, nil)
 	if err != nil {
 		return nil, err
 	}

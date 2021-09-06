@@ -29,7 +29,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to GKE ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}
-	log.Println("Started SNIGate", os.Environ())
+	log.Println("Started MeshConnector", os.Environ())
 
 	select {}
 

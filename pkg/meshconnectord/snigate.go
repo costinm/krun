@@ -20,7 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type SNIGate struct {
+type MeshConnector struct {
 	SNIListener net.Listener
 	H2RListener net.Listener
 	Auth        *hbone.Auth
@@ -29,7 +29,10 @@ type SNIGate struct {
 
 	Namespace   string
 	ConfigMapName string
+
+	stop chan struct{}
 }
+
 
 type cachedToken struct {
 	token      string
@@ -66,16 +69,17 @@ func (c TokenCache) Token(ctx context.Context, host string) (string, error) {
 	return t, nil
 }
 
-func New(kr *mesh.KRun) *SNIGate {
-	return &SNIGate{
+func New(kr *mesh.KRun) *MeshConnector {
+	return &MeshConnector{
 		Mesh: kr,
 		Namespace: "istio-system",
 		ConfigMapName: "mesh-env",
+		stop : make(chan struct{}),
 	}
 }
 
 
-func (sg *SNIGate) InitSNIGate(ctx context.Context, sniPort string, h2rPort string) error {
+func (sg *MeshConnector) InitSNIGate(ctx context.Context, sniPort string, h2rPort string) error {
 	kr := sg.Mesh
 	// Locate a k8s cluster
 	err := kr.LoadConfig(ctx)
@@ -115,6 +119,7 @@ func (sg *SNIGate) InitSNIGate(ctx context.Context, sniPort string, h2rPort stri
 	// create the tokens expected for Istio (token)
 	kr.RefreshAndSaveFiles()
 
+	sg.NewWatcher()
 
 	if kr.Gateway == "" {
 		kr.Gateway = "hgate"
@@ -214,7 +219,7 @@ func FindInClusterAddr(ctx context.Context, kr *mesh.KRun) error {
 	return nil
 }
 
-func (sg *SNIGate) GetCARoot(ctx context.Context) (string, error){
+func (sg *MeshConnector) GetCARoot(ctx context.Context) (string, error){
 	// TODO: depending on error, move on or report a real error
 	kr := sg.Mesh
 	cm, err := kr.GetCM(ctx, "istio-system", "istio-ca-root-cert")
@@ -243,7 +248,7 @@ func (sg *SNIGate) GetCARoot(ctx context.Context) (string, error){
 //
 // This depends on MCP and Istiod internal configs - the config map may set with the XDS_ADDR and associated configs, in
 // which case this will not be called.
-func (sg *SNIGate) FindXDSAddr(ctx context.Context) error {
+func (sg *MeshConnector) FindXDSAddr(ctx context.Context) error {
 	kr := sg.Mesh
 	if kr.ProjectNumber == "" {
 		log.Println("MCP requires PROJECT_NUMBER, attempting to use in-cluster")
@@ -265,15 +270,15 @@ func (sg *SNIGate) FindXDSAddr(ctx context.Context) error {
 		return err
 	}
 
-	kr.IstiodTenant = s.Data["CLOUDRUN_ADDR"]
+	kr.MeshTenant = s.Data["CLOUDRUN_ADDR"]
 	kr.XDSAddr = "meshconfig.googleapis.com:443"
-	log.Println("Istiod MCP discovered ", kr.IstiodTenant, kr.XDSAddr,
+	log.Println("Istiod MCP discovered ", kr.MeshTenant, kr.XDSAddr,
 		kr.ProjectId, kr.ProjectNumber, kr.TrustDomain)
 
 	return nil
 }
 
-func (sg *SNIGate) updateMeshEnv(ctx context.Context) error {
+func (sg *MeshConnector) updateMeshEnv(ctx context.Context) error {
 	cmAPI := sg.Mesh.Client.CoreV1().ConfigMaps(sg.Namespace)
 	cm, err := cmAPI.Get(ctx, "mesh-env", metav1.GetOptions{})
 	if err != nil {
@@ -309,7 +314,7 @@ func (sg *SNIGate) updateMeshEnv(ctx context.Context) error {
 }
 
 // Wait for the hgate and internal hgate service, set the config
-func (sg *SNIGate) WaitService(ctx context.Context) error {
+func (sg *MeshConnector) WaitService(ctx context.Context) error {
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -332,7 +337,7 @@ func (sg *SNIGate) WaitService(ctx context.Context) error {
 	}
 }
 
-func (sg *SNIGate) WaitInternalService(ctx context.Context) error {
+func (sg *MeshConnector) WaitInternalService(ctx context.Context) error {
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()

@@ -2,7 +2,6 @@ package mesh
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -14,6 +13,19 @@ import (
 
 	"github.com/creack/pty"
 )
+
+// Istio injected environment:
+//
+// - env variables - we load them form 'mesh-env' plus internal
+//
+// - volumes:
+//  /var/run/secrets/istio - istiod-ca-cert   - confingMap:istio-ca-root-cert
+//  /var/lib/istio/data    - istio-data      - empty dir ???
+//  /etc/istio/proxy       - istio-envoy     - memory, RW
+//  /var/run/secrets/tokens - istio-token     - audience=trustDomain
+//  /etc/istio/pod          - istio-podinfo   - labels, annotations
+//  /var/run/secrets/kubernetes.io/serviceaccount - xx-token-yy (by kubelet/service account controller)
+//
 
 // MeshConfig is a minimal mesh config - used to load in-cluster settings used in injection.
 type MeshConfig struct {
@@ -124,7 +136,9 @@ func (kr *KRun) StartIstioAgent() error {
 		os.Chown(prefix+"/etc/istio/proxy", 1337, 1337)
 	}
 
-	kr.saveIstioCARoot(context.Background(), prefix)
+	if kr.CitadelRoot != "" {
+		ioutil.WriteFile(prefix+"/var/run/secrets/istio/root-cert.pem", []byte(kr.CitadelRoot), 0755)
+	}
 
 	// /dev/stdout is rejected - it is a pipe.
 	// https://github.com/envoyproxy/envoy/issues/8297#issuecomment-620659781
@@ -138,7 +152,7 @@ func (kr *KRun) StartIstioAgent() error {
 	// If using a private CA - add it's root to the docker images, everything will be consistent
 	// and simpler !
 	if os.Getenv("PROXY_CONFIG") == "" {
-		if kr.IstiodTenant == "-" {
+		if kr.MeshTenant == "-" {
 			// Explicitly in-cluster
 			kr.XDSAddr = kr.MeshConnectorAddr + ":15012"
 		}
@@ -211,11 +225,11 @@ func (kr *KRun) StartIstioAgent() error {
 	env = addIfMissing(env, "TRUST_DOMAIN", kr.TrustDomain)
 
 	// If MCP is available, and PROXY_CONFIG is not set explicitly
-	if kr.IstiodTenant != "" && kr.IstiodTenant != "-" && os.Getenv("PROXY_CONFIG") == "" {
+	if kr.MeshTenant != "" && kr.MeshTenant != "-" && os.Getenv("PROXY_CONFIG") == "" {
 		env = addIfMissing(env, "CA_ADDR", "meshca.googleapis.com:443")
 		env = addIfMissing(env, "XDS_AUTH_PROVIDER", "gcp")
 
-		env = addIfMissing(env, "ISTIO_META_CLOUDRUN_ADDR", kr.IstiodTenant)
+		env = addIfMissing(env, "ISTIO_META_CLOUDRUN_ADDR", kr.MeshTenant)
 
 		// Will be used to set a clusterid metadata, which will locate the remote cluster id
 		// This is used for multi-cluster, to specify the k8s client to use for validating tokens in Istiod

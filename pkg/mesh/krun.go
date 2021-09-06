@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v2"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -20,10 +21,6 @@ type KRun struct {
 	// If empty, will default to "/" when running as root, and "./" when running as regular user.
 	// MESH_BASE_DIR will override it.
 	BaseDir string
-
-	// Secrets to 'mount'. Key is the secret name, value is a path.
-	// All secret mounts are 'optional=true' ( for now )
-	Secrets2Dirs map[string]string
 
 	// Config maps to 'mount'. Key is the config map name, value is a path.
 	// Config mounts are optional (for now)
@@ -39,8 +36,10 @@ type KRun struct {
 	// Address of the XDS server. If not specified, MCP is used.
 	XDSAddr string
 
-	// IstiodTenant, extracted from cluster. Only set if using MCP or external Istiod
-	IstiodTenant string
+	// MeshTenant. Only set if using MCP or external Istiod.
+	// Opaque, internal string that identifies the mesh to the XDS server.
+	// Different from meshID - which is the user-visible form.
+	MeshTenant string
 
 	MeshConnectorAddr         string
 	MeshConnectorInternalAddr string
@@ -108,9 +107,7 @@ func New(addr string) *KRun {
 		MeshAddr: addr,
 		StartTime:    time.Now(),
 		Aud2File:     map[string]string{},
-		CM2Dirs:      map[string]string{},
 		Labels:       map[string]string{},
-		Secrets2Dirs: map[string]string{},
 		ProxyConfig:  &ProxyConfig{},
 	}
 	return kr
@@ -139,8 +136,8 @@ func (kr *KRun) initFromEnv()  {
 	if kr.Gateway == "" {
 		kr.Gateway = os.Getenv("GATEWAY_NAME")
 	}
-	if kr.IstiodTenant == "" {
-		kr.IstiodTenant = os.Getenv("ISTIOD_TENANT")
+	if kr.MeshTenant == "" {
+		kr.MeshTenant = os.Getenv("ISTIOD_TENANT")
 	}
 
 	ks := os.Getenv("K_SERVICE")
@@ -174,21 +171,6 @@ func (kr *KRun) initFromEnv()  {
 	}
 	if kr.BaseDir != "" {
 		prefix = kr.BaseDir
-	}
-	for _, kv := range os.Environ() {
-		kvl := strings.SplitN(kv, "=", 2)
-		if strings.HasPrefix(kvl[0], "K8S_SECRET_") {
-			kr.Secrets2Dirs[kvl[0][11:]] = prefix + kvl[1]
-		}
-		if strings.HasPrefix(kvl[0], "K8S_CM_") {
-			kr.CM2Dirs[kvl[0][7:]] = prefix + kvl[1]
-		}
-		if strings.HasPrefix(kvl[0], "K8S_TOKEN_") {
-			kr.Aud2File[kvl[0][10:]] = prefix + kvl[1]
-		}
-		if strings.HasPrefix(kvl[0], "LABEL_") {
-			kr.Labels[kvl[0][6:]] = prefix + kvl[1]
-		}
 	}
 
 	if kr.TrustDomain == "" {
@@ -228,20 +210,24 @@ func (kr *KRun) initFromEnv()  {
 }
 
 // RefreshAndSaveFiles is run periodically to create token, secrets, config map files.
-// The primary use is istio token expected by pilot agent. This should not be called unless pilot-agent
-// and envoy are used. Certs for proxyless gRPC and 'direct' use can be created without saving the tokens.
+// The primary use is istio token expected by pilot agent.
+// This should not be called unless pilot-agent/envoy  or proxyless gRPC without library are used.
+// pilot-agent is currently refreshing the certificates - WIP to move that here.
+//
+// Certs for 'direct' (library) use can be created without saving the tokens.
+// 'library' means linking this or a similar package with the application.
 func (kr *KRun) RefreshAndSaveFiles() {
 	for aud, f := range kr.Aud2File {
 		kr.saveTokenToFile(kr.Namespace, aud, f)
 	}
-	for k, v := range kr.Secrets2Dirs {
-		kr.saveSecretToFile(k, v)
-	}
-	for k, v := range kr.CM2Dirs {
-		kr.saveConfigMapToFile(k, v)
-	}
-
 	time.AfterFunc(30*time.Minute, kr.RefreshAndSaveFiles)
+}
+
+// SaveFile is a helper to save a file used by agent or app.
+// Depending on root, will use / or ./. Other customizations ( ~/.cache, etc)
+// can be added here.
+func (kr *KRun) SaveFile(relPath string, data []byte, mode int) {
+
 }
 
 // Internal implementation detail for the 'mesh-env' for Istio and MCP.
@@ -251,14 +237,16 @@ func (kr *KRun) SaveToMap(d map[string]string) bool {
 
 	// Set the GCP specific options, extracted from metadata - if not already set.
 	needUpdate = setIfEmpty(d, "PROJECT_NUMBER", kr.ProjectNumber, needUpdate)
-	needUpdate = setIfEmpty(d, "ISTIOD_TENANT", kr.IstiodTenant, needUpdate)
+	needUpdate = setIfEmpty(d, "MESH_TENANT", kr.MeshTenant, needUpdate)
 	needUpdate = setIfEmpty(d, "XDS_ADDR", kr.XDSAddr, needUpdate)
 	needUpdate = setIfEmpty(d, "CLUSTER_NAME", kr.ClusterName, needUpdate)
 	needUpdate = setIfEmpty(d, "CLUSTER_LOCATION", kr.ClusterLocation, needUpdate)
 	needUpdate = setIfEmpty(d, "PROJECT_ID", kr.ProjectId, needUpdate)
 	needUpdate = setIfEmpty(d, "MCON_ADDR", kr.MeshConnectorAddr, needUpdate)
 	needUpdate = setIfEmpty(d, "IMCON_ADDR", kr.MeshConnectorInternalAddr, needUpdate)
-	needUpdate = setIfEmpty(d, "ISTIOD_ROOT", kr.CitadelRoot, needUpdate)
+
+	// TODO: use CAROOT_XXX to save multiple CAs (MeshCA, Citadel, other clusters)
+	needUpdate = setIfEmpty(d, "CAROOT_ISTIOD", kr.CitadelRoot, needUpdate)
 
 	return needUpdate
 }
@@ -279,18 +267,22 @@ func (kr *KRun) loadMeshEnv(ctx context.Context) error {
 	d := s.Data
 	// See connector for supported values
 	updateFromMap(d, "PROJECT_NUMBER", &kr.ProjectNumber)
-	updateFromMap(d, "ISTIOD_TENANT", &kr.IstiodTenant)
+	updateFromMap(d, "MESH_TENANT", &kr.MeshTenant)
 	updateFromMap(d, "XDS_ADDR", &kr.XDSAddr)
 	updateFromMap(d, "CLUSTER_NAME", &kr.ClusterName)
 	updateFromMap(d, "CLUSTER_LOCATION", &kr.ClusterLocation)
 	updateFromMap(d, "PROJECT_ID", &kr.ProjectId)
 	updateFromMap(d, "MCON_ADDR", &kr.MeshConnectorAddr)
 	updateFromMap(d, "IMCON_ADDR", &kr.MeshConnectorInternalAddr)
-	updateFromMap(d, "ISTIOD_ROOT", &kr.CitadelRoot)
+	updateFromMap(d, "CAROOT_ISTIOD", &kr.CitadelRoot)
 
 	// Old style:
-	updateFromMap(d, "CLOUDRUN_ADDR", &kr.IstiodTenant)
+	updateFromMap(d, "CLOUDRUN_ADDR", &kr.MeshTenant)
+	updateFromMap(d, "ISTIOD_ROOT", &kr.CitadelRoot)
 
+	if kr.CitadelRoot != "" {
+		kr.CARoots = append(kr.CARoots, kr.CitadelRoot)
+	}
 	return nil
 }
 

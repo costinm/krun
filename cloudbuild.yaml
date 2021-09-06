@@ -71,6 +71,7 @@ steps:
 
   # Ko or docker based build moved to local - too slow compared with kaniko
   - name: "gcr.io/cloud-builders/gke-deploy"
+    id: k8sdeploy
     entrypoint: /bin/sh
     env:
       - PROJECT_ID=$PROJECT_ID
@@ -100,6 +101,7 @@ steps:
       - KUBECONFIG=/workspace/kubeconfig
     waitFor:
       - fortio
+      - k8sdeploy
     args:
       - -c
       - |

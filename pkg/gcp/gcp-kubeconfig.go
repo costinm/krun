@@ -13,20 +13,23 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
+
 	container "cloud.google.com/go/container/apiv1"
+
 	"github.com/costinm/cloud-run-mesh/pkg/mesh"
-	"k8s.io/client-go/kubernetes"
 
-	gkehub "cloud.google.com/go/gkehub/apiv1beta1"
-	gkehubpb "google.golang.org/genproto/googleapis/cloud/gkehub/v1beta1"
-
-	crm "google.golang.org/api/cloudresourcemanager/v1"
-
-	containerpb "google.golang.org/genproto/googleapis/container/v1"
 	kubeconfig "k8s.io/client-go/tools/clientcmd/api"
-
+	"k8s.io/client-go/kubernetes"
 	// Required for k8s client to link in the authenticator
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+
+	gkehub "cloud.google.com/go/gkehub/apiv1beta1"
+	crm "google.golang.org/api/cloudresourcemanager/v1"
+
+	gkehubpb "google.golang.org/genproto/googleapis/cloud/gkehub/v1beta1"
+	containerpb "google.golang.org/genproto/googleapis/container/v1"
+
+
 )
 
 // Integration with GCP - use metadata server or GCP-specific env variables to auto-configure connection to a
