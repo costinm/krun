@@ -1,14 +1,14 @@
-package mesh
+package uk8s
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"runtime"
-	"encoding/json"
-	"errors"
 	"net/http"
+	"runtime"
 )
 
 // WIP - removing the dep on k8s client library for the 2 bootstrap requests needed
@@ -74,10 +74,12 @@ var (
 // UK8S is a micro k8s client, using only base http and a token source.
 type UK8S struct {
 	Client   *http.Client
+	ProjectID string
 	Base     string
 	Name     string
 	Id       string
 	Location string
+	Token    string
 }
 
 func (uK8S *UK8S) String() string {
@@ -134,11 +136,17 @@ func (uk8s *UK8S) GetResource(ns, kind, name string, postdata []byte) ([]byte, e
 	//log.Println(resourceURL)
 	var resp *http.Response
 	var err error
+	var req *http.Request
 	if postdata == nil {
-		resp, err = uk8s.Client.Get(resourceURL)
+		req, _ = http.NewRequest("GET", resourceURL, nil)
 	} else {
-		resp, err = uk8s.Client.Post(resourceURL, "application/json", bytes.NewReader(postdata))
+		req, _ := http.NewRequest("POST", resourceURL, bytes.NewReader(postdata))
+		req.Header.Add("content-type", "application/json")
 	}
+	if uk8s.Token != "" {
+		req.Header.Add("authorization", "bearer " + uk8s.Token)
+	}
+	resp, err = uk8s.Client.Do(req)
 
 	if err != nil {
 		return nil, err
