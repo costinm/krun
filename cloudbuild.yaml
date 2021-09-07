@@ -69,7 +69,8 @@ steps:
         gcloud container clusters get-credentials asm-cr --zone us-central1-c --project $PROJECT_ID
         make test
 
-  # Ko or docker based build moved to local - too slow compared with kaniko
+  # Deploy the in-cluster connector. Note that the runner doesn't have RBAC permissions
+  # The cluster must be setup with the RBAC manually.
   - name: "gcr.io/cloud-builders/gke-deploy"
     id: k8sdeploy
     entrypoint: /bin/sh
@@ -85,7 +86,7 @@ steps:
     args:
       - -c
       - |
-        kubectl apply  -k manifests/
+        make deploy/hgate
 
   # Deploy the canary, run tests
   # Missing alpha command

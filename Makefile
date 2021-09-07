@@ -45,10 +45,12 @@ export FORTIO_IMAGE
 all: build/krun push/fortio deploy/fortio
 
 # Build, push, deploy hgate.
-all-hgate: push/hgate
-	kubectl apply -f manifests/hgate/
-	kubectl -n istio-system delete rs -l app=hgate || true
+all-hgate: push/hgate deploy/hgate
 
+deploy/hgate:
+	kubectl apply -f manifests/hgate/
+	kubectl rollout restart deployment hgate -n istio-system
+	kubectl wait deployments hgate -n istio-system --for=condition=available
 
 
 test:
