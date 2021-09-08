@@ -1,6 +1,24 @@
 Short note on remaining work, before the new repo is created for issue tracking:
 
-[] P0/beta: add the code to wait for app and proxy ready before listening on port.
+[] P0: Only forward to registered services. Watch services with the CR label, use this to add the JWT.
+
+[] P0: Add EnvoyFilter to handle the localhost forwarding. Need envoy listner for inbound to be patched to bind to port
+and behave like a normal forwarder, and forward to this instead of 8080 ( so authz policy is applied )
+
+[] P2: Move meshca public key to connector, save it to the mesh-env ( to avoid an extra roundtrip/complexity )
+
+[] P1: connector to periodically refresh mesh-env, client to periodically read it (to handle root CA rotations, etc)
+
+[] P1: load mesh-env from same namespace first, fallback to istio-system. Or read both and merge.
+
+[] P0: tests for mesh-to-CR, more docs.
+
+# Beta/public preview 
+
+[] P0: add the code to wait for app and proxy ready before listening on port.
+
+[] P1: port naming and type, multiple port support. Add a setting to allow other ports in the container to be exposed (mesh-env), 
+   and indicate the type (TCP, H1, H2) - this is local to the container, not the same thing with the service type.
 
 [] P2: examples for gvisor, without iptables (HTTP_PROXY + Sidecar)
 
@@ -23,18 +41,13 @@ Short note on remaining work, before the new repo is created for issue tracking:
 
 [] P2: K8S and GCP optional if the mesh-env is local and has a mesh connector (mesh connector will need to support STS, or cert must be installed)
 
-
-# Mesh connector 
-
 [] P1/beta: controller to auto-register the SNI configs and related
     [] Revisions/services in same namespace, based on presence of the SA
     [] Control-plane side, called from CloudRun or pubsub, to create the SA.
 
-[] P0/beta: Only forward to registered service
-
 [] P3: Add the hbone port, use instead of SNI routing ( has extra auth and meta)
 
-# Cleanup
+# Cleanups/optimizations
 
 [] P3: Use uK8S for the 1 or 2 calls needed at startup ( mesh-env, tokens ). Full k8s client 
 is needed in connector, to create mesh-env and handle registration. Technically the client needs

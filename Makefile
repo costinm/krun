@@ -222,7 +222,7 @@ canary/all: push/fortio canary
 # Used in GCB, where the images are built with Kaniko
 canary: canary/deploy canary/test
 
-canary/deploy: canary/deploy-mcp canary/deploy-asm
+canary/deploy: canary/deploy-mcp canary/deploy-mcp2 canary/deploy-asm canary/deploy-auth
 
 canary/deploy-mcp:
 	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=fortio-mcp  \
@@ -231,13 +231,20 @@ canary/deploy-mcp:
 # Deploy in another cluster
 canary/deploy-mcp2:
 	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=fortio-asm-cr CLUSTER_NAME=asm-cr CLUSTER_LOCATION=us-central1-c \
+		FORTIO_DEPLOY_EXTRA="--set-env-vars CLUSTER_NAME=${CLUSTER_NAME}" \
     	make deploy)
 
 canary/deploy-asm:
     # OSS/ASM with Istiod exposed in Gateway, with ACME certs
 	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=fortio-istio CLUSTER_NAME=istio CLUSTER_LOCATION=us-central1-c \
-		EXTRA="--set-env-vars XDS_ADDR=istiod.wlhe.i.webinf.info:443" \
+		FORTIO_DEPLOY_EXTRA="--set-env-vars MESH_TENANT=-" \
 		make deploy)
+
+# Alternative, using real cert:	XDS_ADDR=istiod.wlhe.i.webinf.info:443" \
+
+canary/deploy-auth:
+	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=fortio-istio-auth \
+		make deploy-auth)
 
 # Example: MCP_URL=https://fortio-asm-cr-icq63pqnqq-uc.a.run.app
 canary/test: CR_MCP_URL=$(shell gcloud run services describe fortio-mcp --region ${REGION} --project ${PROJECT_ID} --format="value(status.address.url)")

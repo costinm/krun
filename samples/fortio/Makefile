@@ -68,26 +68,10 @@ deploy:
          --port 15009 \
          \
          --image ${FORTIO_IMAGE} \
-         --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}" \
-         --set-env-vars="CLUSTER_NAME=${CLUSTER_NAME}" \
-  		 ${SSH_DEBUG_ARGS} ${EXTRA} \
+  		 ${SSH_DEBUG_ARGS} ${FORTIO_DEPLOY_EXTRA} \
+  		 --set-env-vars="XDS_AGENT_DEBUG=googleca:debug" \
  		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
 
-deploy-auto:
-	gcloud alpha run deploy ${SERVICE}-auto \
-		  --execution-environment=gen2 \
-		  --platform managed --project ${PROJECT_ID} --region ${REGION} \
-		  --service-account=${WORKLOAD_SERVICE_ACCOUNT} \
-          --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
-         \
-         --allow-unauthenticated \
-         \
-         --use-http2 \
-         --port 15009 \
-         \
-         --image ${FORTIO_IMAGE} \
-         ${SSH_DEBUG_ARGS} ${EXTRA} \
- 		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
 
 deploy-auth:
 	gcloud alpha run deploy ${SERVICE}-auth \
@@ -100,9 +84,7 @@ deploy-auth:
          --port 15009 \
          \
          --image ${FORTIO_IMAGE} \
-         --set-env-vars="CLUSTER_LOCATION=${CLUSTER_LOCATION}" \
-         --set-env-vars="CLUSTER_NAME=${CLUSTER_NAME}" \
-  		 ${SSH_DEBUG_ARGS} ${EXTRA} \
+  		 ${SSH_DEBUG_ARGS} ${FORTIO_DEPLOY_EXTRA} \
  		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
 
 # Port 14009 for using envoy for ingress

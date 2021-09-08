@@ -32,8 +32,8 @@ import (
 
 	"github.com/costinm/cloud-run-mesh/pkg/mesh"
 
-	kubeconfig "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/kubernetes"
+	kubeconfig "k8s.io/client-go/tools/clientcmd/api"
 	// Required for k8s client to link in the authenticator
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
@@ -42,8 +42,6 @@ import (
 
 	gkehubpb "google.golang.org/genproto/googleapis/cloud/gkehub/v1beta1"
 	containerpb "google.golang.org/genproto/googleapis/container/v1"
-
-
 )
 
 // Integration with GCP - use metadata server or GCP-specific env variables to auto-configure connection to a
@@ -145,10 +143,10 @@ func configFromEnvAndMD(ctx context.Context, kr *mesh.KRun) {
 			}
 		}
 
-		if kr.ClusterLocation == "" {
-			kr.ClusterLocation, _ = RegionFromMetadata()
-		}
-
+		//if kr.ClusterLocation == "" {
+		//	kr.ClusterLocation, _ = RegionFromMetadata()
+		//}
+		//
 		if kr.ProjectNumber == "" && kr.ProjectId == metaProjectId {
 			// If project Id explicitly set, and not same as what metadata reports - fallback to getting it from GCP
 			kr.ProjectNumber, _ = metadata.NumericProjectID()
@@ -276,21 +274,44 @@ func InitGCP(ctx context.Context, kr *mesh.KRun) error {
 			return nil // no cluster to use
 		}
 
-		cl = cll[0]
+		// Try to get the region from metadata server. For Cloudrun, this is not the same with the cluster - it may be zonal
+		myRegion, _ := RegionFromMetadata()
+		if myRegion == "" {
+			myRegion = kr.ClusterLocation
+		}
 
+		// First attempt to find a cluster in same region, with the name prefix istio (TODO: label or other way to identify
+		// preferred config clusters)
 		for _, c := range cll {
-			if kr.ClusterLocation != "" && !strings.HasPrefix(c.ClusterLocation, kr.ClusterLocation) {
+			if myRegion != "" && !strings.HasPrefix(c.ClusterLocation, myRegion) {
 				continue
 			}
-			// unknown location or same
 			if strings.HasPrefix(c.ClusterName, "istio") {
 				cl = c
+				break
 			}
 		}
-		// TODO: select default cluster based on location
-		// WIP - list all clusters and attempt to find one in the same region.
-		// TODO: connect to cluster, find istiod - and keep trying until a working
-		// one is found ( fallback )
+		if cl == nil {
+			for _, c := range cll {
+				if myRegion != "" && !strings.HasPrefix(c.ClusterLocation, myRegion) {
+					continue
+				}
+				cl = c
+				break
+			}
+		}
+		if cl == nil {
+			for _, c := range cll {
+				if strings.HasPrefix(c.ClusterName, "istio") {
+					cl = c
+				}
+			}
+		}
+		// Nothing in same region, pick the first
+		if cl == nil {
+			cl = cll[0]
+		}
+		// TODO: connect to cluster, find istiod - and keep trying until a working one is found ( fallback )
 	} else {
 		// ~400 ms
 		cl, err = GKECluster(ctx, kr.ProjectId, kr.ClusterLocation, kr.ClusterName)

@@ -100,7 +100,7 @@ func  (kr *KRun) saveTokenToFile(ns string, audience string, destFile string) er
 		log.Println("Error creating ", ns, kr.KSA, audience, err)
 		return err
 	}
-
+	log.Println("Saving ", TokenPayload(t), destFile)
 	lastSlash := strings.LastIndex(destFile, "/")
 	err = os.MkdirAll(destFile[:lastSlash], 0755)
 	if err != nil {

@@ -151,7 +151,7 @@ func (kr *KRun) initFromEnv()  {
 		kr.Gateway = os.Getenv("GATEWAY_NAME")
 	}
 	if kr.MeshTenant == "" {
-		kr.MeshTenant = os.Getenv("ISTIOD_TENANT")
+		kr.MeshTenant = os.Getenv("MESH_TENANT")
 	}
 
 	ks := os.Getenv("K_SERVICE")
