@@ -1,0 +1,17 @@
+# A small authorization policy, to make sure things get added
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: audit
+  namespace: fortio
+spec:
+  selector:
+    matchLabels:
+      app: fortio-cr
+  action: AUDIT
+  rules:
+  -  to:
+        - operation:
+            methods: ["GET"]
+
+---

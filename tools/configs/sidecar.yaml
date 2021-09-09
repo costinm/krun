@@ -1,0 +1,32 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Sidecar
+metadata:
+  name: fortio-cr
+  namespace: fortio
+spec:
+  workloadSelector:
+    labels:
+      app: fortio-cr
+  egress:
+    - hosts:
+        - fortio/*
+        - istio-system/*
+        - default/*
+  ingress:
+    - port:
+        number: 9999
+        protocol: HTTP
+        name: http-testsidecar2
+      defaultEndpoint: 127.0.0.1:8080
+      captureMode: NONE
+
+    - bind: 127.0.0.1
+      # Required to create a binding on port - default is to use the capture
+      captureMode: NONE
+      port:
+        number: 7999
+        protocol: HTTP
+        name: http-testsidecar
+      defaultEndpoint: 127.0.0.1:8080
+      # This creates a connection to the public IP, from 127.0.0.6
+      #defaultEndpoint: 0.0.0.0:8080

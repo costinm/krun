@@ -30,7 +30,7 @@ import (
 
 // TODO: benchmark different sizes.
 var bufSize = 32 * 1024
-var Debug = true
+var Debug = false
 
 var (
 	// createBuffer to get a buffer. io.Copy uses 32k.

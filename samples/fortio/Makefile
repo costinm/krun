@@ -31,6 +31,7 @@ WORKLOAD_SERVICE_ACCOUNT=k8s-${WORKLOAD_NAMESPACE}@${PROJECT_ID}.iam.gserviceacc
 
 export WORKLOAD_SERVICE_ACCOUNT
 export WORKLOAD_NAMESPACE
+export PROJECT_ID
 
 
 # Name of the workload. For CloudRun, this is also the default 'canonical service' and the name of the associated
@@ -51,7 +52,7 @@ push:
 	docker push ${FORTIO_IMAGE}
 
 # Enable the built-in sshd server, with cert auth. Temp, will move to a config map in cluster
-SSH_DEBUG_ARGS=--set-env-vars="SSH_AUTH=$(shell cat ~/.ssh/id_ecdsa.pub)"
+#SSH_DEBUG_ARGS=--set-env-vars="SSH_AUTH=$(shell cat ~/.ssh/id_ecdsa.pub)"
 
 # Deploy to cloudrun
 # Adding XDS_ADDR=READ_DOMAIN:443 will skip looking up for MCP configmap and use that address instead.
@@ -105,9 +106,10 @@ ssh:
 
 config_dump: CR_URL=$(shell gcloud run services describe ${SERVICE} --format="value(status.address.url)")
 config_dump:
-	 ssh -F /dev/null -o StrictHostKeyChecking=no \
-        -o "UserKnownHostsFile /dev/null" \
- 	    -o ProxyCommand='hbone ${CR_URL}/_hbone/22' -- sh curl localhost:15000/config_dump
+#	 ssh -F /dev/null -o StrictHostKeyChecking=no \
+#        -o "UserKnownHostsFile /dev/null" \
+# 	    -o ProxyCommand='hbone ${CR_URL}/_hbone/22' -- sh curl localhost:15000/config_dump
+	curl -v  ${CR_URL}/fortio/fetch2/?url=http%3A%2F%2Flocalhost%3A15000%2Fconfig_dump
 
 ###########################################
 

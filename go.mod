@@ -2,7 +2,6 @@ module github.com/costinm/cloud-run-mesh
 
 go 1.16
 
-//replace github.com/costinm/hbone => ../hbone
 //replace github.com/costinm/cert-ssh/ssh => ../cert-ssh/ssh
 
 require (

@@ -236,7 +236,7 @@ canary/deploy-mcp2:
 
 canary/deploy-asm:
     # OSS/ASM with Istiod exposed in Gateway, with ACME certs
-	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=fortio-istio CLUSTER_NAME=istio CLUSTER_LOCATION=us-central1-c \
+	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=fortio-istio \
 		FORTIO_DEPLOY_EXTRA="--set-env-vars MESH_TENANT=-" \
 		make deploy)
 

@@ -155,17 +155,15 @@ func (kr *KRun) initFromEnv()  {
 	}
 
 	ks := os.Getenv("K_SERVICE")
-	if kr.Namespace == "" {
+	if kr.Name == "" {
 		verNsName := strings.SplitN(ks, "--", 2)
 		if len(verNsName) > 1 {
 			ks = verNsName[1]
 			kr.Labels["ver"] = verNsName[0]
+		} else {
+			kr.Name = ks
 		}
-		parts := strings.Split(ks, "-")
-		kr.Namespace = parts[0]
-		if len(parts) > 1 {
-			kr.Name = parts[1]
-		}
+		log.Println("Setting WORKLOAD_NAME from K_SERVICE", kr.Name, ks)
 	}
 
 	if kr.Namespace == "" {

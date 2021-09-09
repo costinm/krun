@@ -76,7 +76,7 @@ func resolvConfForRoot() {
 		log.Println("Failed to create alternate resolv.conf, DNS interception will fail ", err)
 		return
 	}
-	err = os.WriteFile("/etc/resolv.conf", []byte(`nameserver: 127.0.0.1`), 755)
+	err = os.WriteFile("/etc/resolv.conf", []byte(`nameserver: 127.0.0.1\nsearch: google.internal.`), 755)
 	if err != nil {
 		log.Println("Failed to create resolv.conf, DNS interception will fail ", err)
 		return
@@ -136,6 +136,7 @@ func (kr *KRun) StartIstioAgent() error {
 		prefix = ""
 	}
 	os.MkdirAll(prefix+"/etc/istio/proxy", 0755)
+	//os.MkdirAll(prefix+"/var/lib/istio/envoy", 0755)
 
 	// Save the istio certificates - for proxyless or app use.
 	os.MkdirAll(prefix+"/var/run/secrets/istio", 0755)
@@ -143,6 +144,7 @@ func (kr *KRun) StartIstioAgent() error {
 	os.MkdirAll(prefix+"/var/run/secrets/istio.io", 0755)
 	os.MkdirAll(prefix+"/etc/istio/pod", 0755)
 	if os.Getuid() == 0 {
+		//os.Chown(prefix+"/var/lib/istio/envoy", 1337, 1337)
 		os.Chown(prefix+"/var/run/secrets/istio.io", 1337, 1337)
 		os.Chown(prefix+"/var/run/secrets/istio", 1337, 1337)
 		os.Chown(prefix+"/var/run/secrets/mesh", 1337, 1337)
@@ -260,29 +262,6 @@ func (kr *KRun) StartIstioAgent() error {
 	// For example by reading a configmap in cluster
 	//--set-env-vars="ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443" \
 
-	// If set, let istiod generate bootstrap
-	// TODO: remove, probably not needed.
-	bootstrapIstiod := os.Getenv("BOOTSTRAP_XDS_AGENT")
-	if bootstrapIstiod == "" {
-		if _, err := os.Stat(prefix + "/var/lib/istio/envoy/hbone_tmpl.json"); os.IsNotExist(err) {
-			os.MkdirAll(prefix+"/var/lib/istio/envoy/", 0755)
-			err = ioutil.WriteFile(prefix+"/var/lib/istio/envoy/envoy_bootstrap_tmpl.json",
-				[]byte(EnvoyBootstrapTmpl), 0755)
-			if err != nil {
-				panic(err)
-			}
-		} else {
-			custom, err := ioutil.ReadFile(prefix + "/var/lib/istio/envoy/hbone_tmpl.json")
-			if err != nil {
-				panic(err) // no point continuing
-			}
-			err = ioutil.WriteFile(prefix+"/var/lib/istio/envoy/envoy_bootstrap_tmpl.json",
-				[]byte(custom), 0755)
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
 
 	// Environment detection: if the docker image or VM does not include an Envoy use the 'grpc agent' mode,
 	// i.e. only get certificate.
