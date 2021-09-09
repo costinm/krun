@@ -71,7 +71,7 @@ steps:
 
   # Deploy the in-cluster connector. Note that the runner doesn't have RBAC permissions
   # The cluster must be setup with the RBAC manually.
-  - name: "gcr.io/cloud-builders/gke-deploy"
+  - name: "gcr.io/wlhe-cr/gcloud-alpha"
     id: k8sdeploy
     entrypoint: /bin/sh
     env:
