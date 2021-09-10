@@ -280,37 +280,7 @@ func InitGCP(ctx context.Context, kr *mesh.KRun) error {
 			myRegion = kr.ClusterLocation
 		}
 
-		// First attempt to find a cluster in same region, with the name prefix istio (TODO: label or other way to identify
-		// preferred config clusters)
-		for _, c := range cll {
-			if myRegion != "" && !strings.HasPrefix(c.ClusterLocation, myRegion) {
-				continue
-			}
-			if strings.HasPrefix(c.ClusterName, "istio") {
-				cl = c
-				break
-			}
-		}
-		if cl == nil {
-			for _, c := range cll {
-				if myRegion != "" && !strings.HasPrefix(c.ClusterLocation, myRegion) {
-					continue
-				}
-				cl = c
-				break
-			}
-		}
-		if cl == nil {
-			for _, c := range cll {
-				if strings.HasPrefix(c.ClusterName, "istio") {
-					cl = c
-				}
-			}
-		}
-		// Nothing in same region, pick the first
-		if cl == nil {
-			cl = cll[0]
-		}
+		cl = findCluster(kr, cll, myRegion, cl)
 		// TODO: connect to cluster, find istiod - and keep trying until a working one is found ( fallback )
 	} else {
 		// ~400 ms
@@ -347,6 +317,63 @@ func InitGCP(ctx context.Context, kr *mesh.KRun) error {
 	SaveKubeConfig(kc, "./var/run/.kube", "config")
 
 	return nil
+}
+
+func findCluster(kr *mesh.KRun, cll []*Cluster, myRegion string, cl *Cluster) *Cluster {
+	if kr.ClusterName != "" {
+		for _, c := range cll {
+			if myRegion != "" && !strings.HasPrefix(c.ClusterLocation, myRegion) {
+				continue
+			}
+			if c.ClusterName == kr.ClusterName {
+				cl = c
+				break
+			}
+		}
+		if cl == nil {
+			for _, c := range cll {
+				if c.ClusterName == kr.ClusterName {
+					cl = c
+					break
+				}
+			}
+		}
+	}
+
+	// First attempt to find a cluster in same region, with the name prefix istio (TODO: label or other way to identify
+	// preferred config clusters)
+	if cl == nil {
+		for _, c := range cll {
+			if myRegion != "" && !strings.HasPrefix(c.ClusterLocation, myRegion) {
+				continue
+			}
+			if strings.HasPrefix(c.ClusterName, "istio") {
+				cl = c
+				break
+			}
+		}
+	}
+	if cl == nil {
+		for _, c := range cll {
+			if myRegion != "" && !strings.HasPrefix(c.ClusterLocation, myRegion) {
+				continue
+			}
+			cl = c
+			break
+		}
+	}
+	if cl == nil {
+		for _, c := range cll {
+			if strings.HasPrefix(c.ClusterName, "istio") {
+				cl = c
+			}
+		}
+	}
+	// Nothing in same region, pick the first
+	if cl == nil {
+		cl = cll[0]
+	}
+	return cl
 }
 
 func GKECluster(ctx context.Context, p, l, clusterName string) (*Cluster, error) {
