@@ -146,7 +146,7 @@ cat manifests/google-service-account-template.yaml | envsubst | kubectl apply -f
 ### Build a docker image containing the app and the sidecar
 
 samples/fortio/Dockerfile contains an example Dockerfile - you can also use the pre-build image
-`gcr.io/wlhe-cr/fortio-cr:main`
+`gcr.io/wlhe-cr/fortio-mesh:main`
 
 You can build the app with the normal docker command:
 
