@@ -120,6 +120,13 @@ deploy/fortio-auth:
              --image ${FORTIO_IMAGE} \
 
 
+deploy/fortio-asm:
+    # OSS/ASM with Istiod exposed in Gateway, with ACME certs
+	(cd samples/fortio; REGION=${REGION} WORKLOAD_NAME=fortio-crasm \
+		FORTIO_DEPLOY_EXTRA="--set-env-vars MESH_TENANT=-" \
+		make deploy)
+
+
 logs:
 	(cd samples/fortio; make logs)
 
@@ -283,3 +290,9 @@ gcb/build-hgate:
 gcb/build:
 	gcloud builds --project ${PROJECT_ID} submit .
 
+
+logs-mcp:
+	gcloud --project ${PROJECT_ID} logging read \
+    	   --format "csv(textPayload,jsonPayload.message)" \
+    		--freshness 1h \
+     		'resource.type="istio_control_plane"'

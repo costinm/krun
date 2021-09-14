@@ -16,14 +16,18 @@ package mesh
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 )
@@ -123,6 +127,22 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 	return exec.Command("/usr/local/bin/pilot-agent", args...)
 }
 
+func (kr *KRun) WaitReady() error {
+	t0 := time.Now()
+	for {
+		res, _ := http.Get("http://127.0.0.1:15021/healthz/ready")
+		if res != nil && res.StatusCode == 200 {
+			log.Println("Ready")
+			return nil
+		}
+
+		if time.Since(t0) > 10 * time.Second {
+			return errors.New("Timeout waiting for ready")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
 
 // StartIstioAgent creates the env and starts istio agent.
 // If running as root, will also init iptables and change UID to 1337.
@@ -185,10 +205,28 @@ func (kr *KRun) StartIstioAgent() error {
 		env = addIfMissing(env,"CA_ROOT_CA", "SYSTEM")
 	}
 	env = addIfMissing(env,"POD_NAMESPACE", kr.Namespace)
-	// TODO: Pod name should be the unique name, need to add some elements from
-	// K_REVISION (ex: fortio-cr-00011-duq) and metadata.
-	env = addIfMissing(env,"POD_NAME", kr.Name)
 
+	// Pod name MUST be an unique name - it is used in stackdriver which requires this ( errors on 'ordered updates' and
+	//  lost data otherwise)
+	// This also shows up in 'istioctl ps' and in istio logs
+
+	// K_REVISION (ex: fortio-cr-00011-duq) and metadata.
+	podName := os.Getenv("K_REVISION")
+	if podName == "" {
+		podName = kr.Name
+	}
+	if kr.InstanceID == "" {
+		podName = podName + "-" + strconv.Itoa(time.Now().Second())
+	} else if len(kr.InstanceID) > 8 {
+		podName = podName + "-" + kr.InstanceID[0:8]
+	} else {
+		podName = podName + "-" + kr.InstanceID
+	}
+	env = addIfMissing(env,"POD_NAME", podName)
+	if kr.ProjectNumber != "" {
+		env = addIfMissing(env, "ISTIO_META_MESH_ID", "proj-"+kr.ProjectNumber)
+	}
+	env = addIfMissing(env, "CANONICAL_SERVICE", kr.Name)
 	kr.initLabelsFile()
 
 	env = addIfMissing(env, "OUTPUT_CERTS", prefix+"/var/run/secrets/istio.io/")

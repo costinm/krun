@@ -68,12 +68,13 @@ deploy:
          --use-http2 \
          --port 15009 \
          \
-         --image ${FORTIO_IMAGE} \
+         --concurrency 10 --timeout 900 --cpu 1 --memory 1G \
+		--image ${FORTIO_IMAGE} \
   		 ${SSH_DEBUG_ARGS} ${FORTIO_DEPLOY_EXTRA} \
   		 --set-env-vars="XDS_AGENT_DEBUG=googleca:debug" \
  		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
 
-
+# This is the barebone deploy, with auth enabled
 deploy-auth:
 	gcloud alpha run deploy ${SERVICE}-auth \
 		  --execution-environment=gen2 \
@@ -85,8 +86,8 @@ deploy-auth:
          --port 15009 \
          \
          --image ${FORTIO_IMAGE} \
-  		 ${SSH_DEBUG_ARGS} ${FORTIO_DEPLOY_EXTRA} \
- 		 --set-env-vars="DEPLOY=$(shell date +%y%m%d-%H%M)"
+  		 ${FORTIO_DEPLOY_EXTRA}
+
 
 # Port 14009 for using envoy for ingress
 # Port 8080 for going directly to the app
@@ -110,6 +111,12 @@ config_dump:
 #        -o "UserKnownHostsFile /dev/null" \
 # 	    -o ProxyCommand='hbone ${CR_URL}/_hbone/22' -- sh curl localhost:15000/config_dump
 	curl -v  ${CR_URL}/fortio/fetch2/?url=http%3A%2F%2Flocalhost%3A15000%2Fconfig_dump
+
+config_dump_ssh: CR_URL=$(shell gcloud run services describe ${SERVICE} --format="value(status.address.url)")
+config_dump_ssh:
+	 ssh -F /dev/null -o StrictHostKeyChecking=no \
+        -o "UserKnownHostsFile /dev/null" \
+ 	    -o ProxyCommand='hbone ${CR_URL}:443/_hbone/22' -- sh curl localhost:15000/config_dump
 
 ###########################################
 
@@ -162,7 +169,7 @@ logs-project:
 logs:
 	#gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.location = "us-central1" AND resource.labels.service_name="fortio${SUFFIX}"'
 	gcloud --project ${PROJECT_ID} logging read \
-		--format "csv(resource.labels.service_name,textPayload)" \
+		--format "csv(textPayload)" \
 		--freshness 1h \
  		'resource.type="cloud_run_revision" AND resource.labels.location = "us-central1" AND resource.labels.service_name="${SERVICE}"'
 

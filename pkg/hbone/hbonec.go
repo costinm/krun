@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"strings"
+	"time"
 
 	"golang.org/x/net/http2"
 )
@@ -148,6 +149,7 @@ func (hc *Endpoint) Proxy(ctx context.Context, stdin io.Reader, stdout io.WriteC
 		return hc.sniProxy(ctx, stdin, stdout)
 	}
 
+	t0 := time.Now()
 	// It is usually possible to pass stdin directly to NewRequest.
 	// Using a pipe allows getting stats.
 	i, o := io.Pipe()
@@ -252,7 +254,7 @@ func (hc *Endpoint) Proxy(ctx context.Context, stdin io.Reader, stdout io.WriteC
 		return err
 	}
 
-	log.Println("client-rt", res.Status, res.Header)
+	t1 := time.Now()
 	ch := make(chan int)
 	var s1, s2 Stream
 
@@ -293,5 +295,6 @@ func (hc *Endpoint) Proxy(ctx context.Context, stdin io.Reader, stdout io.WriteC
 
 	<-ch
 
+	log.Println("hbc-done", "status", res.Status, "conTime", t1.Sub(t0), "dur", time.Since(t1), "err", s2.Err, s1.Err, s2.InError, s1.InError)
 	return s2.Err
 }

@@ -114,6 +114,7 @@ type KRun struct {
 	// MeshAddr is the location of the mesh environment file.
 	MeshAddr    string
 	CitadelRoot string
+	InstanceID  string
 }
 
 func New(addr string) *KRun {
