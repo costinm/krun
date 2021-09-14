@@ -45,23 +45,6 @@ spec:
     tls:
       mode: ISTIO_MUTUAL
 
-#---
-## WorkloadGroup associates GSA to KSA - moved to separate google-service-account-template
-#apiVersion: networking.istio.io/v1alpha3
-#kind: WorkloadGroup
-#metadata:
-#  name: ${WORKLOAD_NAME}
-#  namespace: ${WORKLOAD_NAMESPACE}
-#spec:
-#  metadata:
-#    labels:
-#      app: ${WORKLOAD_NAME}
-#    annotations:
-#      security.cloud.google.com/IdentityProvider: google
-#  template:
-#    ports:
-#      http: 8080
-#    serviceAccount: k8s-fortio@wlhe-cr.iam.gserviceaccount.com
 ---
 apiVersion: networking.istio.io/v1alpha3
 kind: WorkloadEntry
@@ -97,3 +80,29 @@ spec:
   workloadSelector:
     labels:
       app: ${WORKLOAD_NAME}
+
+---
+# Sidecar entry - when automating, it'll be 'create if missing', not reconciled, i.e. users can modify it.
+# This is needed until Istiod has native support for HBONE.
+apiVersion: networking.istio.io/v1alpha3
+kind: Sidecar
+metadata:
+  name: ${K_SERVICE}
+  namespace: ${WORKLOAD_NAMESPACE}
+spec:
+  workloadSelector:
+    labels:
+      app: ${WORKLOAD_NAME}
+#  egress:
+#    - hosts:
+#        # For now, visibility only on same namespace and istio-system.
+#        - ${WORKLOAD_NAMESPACE}/*
+#        - istio-system/*
+  ingress:
+    - port:
+        number: 15003
+        protocol: HTTP
+        name: http-testsidecar2
+      bind: 127.0.0.1
+      defaultEndpoint: 127.0.0.1:8080
+      captureMode: NONE

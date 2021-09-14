@@ -248,10 +248,12 @@ Also for local development:
 # Debugging
 
 Since CloudRun and docker doesn't support kubectl exec or port-forward, we include a minimal sshd server that is 
-enabled using a K8S Secret or environment variables. See samples/ssh for setup example. 
+enabled using a K8S Secret or environment variables. There are 2 ways to enable ssh for debugging:
+- create a Secret name sshdebug with the SSH private key and authorized_keys. See samples/ssh for setup example.
+- add the SSH_AUTH env variable containing the authorized public key. `--set-env-vars="SSH_AUTH=$(cat ~/.ssh/id_ecdsa.pub)"`
 
 You can ssh into the service and forward ports using a regular ssh client and a ProxyCommand that implements 
-the tunneling over HTTP/2:
+tunneling over HTTP/2:
 
 ```shell
 
@@ -259,8 +261,13 @@ the tunneling over HTTP/2:
 go install ./cmd/hbone
 
 # Set with your own service URL
-export SERVICE_URL=https://fortio-asm-cr-icq63pqnqq-uc.a.run.app:443
+export SERVICE_URL=$(gcloud run services describe ${SERVICE} --format="value(status.address.url)")
 
+ssh  -o ProxyCommand='hbone ${SERVICE_URL}:443/_hbone/22' root@${SERVICE}
+
+# For the second method, the workload will have an ephemeral key - the identity of the host is still validate 
+# by the proxy command, using the service certificate, but we need to tell ssh to not save it.
 ssh -F /dev/null -o StrictHostKeyChecking=no -o "UserKnownHostsFile /dev/null" \
-    -o ProxyCommand='hbone ${SERVICE_URL}/_hbone/22' root@proxy
+    -o ProxyCommand='hbone ${SERVICE_URL}:443/_hbone/22' root@${SERVICE}
+
 ```

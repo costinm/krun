@@ -154,6 +154,9 @@ func configFromEnvAndMD(ctx context.Context, kr *mesh.KRun) {
 		if kr.ProjectNumber == "" {
 			kr.ProjectNumber = ProjectNumber(kr.ProjectId)
 		}
+		if kr.InstanceID == "" {
+			kr.InstanceID, _ = metadata.InstanceID()
+		}
 		if mesh.Debug {
 			log.Println("Configs from metadata ", time.Since(t0))
 		}

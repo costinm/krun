@@ -185,7 +185,6 @@ func (sg *MeshConnector) InitSNIGate(ctx context.Context, sniPort string, h2rPor
 			// TODO: extract 'version' from URL, convert it to cloudrun revision ?
 			// TODO: watcher on Service or ServiceEntry ( k8s or XDS ) to get annotation, allowing service name to be different
 		}
-		log.Println("Endpoint resolver, h2r not found", parts)
 
 		base := remoteService + ".a.run.app"
 		h2c := h2r.NewClient(sni)

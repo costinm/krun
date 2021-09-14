@@ -1,4 +1,7 @@
 defaultBaseImage: gcr.io/istio-testing/proxyv2:latest
+#defaultBaseImage: istio/proxyv2:1.11.2
+
+# 1.10 doesn't work
 
 # Modified file
 #defaultBaseImage: gcr.io/wlhe-cr/proxyv2:cloudrun

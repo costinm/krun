@@ -45,10 +45,15 @@ func main() {
 		if err != nil {
 			log.Fatal("Failed to start the mesh agent ", err)
 		}
-		// TODO: wait for proxy ready before starting app.
+		err = kr.WaitReady()
+		if err != nil {
+			log.Fatal("Mesh agent not ready ", err)
+		}
 	}
 
 	kr.StartApp()
+
+	// TODO: wait for app ready before starting app.
 
 	// Start internal SSH server, for debug and port forwarding. Can be conditionally compiled.
 	if initDebug != nil {
@@ -58,22 +63,32 @@ func main() {
 
 	// TODO: wait for app and proxy ready
 
-	if meshMode {
-		auth, err := hbone.NewAuthFromDir("")
-		if err != nil {
-			log.Fatal("Failed to find mesh certificates ", err)
-		}
-		auth.AddRoots([]byte(gcp.MeshCA))
+	auth, err := hbone.NewAuthFromDir("")
+	if err != nil {
+		log.Fatal("Failed to find mesh certificates ", err)
+	}
+	auth.AddRoots([]byte(gcp.MeshCA))
 
-		hb := hbone.New(auth)
-		_, err = hbone.ListenAndServeTCP(":15009", hb.HandleAcceptedH2C)
-		if err != nil {
-			log.Fatal("Failed to start h2c on 15009", err)
-		}
+	// TODO: allow a base to be specified, to allow debugging multiple instances on a single VM
 
-		// if hgate east-west gateway present, create a connection.
-		hg, err := kr.FindHGate(context.Background())
-		if err != nil || hg == "" {
+	// 15009 is the reserved port for HBONE using H2C. CloudRun or other gateways using H2C will forward to this
+	// port.
+	hb := hbone.New(auth)
+	// This is a port on envoy, created by Sidecar or directly by Istiod.
+	// Needs to be plain-text HTTP
+	hb.TcpAddr = "127.0.0.1:15003"
+	_, err = hbone.ListenAndServeTCP(":15009", hb.HandleAcceptedH2C)
+	if err != nil {
+		log.Fatal("Failed to start h2c on 15009", err)
+	}
+
+	// Experimental: if hgate east-west gateway present, create a connection.
+	if os.Getenv("H2R") != "" {
+		hg := kr.MeshConnectorInternalAddr
+		if hg == "" {
+			hg = kr.MeshConnectorAddr
+		}
+		if hg == "" {
 			log.Println("hgate not found, not attaching to the cluster", err)
 		} else {
 			attachC := hb.NewClient(kr.Name + "." + kr.Namespace + ":15009")
@@ -84,7 +99,7 @@ func main() {
 				log.Println("H2R connected", hg, err)
 			}()
 		}
-
 	}
+
 	select {}
 }
