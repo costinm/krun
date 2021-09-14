@@ -76,9 +76,12 @@ After installation, new services can be configured for namespaces using only nam
 
 ### Cluster setup (once per cluster)
 
-1. If you don't already have a cluster with managed ASM, follow [Install docs](https://cloud.google.com/service-mesh/docs/scripted-install/gke-install) 
+1. If you don't already have a cluster with managed ASM, follow [Install docs](https://cloud.google.com/service-mesh/docs/managed-service-mesh). 
+ Also supported is [in-cluster ASM] (https://cloud.google.com/service-mesh/docs/scripted-install/gke-install) 
 
-2. Configure the in-cluster gateway and permissions. (this step is temporary, WIP to remove it and have the controller created automatically)
+2. Configure the in-cluster 'mesh connector' gateway and permissions. (this step is temporary, WIP to upstream it to
+ Istiod and the East-West gateway. Versions of Istio after upstreaming will not need this step.)
+
 
 ```shell 
 
@@ -143,7 +146,7 @@ cat manifests/google-service-account-template.yaml | envsubst | kubectl apply -f
 ### Build a docker image containing the app and the sidecar
 
 samples/fortio/Dockerfile contains an example Dockerfile - you can also use the pre-build image
-`grc.io/wlhe-cr/fortio-cr:main`
+`gcr.io/wlhe-cr/fortio-mesh:main`
 
 You can build the app with the normal docker command:
 
@@ -201,6 +204,21 @@ will be used first in a region. (Will likely change to use a dedicated label on 
 -   `--allow-unauthenticated` is only needed temporarily if you want to ssh into the instance for debug. WIP to fix this.
 -  `--use-http2`  and `--port 15009` are required 
 
+### Configure the CloudRun service in K8S
+
+For workloads in k8s to communicate with the CloudRun service we need to create few Istio configurations. 
+
+This step will be replaced by auto-registration (WIP):
+
+```shell
+export SNI_GATE_IP=$(kubectl -n istio-system get service internal-hgate -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+export K_SERVICE=$(gcloud run services describe ${SERVICE} --format="value(status.address.url)" | sed s,https://,, | sed s/.a.run.app// )
+cat ../../manifests/sni-service-template.yaml | SNI_GATE_IP=${SNI_GATE_IP} K_SERVICE=${K_SERVICE} envsubst  | kubectl apply -f -
+```
+
+This will create a K8S Service with the same base name as the cloudrun service (for example: fortio-cr-icq63pqnqq-uc).
+You can use VirtualService or K8S Gateway API to aggregate routing and use custom names.
+
 ### Testing
 
 1. Deploy an in-cluster application. The CloudRun service will connect to it:
@@ -245,7 +263,38 @@ Also for local development:
 - Alternatively, a KUBECONFIG file must be set and configured for the intended cluster.
 
 
-# Debugging
+# How it works
+
+The setup is similar with Istio on VM support.
+
+The 'mesh connector' is an extended version of the "East-West" Gateway, provide access to the in-cluster Istiod and
+handles forwarding the requests from pods to CloudRun. 
+
+The 'golden image' includes the istio sidecar components and a launcher, similar with Istio on VMs.
+The launcher will load the istio-system/mesh-env config map, created by the connector (until it is moved to Istiod proper),
+set iptables interception, generate the mesh certificates and start envoy - using pilot-agent, and finally run the application.
+
+The application works the same as pods or VMs with Istio support - outgoing requests are intercepted, sent to Envoy where
+mTLS and policies are handled.
+
+For requests from Pods to CloudRun, the WorkloadGroup and other configs created by 
+
+# Debugging and troubleshooting
+
+For install, few useful commands:
+
+```shell
+kubectl -n istio-system get svc hgate -o yaml
+kubectl -n istio-system get svc internal-hgate -o yaml
+
+# Status should show the external and internal IPs of the mesh connector.
+
+kubectl -n istio-system get cm mesh-env -o yaml
+
+# Should include 'MESH_TENANT' if using managed ASM
+# Should include root cert, external and internal IP address of the 'mesh connector' 
+
+```
 
 Since CloudRun and docker doesn't support kubectl exec or port-forward, we include a minimal sshd server that is 
 enabled using a K8S Secret or environment variables. There are 2 ways to enable ssh for debugging:
