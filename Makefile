@@ -267,6 +267,8 @@ canary/test:
 logs/fortio-mcp:
 	(cd samples/fortio; WORKLOAD_NAME=fortio-mcp make logs)
 
+config_dump:
+	(cd samples/fortio;  make config_dump_ssh)
 ##### GCB related targets
 
 # Create the builder docker image, used in GCB
