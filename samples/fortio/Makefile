@@ -68,7 +68,7 @@ deploy:
          --use-http2 \
          --port 15009 \
          \
-         --concurrency 10 --timeout 900 --cpu 1 --memory 1G \
+         --concurrency 10 --timeout 900 --cpu 4 --memory 4G \
 		--image ${FORTIO_IMAGE} \
   		 ${SSH_DEBUG_ARGS} ${FORTIO_DEPLOY_EXTRA} \
   		 --set-env-vars="XDS_AGENT_DEBUG=googleca:debug" \
@@ -100,7 +100,7 @@ pull:
 # SSH to the deployed CloudRun using HBONE
 ssh: CR_URL=$(shell gcloud run services describe ${SERVICE} --format="value(status.address.url)")
 ssh:
-	 ssh -F /dev/null -v \
+	 ssh -F /dev/null  \
         -o StrictHostKeyChecking=no -o "UserKnownHostsFile /dev/null" \
  	    -o ProxyCommand='hbone ${CR_URL}:443/_hbone/22' \
      	root@proxybase ${SSH_ARGS}
