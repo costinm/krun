@@ -23,7 +23,8 @@ spec:
 
         # Use default injection. If Istio is not installed in the cluster, will
         # auto-detect.
-        sidecar.istio.io/inject: "true"
+        #sidecar.istio.io/inject: "true"
+        #istio.io/rev: asm-managed
     spec:
       containers:
         - name: istio-proxy
