@@ -98,7 +98,7 @@ You can call the connector 'serverlesscon' - the name will be used when deployin
 If you already have a connector, you can continue to use it, and adjust the '--vpc-connector' parameter on the 
 deploy command.
 
-The connector MUST be on the same network with the GKE cluster.
+The connector MUST be on the same VPC network with the GKE cluster and configured with a not-in-use CIDR range.
 
 
 ### Google Service Account and Namespace Setup
@@ -139,7 +139,7 @@ gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCAT
 kubectl create ns ${WORKLOAD_NAMESPACE} 
 
 # Uses WORKLOAD_NAMESPACE and PROJECT_ID to associate the Google Service Account with the K8S Namespace.
-cat manifests/google-service-account-template.yaml | envsubst | kubectl apply -f -
+curl https://raw.githubusercontent.com/costinm/cloud-run-mesh/main/manifests/google-service-account-template.yaml | envsubst | kubectl apply -f -
 
 ```
 
@@ -148,13 +148,13 @@ cat manifests/google-service-account-template.yaml | envsubst | kubectl apply -f
 samples/fortio/Dockerfile contains an example Dockerfile - you can also use the pre-build image
 `gcr.io/wlhe-cr/fortio-mesh:main`
 
-You can build the app with the normal docker command:
+The image can be build using:
 
 ```shell
 
-# Get the base image. You can also create a 'golden' base, starting with ASM proxy image and adding the 
-# startup helper (krun) and other files or configs you need. 
-# The application will be added to the base.
+# Base image. You can create a custom 'golden' base, starting with ASM proxy image and adding the 
+# startup helper (krun) and other files or configs you need. This doc uses the image
+# used for the CI/CD testing.
 export GOLDEN_IMAGE=gcr.io/wlhe-cr/krun:main
 
 # Target image 
@@ -213,7 +213,10 @@ This step will be replaced by auto-registration (WIP):
 ```shell
 export SNI_GATE_IP=$(kubectl -n istio-system get service internal-hgate -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 export K_SERVICE=$(gcloud run services describe ${SERVICE} --format="value(status.address.url)" | sed s,https://,, | sed s/.a.run.app// )
-cat ../../manifests/sni-service-template.yaml | SNI_GATE_IP=${SNI_GATE_IP} K_SERVICE=${K_SERVICE} envsubst  | kubectl apply -f -
+
+curl https://raw.githubusercontent.com/costinm/cloud-run-mesh/main/manifests/sni-service-template.yaml | SNI_GATE_IP=${SNI_GATE_IP} K_SERVICE=${K_SERVICE} envsubst  | kubectl apply -f -
+
+# Or: cat ../../manifests/sni-service-template.yaml | SNI_GATE_IP=${SNI_GATE_IP} K_SERVICE=${K_SERVICE} envsubst  | kubectl apply -f -
 ```
 
 This will create a K8S Service with the same base name as the cloudrun service (for example: fortio-cr-icq63pqnqq-uc).
