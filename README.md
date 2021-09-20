@@ -76,7 +76,7 @@ After installation, new services can be configured for namespaces using only nam
 
 ### Cluster setup (once per cluster)
 
-1. If you don't already have a cluster with managed ASM, follow [Install docs](https://cloud.google.com/service-mesh/docs/managed-service-mesh). 
+1. If you don't already have a cluster with managed ASM, follow Install docs. 
  Also supported is [in-cluster ASM] (https://cloud.google.com/service-mesh/docs/scripted-install/gke-install) 
 
 2. Configure the in-cluster 'mesh connector' gateway and permissions. (this step is temporary, WIP to upstream it to
@@ -158,7 +158,7 @@ The image can be build using:
 export GOLDEN_IMAGE=gcr.io/wlhe-cr/krun:main
 
 # Target image 
-export IMAGE=gcr.io/${PROJECT_ID}/fortio-cr:main
+export IMAGE=gcr.io/${PROJECT_ID}/fortio-mesh:main
 
 (cd samples/fortio && docker build . -t ${IMAGE} --build-arg=BASE=${GOLDEN_IMAGE} )
 
@@ -231,8 +231,9 @@ You can use VirtualService or K8S Gateway API to aggregate routing and use custo
 ```shell
 gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
 
+kubectl create ns fortio
 kubectl label namespace fortio istio-injection- istio.io/rev=asm-managed --overwrite
-kubectl apply -f https://raw.githubusercontent.com/costinm/cloud-run-mesh/main/samples/fortio/in-cluster.yaml
+kubectl -n fortio apply -f https://raw.githubusercontent.com/costinm/cloud-run-mesh/main/samples/fortio/in-cluster.yaml
 
 ```
 
