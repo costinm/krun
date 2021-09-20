@@ -232,7 +232,7 @@ You can use VirtualService or K8S Gateway API to aggregate routing and use custo
 gcloud container clusters get-credentials ${CLUSTER_NAME} --zone ${CLUSTER_LOCATION} --project ${PROJECT_ID}
 
 kubectl create ns fortio
-kubectl label namespace fortio istio-injection- istio.io/rev=asm-managed --overwrite
+kubectl label namespace fortio  istio.io/rev=asm-managed 
 kubectl -n fortio apply -f https://raw.githubusercontent.com/costinm/cloud-run-mesh/main/samples/fortio/in-cluster.yaml
 
 ```

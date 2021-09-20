@@ -41,7 +41,7 @@ spec:
         app: fortio
         version: v1
         # This selects the default cluster injection - if the cluster is MCP, it is best to make it default.
-        sidecar.istio.io/inject: "true"
+        #sidecar.istio.io/inject: "true"
     spec:
       containers:
       - name: fortio
