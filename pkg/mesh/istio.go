@@ -127,7 +127,7 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 	return exec.Command("/usr/local/bin/pilot-agent", args...)
 }
 
-func (kr *KRun) WaitReady() error {
+func (kr *KRun) WaitReady(max time.Duration) error {
 	t0 := time.Now()
 	for {
 		res, _ := http.Get("http://127.0.0.1:15021/healthz/ready")
@@ -136,7 +136,7 @@ func (kr *KRun) WaitReady() error {
 			return nil
 		}
 
-		if time.Since(t0) > 10 * time.Second {
+		if time.Since(t0) > max {
 			return errors.New("Timeout waiting for ready")
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -402,6 +402,7 @@ istio="%s"
 security.istio.io/tlsMode="istio"
 app="%s"
 service.istio.io/canonical-name="%s"
+environment="cloud-run-mesh"
 `, kr.Name, kr.Name)
 	}
 	os.MkdirAll("./etc/istio/pod",755)

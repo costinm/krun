@@ -57,18 +57,20 @@ type TokenCache struct {
 	cache sync.Map
 	kr    *mesh.KRun
 	sts   *sts.STS
+	m sync.Mutex
 }
 
-func (c TokenCache) Token(ctx context.Context, host string) (string, error) {
-
+func (c *TokenCache) Token(ctx context.Context, host string) (string, error) {
 	if got, f := c.cache.Load(host); f {
 		t := got.(cachedToken)
-		if !t.expiration.After(time.Now().Add(-time.Minute)) {
+		if t.expiration.After(time.Now().Add(-time.Minute)) {
 			return t.token, nil
 		}
+		log.Println("Token expired", t.expiration, time.Now(), host)
 	}
 
 	mt, err := c.sts.GetRequestMetadata(ctx, host)
+
 	if err != nil {
 		return "", err
 	}
@@ -80,6 +82,7 @@ func (c TokenCache) Token(ctx context.Context, host string) (string, error) {
 	//log.Println("XXX debug Gettoken from metadata", host, k8s.TokenPayload(t), err)
 
 	c.cache.Store(host, cachedToken{t, time.Now().Add(45 * time.Minute)})
+	log.Println("Storing JWT", host)
 	return t, nil
 }
 

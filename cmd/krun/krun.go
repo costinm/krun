@@ -45,7 +45,7 @@ func main() {
 		if err != nil {
 			log.Fatal("Failed to start the mesh agent ", err)
 		}
-		err = kr.WaitReady()
+		err = kr.WaitReady(10 * time.Second)
 		if err != nil {
 			log.Fatal("Mesh agent not ready ", err)
 		}
@@ -53,23 +53,23 @@ func main() {
 
 	kr.StartApp()
 
-	// TODO: wait for app ready before starting app.
+	// TODO: wait for app  ready before binding to port - using same CloudRun 'bind to port 8080' or proper health check
 
 	// Start internal SSH server, for debug and port forwarding. Can be conditionally compiled.
 	if initDebug != nil {
 		// Split for conditional compilation (to compile without ssh dep)
-		initDebug(kr)
+		go initDebug(kr)
 	}
 
-	// TODO: wait for app and proxy ready
-
+	// Start the tunnel: accepts H2 streams, decrypt the stream as mTLS, forward plain text to 15003 (envoy) which
+	// applies the metrics/enforcements and forwards to the app on 8080
+	// The certs are currently created by agent - WIP to create them from launcher, so proxyless gRPC doesn't require pilot-agent.
 	auth, err := hbone.NewAuthFromDir("")
 	if err != nil {
 		log.Fatal("Failed to find mesh certificates ", err)
 	}
+	// Support MeshCA (required for MCP). Citadel will be supported if it is used in the mesh.
 	auth.AddRoots([]byte(gcp.MeshCA))
-
-	// TODO: allow a base to be specified, to allow debugging multiple instances on a single VM
 
 	// 15009 is the reserved port for HBONE using H2C. CloudRun or other gateways using H2C will forward to this
 	// port.

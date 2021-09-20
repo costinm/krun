@@ -98,21 +98,21 @@ pull:
 	docker pull ${GOLDEN_IMAGE}
 
 # SSH to the deployed CloudRun using HBONE
-ssh: CR_URL=$(shell gcloud run services describe ${SERVICE} --format="value(status.address.url)")
+ssh: CR_URL=$(shell gcloud run services --project ${PROJECT_ID} --region ${REGION} describe ${SERVICE} --format="value(status.address.url)")
 ssh:
-	 ssh -F /dev/null -v \
+	 ssh -F /dev/null  \
         -o StrictHostKeyChecking=no -o "UserKnownHostsFile /dev/null" \
  	    -o ProxyCommand='hbone ${CR_URL}:443/_hbone/22' \
      	root@proxybase ${SSH_ARGS}
 
-config_dump: CR_URL=$(shell gcloud run services describe ${SERVICE} --format="value(status.address.url)")
+config_dump: CR_URL=$(shell gcloud run services --project ${PROJECT_ID} --region ${REGION} describe ${SERVICE} --format="value(status.address.url)")
 config_dump:
 #	 ssh -F /dev/null -o StrictHostKeyChecking=no \
 #        -o "UserKnownHostsFile /dev/null" \
 # 	    -o ProxyCommand='hbone ${CR_URL}/_hbone/22' -- sh curl localhost:15000/config_dump
 	curl -v  ${CR_URL}/fortio/fetch2/?url=http%3A%2F%2Flocalhost%3A15000%2Fconfig_dump
 
-config_dump_ssh: CR_URL=$(shell gcloud run services describe ${SERVICE} --format="value(status.address.url)")
+config_dump_ssh: CR_URL=$(shell gcloud run services --project ${PROJECT_ID} --region ${REGION} describe ${SERVICE} --format="value(status.address.url)")
 config_dump_ssh:
 	 ssh -F /dev/null -o StrictHostKeyChecking=no \
         -o "UserKnownHostsFile /dev/null" \
@@ -147,7 +147,7 @@ setup-rbac:
 	cat ../../manifests/google-service-account-template.yaml | envsubst  | kubectl apply -f -
 
 # Setup the SNI routing for  SERVICE using hgate internal load balancer.
-setup-sni: K_SERVICE=$(shell gcloud run services describe ${SERVICE} --format="value(status.address.url)" | sed s,https://,, | sed s/.a.run.app// )
+setup-sni: K_SERVICE=$(shell gcloud run services --project ${PROJECT_ID} --region ${REGION} describe ${SERVICE} --format="value(status.address.url)" | sed s,https://,, | sed s/.a.run.app// )
 setup-sni: SNI_GATE_IP=$(shell kubectl -n istio-system get service internal-hgate -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 setup-sni:
 	echo Setting up SNI route ${K_SERVICE} ${SNI_GATE_IP}
