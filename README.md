@@ -173,6 +173,8 @@ Deploy the service, with explicit configuration:
 
 
 ```shell
+# If you didn't build a custom docker image, you can use the prebuild image: 
+# IMAGE=gcr.io/wlhe-cr/fortio-mesh:main
 
 gcloud alpha run deploy ${CLOUDRUN_SERVICE} \
           --platform managed \
