@@ -16,7 +16,7 @@ metadata:
   name: ${K_SERVICE}
   namespace: ${WORKLOAD_NAMESPACE}
   labels:
-    service.istio.io/canonical-name: fortio-cr
+    service.istio.io/canonical-name: ${WORKLOAD_NAME}
     mesh-cloudrun: ${WORKLOAD_NAME}
 spec:
   # Service name matches the actual service name in CloudRun.
@@ -54,7 +54,7 @@ metadata:
   namespace: ${WORKLOAD_NAMESPACE}
 spec:
   labels:
-    service.istio.io/canonical-name: fortio-cr
+    service.istio.io/canonical-name: ${WORKLOAD_NAME}
     app: ${WORKLOAD_NAME}
   serviceAccount: default
   address: ${SNI_GATE_IP}
@@ -68,7 +68,7 @@ metadata:
   namespace: ${WORKLOAD_NAMESPACE}
   name: ${K_SERVICE}
   labels:
-     service.istio.io/canonical-name: fortio-cr
+     service.istio.io/canonical-name: ${WORKLOAD_NAME}
 #    topology.istio.io/network: hbone
 spec:
   hosts:
