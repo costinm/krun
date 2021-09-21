@@ -214,7 +214,7 @@ This step will be replaced by auto-registration (WIP):
 
 ```shell
 export SNI_GATE_IP=$(kubectl -n istio-system get service internal-hgate -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-export K_SERVICE=$(gcloud run services describe ${SERVICE} --format="value(status.address.url)" | sed s,https://,, | sed s/.a.run.app// )
+export K_SERVICE=$(gcloud run services describe ${CLOUDRUN_SERVICE} --region ${REGION} --project ${PROJECT_ID} --format="value(status.address.url)" | sed s,https://,, | sed s/.a.run.app// )
 
 curl https://raw.githubusercontent.com/costinm/cloud-run-mesh/main/manifests/sni-service-template.yaml | SNI_GATE_IP=${SNI_GATE_IP} K_SERVICE=${K_SERVICE} envsubst  | kubectl apply -f -
 
@@ -249,6 +249,20 @@ services. So fortio, fortio.fortio, fortio.fortio.svc.cluster.local also work.
 
 In this example the in-cluster application is using ASM - it is also possible to access regular K8S applications
 without a sidecar. 
+
+3. To verify calls from K8S to CloudRun, you can use 'kubectl exec' to the fortio pod, with a command like
+
+```shell 
+  curl http://${KSERVICE}.fortio.svc:8080/fortio/ 
+  
+  or 
+  
+  fortio load http://${KSERVICE}.fortio.svc:8080/echo
+ 
+```
+
+The cloudrun service is mapped to a K8S service with the same name - this can be used as a destination in Gateway
+or VirtualService using a different name or load balancing multiple CloudRun regions.
 
 ## Configuration options 
 
