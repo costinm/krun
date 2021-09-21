@@ -64,15 +64,16 @@ export CLOUDRUN_SERVICE=${WORKLOAD_NAME}
 ## Installation 
 
 Requirements:
+- You need a GKE cluster with ASM or MCP installed.
 - For each region, you need a Serverless connector, using the same network as the GKE cluster(s) and VMs. CloudRun will
-   use it to communicate with the Pods/VMs.
-- 'gen2' VM required for iptables. 'gen1' works in 'whitebox mode', using HTTP_PROXY. 
-- The project should be allowed by policy to use 'allow-unauthenticated'. WIP to eliminate this limitation.
+  use it to communicate with the Pods/VMs.
+- 'gen2' VM required for iptables. 'gen1' work only in 'whitebox mode', using HTTP_PROXY. 
+- This is not compatible with Istio <1.9, including GKE add-on. If you have enabled the add-on, you must first migrate to MCP and make sure the add-on is off.
+- For the initial setup, admin permissiongs to the cluster and project are needed.
+- Linux is recommended for running the scripts, must have 'gcloud', 'kubectl', 'envsubst' installed
 
-You need to have gcloud and kubectl, and admin permissions for the project and cluster. 
-
-After installation, new services can be configured for namespaces using only namespace-level permissions in K8S.
-
+After installation, new services can be configured using only namespace-level permissions in K8S. 
+Each namespace and Google Service Account used by CloudRun need a one-time setup by a project admin (or user with IAM binding permissions).
 
 ### Cluster setup (once per cluster)
 
@@ -143,12 +144,16 @@ curl https://raw.githubusercontent.com/costinm/cloud-run-mesh/main/manifests/goo
 
 ```
 
-### Build a docker image containing the app and the sidecar
+### Build a mesh-enabled docker image for the app
+
+Mesh-enabled images include the sidecar (envoy), launcher and the actual application. The easiest way 
+to create one is using a 'golden image', that is used as base.
+
 
 samples/fortio/Dockerfile contains an example Dockerfile - you can also use the pre-build image
 `gcr.io/wlhe-cr/fortio-mesh:main`
 
-The image can be build using:
+To build your own image:
 
 ```shell
 
@@ -329,13 +334,17 @@ tunneling over HTTP/2:
 # Compile the proxy command
 go install ./cmd/hbone
 
+(cd samples/ssh; WORKLOAD_NAMESPACE=fortio make secret)
+# Re-deploy the cloudrun service - or wait for it to scale to zero. The ssh is enabled on startup.
+
 # Set with your own service URL
 export SERVICE_URL=$(gcloud run services describe ${SERVICE} --format="value(status.address.url)")
 
 ssh  -o ProxyCommand='hbone ${SERVICE_URL}:443/_hbone/22' root@${SERVICE}
 
-# For the second method, the workload will have an ephemeral key - the identity of the host is still validate 
-# by the proxy command, using the service certificate, but we need to tell ssh to not save it.
+# or use "-F /dev/null" to disable any configured settings that may interfere, and 
+# turn off SSH host checking since the tunnel is checking the TLS cert of the service:
+
 ssh -F /dev/null -o StrictHostKeyChecking=no -o "UserKnownHostsFile /dev/null" \
     -o ProxyCommand='hbone ${SERVICE_URL}:443/_hbone/22' root@${SERVICE}
 
