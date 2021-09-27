@@ -36,6 +36,9 @@ KRUN_IMAGE?=${KO_DOCKER_REPO}:latest
 HGATE_IMAGE?=${KO_DOCKER_REPO}/gate:latest
 
 WORKLOAD_NAME?=fortio-cr
+WORKLOAD_NAMESPACE?=fortio
+
+CLOUDRUN_SERVICE_ACCOUNT=k8s-${WORKLOAD_NAMESPACE}@${PROJECT_ID}.iam.gserviceaccount.com
 
 FORTIO_IMAGE?=gcr.io/${PROJECT_ID}/fortio-mesh:latest
 export FORTIO_IMAGE
@@ -111,8 +114,22 @@ deploy/fortio-auth:
 	gcloud alpha run deploy fortio-auth \
     		  --execution-environment=gen2 \
     		  --platform managed --project ${PROJECT_ID} --region ${REGION} \
-    		  --service-account=${WORKLOAD_SERVICE_ACCOUNT} \
+    		  --service-account=${CLOUDRUN_SERVICE_ACCOUNT} \
               --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
+             \
+             --use-http2 \
+             --port 15009 \
+             \
+             --image ${FORTIO_IMAGE} \
+
+deploy/fortio-debug:
+	gcloud alpha run deploy fortio-debug -q \
+    		  --execution-environment=gen2 \
+    		  --platform managed --project ${PROJECT_ID} --region ${REGION} \
+    		  --service-account=${CLOUDRUN_SERVICE_ACCOUNT} \
+              --vpc-connector projects/${PROJECT_ID}/locations/${REGION}/connectors/serverlesscon \
+             \
+             --set-env-vars="^.^ENVOY_LOG_LEVEL=debug,config:warn,main:warn,upstream:warn" \
              \
              --use-http2 \
              --port 15009 \
@@ -214,6 +231,7 @@ deploy/istiod:
 		--set meshConfig.trustDomain="${PROJECT_ID}.svc.id.goog" \
 		--set global.sds.token.aud="${PROJECT_ID}.svc.id.goog" \
 		--set pilot.env.TOKEN_AUDIENCES="${PROJECT_ID}.svc.id.goog\,istio-ca" \
+		--set pilot.env.ISTIO_MULTIROOT_MESH=true \
 		--set meshConfig.proxyHttpPort=15007 \
         --set meshConfig.accessLogFile=/dev/stdout \
         --set pilot.replicaCount=1 \
@@ -268,7 +286,7 @@ logs/fortio-mcp:
 	(cd samples/fortio; WORKLOAD_NAME=fortio-mcp make logs)
 
 config_dump:
-	(cd samples/fortio;  make config_dump_ssh)
+	@(cd samples/fortio;  make -s config_dump_ssh)
 ##### GCB related targets
 
 # Create the builder docker image, used in GCB
