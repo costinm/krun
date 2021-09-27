@@ -12,15 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package gcp
+package main
 
-import _ "embed"
+import (
+	"fmt"
+	"os"
 
-// This contains the long-lived MeshCA key. Used for migrations, if the
-// key is not configured in cluster.
+	"github.com/costinm/cloud-run-mesh/pkg/mesh"
+)
 
-// Since the caller may connect to clusters with either Citadel or MeshCA, and
-// communicate with workloads in different clusters, we need to configure both.
-
-//go:embed meshca.pem
-var MeshCA string
+func main() {
+	if len(os.Args) == 1 {
+		panic("Usage: jwtprint TOKEN")
+	}
+	t := os.Args[1]
+	fmt.Println(mesh.TokenPayload(t))
+}

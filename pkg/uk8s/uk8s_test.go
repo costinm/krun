@@ -51,10 +51,10 @@ func TestUK8S(t *testing.T) {
 	log.Println(me1, err)
 
 	cd, err := GetContainers(context.TODO(), uk.ProjectID)
-	log.Println(string(cd),err)
+	log.Println(string(cd), err)
 }
 
-func GetContainers(ctx context.Context, p string) ([]byte, error){
+func GetContainers(ctx context.Context, p string) ([]byte, error) {
 	httpClient, err := google.DefaultClient(ctx,
 		"https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
@@ -67,4 +67,3 @@ func GetContainers(ctx context.Context, p string) ([]byte, error){
 	return rd, err
 
 }
-

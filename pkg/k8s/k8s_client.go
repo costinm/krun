@@ -39,8 +39,7 @@ type K8S struct {
 	ProjectId, ClusterName, ClusterLocation string
 	Client                                  *kubernetes.Clientset
 	InCluster                               bool
-	Namespace, KSA string
-
+	Namespace, KSA                          string
 }
 
 // Init klog.InitFlags from an env (to avoid messing with the CLI of
@@ -137,7 +136,6 @@ func (kr *K8S) initInCluster() error {
 // Once the cluster is found, additional config can be loaded from
 // the cluster.
 
-
 // Read with Secrets and ConfigMaps
 
 func (kr *K8S) GetCM(ctx context.Context, ns string, name string) (map[string]string, error) {
@@ -186,4 +184,3 @@ func (kr *K8S) GetToken(ctx context.Context, aud string) (string, error) {
 
 	return ts.Status.Token, nil
 }
-

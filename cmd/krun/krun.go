@@ -27,7 +27,6 @@ func main() {
 	log.Println("K8S Client initialized", kr.ProjectId, kr.ClusterLocation, kr.ClusterName, kr.ProjectNumber,
 		kr.KSA, kr.Namespace, kr.Name, kr.Labels, kr.XDSAddr)
 
-
 	kr.RefreshAndSaveFiles()
 
 	meshMode := true
@@ -76,7 +75,7 @@ func main() {
 	hb := hbone.New(auth)
 	// This is a port on envoy, created by Sidecar or directly by Istiod.
 	// Needs to be plain-text HTTP
-	hb.TcpAddr = "127.0.0.1:15003"
+	hb.TcpAddr = "127.0.0.1:15003" // must match sni-service-template port in Sidecar
 	_, err = hbone.ListenAndServeTCP(":15009", hb.HandleAcceptedH2C)
 	if err != nil {
 		log.Fatal("Failed to start h2c on 15009", err)

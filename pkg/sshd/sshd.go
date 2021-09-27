@@ -80,7 +80,7 @@ func StartSSHD(cfg *SSHDConfig) error {
 	os.Mkdir("./var/run/secrets", 0755)
 	os.Mkdir("./var/run/secrets/sshd", 0700)
 
-	if _, err := os.Stat(sshd+ "/id_ecdsa"); os.IsNotExist(err) {
+	if _, err := os.Stat(sshd + "/id_ecdsa"); os.IsNotExist(err) {
 		// -q  - quiet
 		// -f - output file
 		// -N "" - no passphrase
@@ -97,7 +97,7 @@ func StartSSHD(cfg *SSHDConfig) error {
 			},
 			&os.ProcAttr{})
 	}
-	if _, err := os.Stat(sshd+ "/sshd_config"); os.IsNotExist(err) {
+	if _, err := os.Stat(sshd + "/sshd_config"); os.IsNotExist(err) {
 		ioutil.WriteFile(sshd+"/sshd_confing", []byte(fmt.Sprintf(sshdConfig, sshd, sshd)), 0700)
 	}
 

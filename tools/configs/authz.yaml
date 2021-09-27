@@ -10,8 +10,8 @@ spec:
       app: fortio-cr
   action: AUDIT
   rules:
-  -  to:
+    - to:
         - operation:
-            methods: ["GET"]
+            methods: [ "GET" ]
 
 ---

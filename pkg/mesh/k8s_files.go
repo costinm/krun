@@ -42,4 +42,3 @@ func (kr *KRun) GetSecret(ctx context.Context, ns string, name string) (map[stri
 
 	return s.Data, nil
 }
-

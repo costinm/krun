@@ -46,7 +46,7 @@ steps:
   # Missing alpha command
   #- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   - name: gcr.io/wlhe-cr/gcloud-alpha
-  #- name: gcr.io/$PROJECT_ID/krun-builder:latest
+    #- name: gcr.io/$PROJECT_ID/krun-builder:latest
     entrypoint: /bin/sh
     env:
       - PROJECT_ID=$PROJECT_ID
@@ -66,7 +66,7 @@ steps:
   # TODO: use krun to generate a config using metadata server, or add golang to alpine
   #- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:alpine'
   - name: gcr.io/wlhe-cr/gcloud-alpha
-  #- name: gcr.io/$PROJECT_ID/krun-builder:latest
+    #- name: gcr.io/$PROJECT_ID/krun-builder:latest
     entrypoint: /bin/sh
     env:
       - PROJECT_ID=$PROJECT_ID

@@ -14,7 +14,7 @@ spec:
     - applyTo: CLUSTER
       match:
         context: SIDECAR_OUTBOUND
-        cluster: {}
+        cluster: { }
       patch:
         operation: ADD
         value: # Cluster spec
@@ -30,8 +30,8 @@ spec:
           "load_assignment":
             cluster_name: "hb_local_mtls"
             endpoints:
-             - lb_endpoints:
-                - endpoint:
+              - lb_endpoints:
+                  - endpoint:
                       "address":
                         "socket_address":
                           "address": "127.0.0.1"
@@ -40,7 +40,7 @@ spec:
     - applyTo: CLUSTER
       match:
         context: SIDECAR_OUTBOUND
-        cluster: {}
+        cluster: { }
       patch:
         operation: ADD
         value:
@@ -59,7 +59,7 @@ spec:
     - applyTo: CLUSTER
       match:
         context: SIDECAR_OUTBOUND
-        cluster: {}
+        cluster: { }
       patch:
         operation: ADD
         value: # Cluster spec
@@ -79,7 +79,7 @@ spec:
     - applyTo: LISTENER
       match:
         context: SIDECAR_OUTBOUND
-        listener: {}
+        listener: { }
       patch:
         operation: ADD
         value: {

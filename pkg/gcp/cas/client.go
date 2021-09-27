@@ -25,9 +25,7 @@ import (
 	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"k8s.io/apimachinery/pkg/util/rand"
-
 )
-
 
 // GoogleCASClient: Agent side plugin for Google CAS
 type GoogleCASClient struct {

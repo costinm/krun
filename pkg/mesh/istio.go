@@ -123,6 +123,9 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 	if kr.AgentDebug != "" {
 		args = append(args, "--log_output_level="+kr.AgentDebug)
 	}
+	if os.Getenv("ENVOY_LOG_LEVEL") != "" {
+		args = append(args, "--proxyLogLevel="+os.Getenv("ENVOY_LOG_LEVEL"))
+	}
 	args = append(args, "--stsPort=15463")
 	return exec.Command("/usr/local/bin/pilot-agent", args...)
 }
@@ -142,7 +145,6 @@ func (kr *KRun) WaitReady(max time.Duration) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 }
-
 
 // StartIstioAgent creates the env and starts istio agent.
 // If running as root, will also init iptables and change UID to 1337.
@@ -200,11 +202,11 @@ func (kr *KRun) StartIstioAgent() error {
 	if strings.HasSuffix(kr.XDSAddr, ":15012") {
 		env = addIfMissing(env, "ISTIOD_SAN", "istiod.istio-system.svc")
 	} else {
-		env = addIfMissing(env,"XDS_ROOT_CA", "SYSTEM")
+		env = addIfMissing(env, "XDS_ROOT_CA", "SYSTEM")
 		env = addIfMissing(env, "PILOT_CERT_PROVIDER", "system")
-		env = addIfMissing(env,"CA_ROOT_CA", "SYSTEM")
+		env = addIfMissing(env, "CA_ROOT_CA", "SYSTEM")
 	}
-	env = addIfMissing(env,"POD_NAMESPACE", kr.Namespace)
+	env = addIfMissing(env, "POD_NAMESPACE", kr.Namespace)
 
 	// Pod name MUST be an unique name - it is used in stackdriver which requires this ( errors on 'ordered updates' and
 	//  lost data otherwise)
@@ -222,7 +224,7 @@ func (kr *KRun) StartIstioAgent() error {
 	} else {
 		podName = podName + "-" + kr.InstanceID
 	}
-	env = addIfMissing(env,"POD_NAME", podName)
+	env = addIfMissing(env, "POD_NAME", podName)
 	if kr.ProjectNumber != "" {
 		env = addIfMissing(env, "ISTIO_META_MESH_ID", "proj-"+kr.ProjectNumber)
 	}
@@ -264,7 +266,7 @@ func (kr *KRun) StartIstioAgent() error {
 
 	// MCP config
 	// The following 2 are required for MeshCA.
-	env = addIfMissing(env, "GKE_CLUSTER_URL" ,fmt.Sprintf("https://container.googleapis.com/v1/projects/%s/locations/%s/clusters/%s",
+	env = addIfMissing(env, "GKE_CLUSTER_URL", fmt.Sprintf("https://container.googleapis.com/v1/projects/%s/locations/%s/clusters/%s",
 		kr.ProjectId, kr.ClusterLocation, kr.ClusterName))
 	env = addIfMissing(env, "GCP_METADATA", fmt.Sprintf("%s|%s|%s|%s",
 		kr.ProjectId, kr.ProjectNumber, kr.ClusterName, kr.ClusterLocation))
@@ -275,6 +277,8 @@ func (kr *KRun) StartIstioAgent() error {
 
 	env = addIfMissing(env, "JWT_POLICY", "third-party-jwt")
 
+	// Fetch ProxyConfig over XDS, merge the extra root certificates
+	env = addIfMissing(env, "PROXY_CONFIG_XDS_AGENT", "true")
 
 	env = addIfMissing(env, "TRUST_DOMAIN", kr.TrustDomain)
 
@@ -299,7 +303,6 @@ func (kr *KRun) StartIstioAgent() error {
 	// WIP: automate getting the CR addr (or have Thetis handle it)
 	// For example by reading a configmap in cluster
 	//--set-env-vars="ISTIO_META_CLOUDRUN_ADDR=asm-stg-asm-cr-asm-managed-rapid-c-2o26nc3aha-uc.a.run.app:443" \
-
 
 	// Environment detection: if the docker image or VM does not include an Envoy use the 'grpc agent' mode,
 	// i.e. only get certificate.
@@ -375,7 +378,7 @@ func addIfMissing(env []string, key, val string) []string {
 		return env
 	}
 
-	return append(env, key + "=" + val)
+	return append(env, key+"="+val)
 }
 
 func (kr *KRun) Exit(code int) {
@@ -405,7 +408,7 @@ service.istio.io/canonical-name="%s"
 environment="cloud-run-mesh"
 `, kr.Name, kr.Name)
 	}
-	os.MkdirAll("./etc/istio/pod",755)
+	os.MkdirAll("./etc/istio/pod", 755)
 	err := ioutil.WriteFile("./etc/istio/pod/labels", []byte(labels), 0777)
 	if err == nil {
 		log.Println("Written labels: ", labels)
