@@ -130,7 +130,7 @@ gcloud --project ${PROJECT_ID} iam service-accounts create k8s-${WORKLOAD_NAMESP
 # Allow the GSA to access GKE clusters, as viewer
 gcloud --project ${PROJECT_ID} projects add-iam-policy-binding \
             ${PROJECT_ID} \
-            --member="serviceAccount:${WORKLOAD_SERVICE_ACCOUNT}" \
+            --member="serviceAccount:${CLOUDRUN_SERVICE_ACCOUNT}" \
             --role="roles/container.clusterViewer"
 
 # Make sure we use the current config cluster
@@ -370,14 +370,14 @@ go install ./cmd/hbone
 # Re-deploy the cloudrun service - or wait for it to scale to zero. The ssh is enabled on startup.
 
 # Set with your own service URL
-export SERVICE_URL=$(gcloud run services describe ${SERVICE} --format="value(status.address.url)")
+export SERVICE_URL=$(gcloud run services describe ${CLOUDRUN_SERVICE} --project ${PROJECT_ID} --region ${REGION} --format="value(status.address.url)")
 
-ssh  -o ProxyCommand='hbone ${SERVICE_URL}:443/_hbone/22' root@${SERVICE}
+ssh  -o ProxyCommand='hbone ${SERVICE_URL}:443/_hbone/22' root@${CLOUDRUN_SERVICE}
 
 # or use "-F /dev/null" to disable any configured settings that may interfere, and 
 # turn off SSH host checking since the tunnel is checking the TLS cert of the service:
 
 ssh -F /dev/null -o StrictHostKeyChecking=no -o "UserKnownHostsFile /dev/null" \
-    -o ProxyCommand='hbone ${SERVICE_URL}:443/_hbone/22' root@${SERVICE}
+    -o ProxyCommand='hbone ${SERVICE_URL}:443/_hbone/22' root@${CLOUDRUN_SERVICE}
 
 ```
