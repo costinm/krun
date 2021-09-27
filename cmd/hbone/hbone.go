@@ -31,7 +31,8 @@ import (
 	"github.com/costinm/cloud-run-mesh/pkg/hbone"
 	"github.com/costinm/cloud-run-mesh/pkg/istioca"
 	"github.com/costinm/cloud-run-mesh/pkg/mesh"
-	sts2 "github.com/costinm/cloud-run-mesh/pkg/sts"
+	"github.com/costinm/cloud-run-mesh/pkg/meshconnectord"
+	"github.com/costinm/cloud-run-mesh/pkg/sts"
 )
 
 var (
@@ -94,7 +95,7 @@ func main() {
 	// Trust MeshCA and in-cluster Citadel
 	auth.AddRoots([]byte(gcp.MeshCA))
 
-	tokenProvider, err := sts2.NewSTS(kr)
+	tokenProvider, err := sts.NewSTS(kr)
 
 	if kr.MeshConnectorAddr == "" {
 		log.Fatal("Failed to find in-cluster, missing 'hgate' service in mesh env")
@@ -102,15 +103,51 @@ func main() {
 
 	kr.XDSAddr = kr.MeshConnectorAddr+ ":15012"
 
+	fmt.Fprintln(os.Stderr, "Starting ", kr)
 	// TODO: move to library, possibly to separate CLI (authtool ?)
 	// Hbone 'base' should just use the mesh cert files, call tool or expect cron to renew
+	if false {
+		InitMeshCert(kr, auth, csr, priv, tokenProvider)
+	}
+
+	hb := hbone.New(auth)
+
+	tcache := meshconnectord.NewTokenCache(kr, tokenProvider)
+
+	hb.TokenCallback = tcache.Token
+
+	if *localForward != "" {
+		go localForwardPort(hb, kr.MeshConnectorAddr, auth)
+	}
+	if *remoteForward != "" {
+		go remoteForwardPort(*remoteForward, hb, kr.MeshConnectorAddr, kr, auth)
+	}
+
+	if len(flag.Args()) == 0 && *localForward == "" && *remoteForward == "" {
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	if len(flag.Args()) > 0 {
+		dest := flag.Arg(0)
+		err := forward(dest, hb, kr.MeshConnectorAddr, auth, os.Stdin, os.Stdout)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error forwarding ", err)
+			log.Fatal(err)
+		}
+	} else {
+		select {}
+	}
+}
+
+func InitMeshCert(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte, tokenProvider *sts.STS) {
 	if kr.CitadelRoot != "" && kr.MeshConnectorAddr != "" {
 		auth.AddRoots([]byte(kr.CitadelRoot))
 
 		cca, err := istioca.NewCitadelClient(&istioca.Options{
 			TokenProvider: &mesh.IstiodCredentialsProvider{KRun: kr},
-			CAEndpoint: kr.MeshConnectorAddr + ":15012",
-			TrustedRoots: auth.TrustedCertPool,
+			CAEndpoint:    kr.MeshConnectorAddr + ":15012",
+			TrustedRoots:  auth.TrustedCertPool,
 			CAEndpointSAN: "istiod.istio-system.svc",
 		})
 		if err != nil {
@@ -137,30 +174,6 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-	}
-
-	hb := hbone.New(auth)
-
-	if *localForward != "" {
-		go localForwardPort(hb, kr.MeshConnectorAddr, auth)
-	}
-	if *remoteForward != "" {
-		go remoteForwardPort(*remoteForward, hb, kr.MeshConnectorAddr, kr, auth)
-	}
-
-	if len(flag.Args()) == 0 && *localForward == "" && *remoteForward == "" {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	if len(flag.Args()) > 0 {
-		dest := flag.Arg(0)
-		err := forward(dest, hb, kr.MeshConnectorAddr, auth, os.Stdin, os.Stdout)
-		if err != nil {
-			log.Fatal(err)
-		}
-	} else {
-		select {}
 	}
 }
 

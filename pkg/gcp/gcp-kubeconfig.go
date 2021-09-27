@@ -160,6 +160,7 @@ func configFromEnvAndMD(ctx context.Context, kr *mesh.KRun) {
 		if mesh.Debug {
 			log.Println("Configs from metadata ", time.Since(t0))
 		}
+		log.Println("Running as GSA ", email, kr.ProjectId, kr.ProjectNumber, kr.InstanceID, kr.ClusterLocation)
 	}
 }
 

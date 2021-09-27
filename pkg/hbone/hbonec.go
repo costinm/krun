@@ -163,7 +163,12 @@ func (hc *Endpoint) Proxy(ctx context.Context, stdin io.Reader, stdout io.WriteC
 	var rt = hc.rt
 
 	if hc.hb.TokenCallback != nil {
-		t, err := hc.hb.TokenCallback(ctx, "https://" + r.URL.Host)
+		h := r.URL.Host
+		if strings.Contains(h, ":") && h[0] != '[' {
+			hn, _, _ := net.SplitHostPort(h)
+			h = hn
+		}
+		t, err := hc.hb.TokenCallback(ctx, "https://" + h)
 		if err != nil {
 			return err
 		}
@@ -247,7 +252,8 @@ func (hc *Endpoint) Proxy(ctx context.Context, stdin io.Reader, stdout io.WriteC
 		hc.rt = rt
 	}
 
-	//rt = hb.HTTPClientSystem.Transport
+	// This might be useful to make sure auth works - but it doesn't seem to help with the deadlock/canceling send.
+	//r.Header.Add("Expect", "100-continue")
 
 	res, err := rt.RoundTrip(r)
 	if err != nil {

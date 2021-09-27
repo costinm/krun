@@ -110,7 +110,7 @@ func (hb *HBone) handleH2R(conn net.Conn, s *BufferReader, sni string) (bool, er
 		// WIP: send over the established connection
 		i, o := io.Pipe()
 
-		r, err := http.NewRequest("POST", "http:///_hbone/mtls", i)
+		r, err := http.NewRequest("POST", "http:///_hbone/15003", i)
 		if err != nil {
 			return false, err
 		}

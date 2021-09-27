@@ -123,6 +123,9 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 	if kr.AgentDebug != "" {
 		args = append(args, "--log_output_level="+kr.AgentDebug)
 	}
+	if os.Getenv("ENVOY_LOG_LEVEL") != "" {
+		args = append(args, "--proxyLogLevel=" + os.Getenv("ENVOY_LOG_LEVEL"))
+	}
 	args = append(args, "--stsPort=15463")
 	return exec.Command("/usr/local/bin/pilot-agent", args...)
 }
@@ -275,6 +278,8 @@ func (kr *KRun) StartIstioAgent() error {
 
 	env = addIfMissing(env, "JWT_POLICY", "third-party-jwt")
 
+	// Fetch ProxyConfig over XDS, merge the extra root certificates
+	env = addIfMissing(env, "PROXY_CONFIG_XDS_AGENT", "true")
 
 	env = addIfMissing(env, "TRUST_DOMAIN", kr.TrustDomain)
 

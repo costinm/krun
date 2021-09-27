@@ -60,6 +60,10 @@ type TokenCache struct {
 	m sync.Mutex
 }
 
+func NewTokenCache(kr *mesh.KRun, sts *sts.STS) *TokenCache {
+	return &TokenCache{kr: kr, sts: sts}
+}
+
 func (c *TokenCache) Token(ctx context.Context, host string) (string, error) {
 	if got, f := c.cache.Load(host); f {
 		t := got.(cachedToken)
@@ -82,7 +86,7 @@ func (c *TokenCache) Token(ctx context.Context, host string) (string, error) {
 	//log.Println("XXX debug Gettoken from metadata", host, k8s.TokenPayload(t), err)
 
 	c.cache.Store(host, cachedToken{t, time.Now().Add(45 * time.Minute)})
-	log.Println("Storing JWT", host)
+	//log.Println("Storing JWT", host)
 	return t, nil
 }
 
@@ -165,7 +169,7 @@ func (sg *MeshConnector) InitSNIGate(ctx context.Context, sniPort string, h2rPor
 		return  err
 	}
 
-	tcache := &TokenCache{kr: kr, sts: stsc}
+	tcache := NewTokenCache(kr, stsc)
 	h2r.TokenCallback = tcache.Token
 
 	sg.updateMeshEnv(ctx)
@@ -191,7 +195,8 @@ func (sg *MeshConnector) InitSNIGate(ctx context.Context, sniPort string, h2rPor
 
 		base := remoteService + ".a.run.app"
 		h2c := h2r.NewClient(sni)
-		ep := h2c.NewEndpoint("https://" + base + "/_hbone/mtls")
+		//ep := h2c.NewEndpoint("https://" + base + "/_hbone/mtls")
+		ep := h2c.NewEndpoint("https://" + base + "/_hbone/15003")
 		ep.SNI = base
 
 		return ep

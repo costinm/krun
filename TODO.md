@@ -53,4 +53,6 @@ and behave like a normal forwarder, and forward to this instead of 8080 ( so aut
 is needed in connector, to create mesh-env and handle registration. Technically the client needs
 a 'get' to any web server (storage bucket, etc) and may use an STS server for tokens instead of TokenRequest.
 
+[] Support Fleet
 
+[] Fix Anthos dashboard and metric labels

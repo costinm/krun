@@ -164,7 +164,6 @@ func (kr *KRun) initFromEnv()  {
 		} else {
 			kr.Name = ks
 		}
-		log.Println("Setting WORKLOAD_NAME from K_SERVICE", kr.Name, ks)
 	}
 
 	if kr.Namespace == "" {

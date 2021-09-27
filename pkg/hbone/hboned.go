@@ -76,18 +76,26 @@ type HBone struct {
 
 // New creates a new HBone node. It requires a workload identity, including mTLS certificates.
 func New(auth *Auth) *HBone {
+	// Need to set this to allow timeout on the read header
+	h1 := &http.Transport{
+		ExpectContinueTimeout: 3 * time.Second,
+	}
+	h2, _ := http2.ConfigureTransports(h1)
+	h2.ReadIdleTimeout = 10 * time.Second // TODO: much larger to support long-lived connections
+	h2.AllowHTTP = true
+	h2.StrictMaxConcurrentStreams = false
 	hb := &HBone{
 		Auth: auth,
 		Endpoints: map[string]*Endpoint{},
 		H2R:       map[string]http.RoundTripper{},
 		H2RConn: map[*http2.ClientConn]string{},
 		TcpAddr:   "127.0.0.1:8080",
-		h2t: &http2.Transport{
-			ReadIdleTimeout: 10000 * time.Second,
-			StrictMaxConcurrentStreams: false,
-			AllowHTTP: true,
-
-		},
+		h2t: h2,
+		//&http2.Transport{
+		//	ReadIdleTimeout: 10000 * time.Second,
+		//	StrictMaxConcurrentStreams: false,
+		//	AllowHTTP: true,
+		//},
 
 		HTTPClientSystem: http.DefaultClient,
 	}
@@ -163,12 +171,17 @@ func (hac *HBoneAcceptedConn) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}()
 
 	// TODO: parse Envoy / hbone headers.
-	log.Println("HBD: ", r.RequestURI)
 	w.(http.Flusher).Flush()
 
 	// TCP proxy for SSH ( no mTLS, SSH has its own equivalent)
 	if r.RequestURI ==  "/_hbone/22" {
 		err := hac.hb.HandleTCPProxy(w, r.Body, "localhost:15022")
+		log.Println("hbone proxy done ", r.RequestURI, err)
+
+		return
+	}
+	if r.RequestURI ==  "/_hbone/15003" {
+		err := hac.hb.HandleTCPProxy(w, r.Body, "localhost:15003")
 		log.Println("hbone proxy done ", r.RequestURI, err)
 
 		return
