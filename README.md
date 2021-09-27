@@ -50,7 +50,7 @@ export WORKLOAD_NAME=cloudrun
 # By default the namespace is extracted from the GSA name - if using a different SA or naming, WORKLOAD_NAMESPACE env
 # is required when deploying the docker image. 
 # (This may change as we polish the UX)
-export WORKLOAD_SERVICE_ACCOUNT=k8s-${WORKLOAD_NAMESPACE}@${PROJECT_ID}.iam.gserviceaccount.com
+export CLOUDRUN_SERVICE_ACCOUNT=k8s-${WORKLOAD_NAMESPACE}@${PROJECT_ID}.iam.gserviceaccount.com
 
 # Name for the cloudrun service - will use the same as the workload.
 # Note that the service must be unique for region, if you want the same name in multiple namespace you must 
@@ -243,6 +243,53 @@ services. So fortio, fortio.fortio, fortio.fortio.svc.cluster.local also work.
 
 In this example the in-cluster application is using ASM - it is also possible to access regular K8S applications
 without a sidecar. 
+
+3. To verify calls from K8S to CloudRun, you can use 'kubectl exec' to the fortio pod, with a command like
+
+```shell 
+  curl http://${KSERVICE}.fortio.svc:8080/fortio/ 
+  
+  or 
+  
+  fortio load http://${KSERVICE}.fortio.svc:8080/echo
+ 
+```
+
+The cloudrun service is mapped to a K8S service with the same name - this can be used as a destination in Gateway
+or VirtualService using a different name or load balancing multiple CloudRun regions.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: myservice
+  namespace: fortio
+spec:
+  ports:
+    - port: 8080
+      name: http
+      targetPort: 15443
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: myservice
+  namespace: fortio
+spec:
+  hosts:
+    - myservice
+    - myservice.fortio.svc
+  http:
+    - route:
+        # Use the actual CR service.
+        - destination:
+            host: cloudrun-6c3hzwsnla-uc
+          weight: 25
+        - destination:
+            host: cloudrun2-6c3hzwsnla-uc
+          weight: 75
+
+```
 
 ## Configuration options 
 

@@ -20,8 +20,8 @@ spec:
         context: SIDECAR_INBOUND
         proxy:
           proxyVersion: '^1\.12.*'
-          metadata:
-            environment: cloud-run-mesh
+#          metadata:
+#            environment: cloud-run-mesh
         listener:
           filterChain:
             filter:
