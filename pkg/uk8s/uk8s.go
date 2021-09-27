@@ -48,7 +48,6 @@ import (
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 
-
 type Secret struct {
 	ApiVersion string            `json:"apiVersion"`
 	Data       map[string]string `json:"data"`
@@ -62,19 +61,19 @@ type ConfigMap struct {
 }
 
 type CreateTokenResponseStatus struct {
-	Token       string            `json:"token"`
+	Token string `json:"token"`
 }
 
 type CreateTokenRequestSpec struct {
-	Audiences       []string            `json:"audiences"`
+	Audiences []string `json:"audiences"`
 }
 
 type CreateTokenRequest struct {
-	Spec       CreateTokenRequestSpec            `json:"spec"`
+	Spec CreateTokenRequestSpec `json:"spec"`
 }
 
 type CreateTokenResponse struct {
-	Status       CreateTokenResponseStatus            `json:"status"`
+	Status CreateTokenResponseStatus `json:"status"`
 }
 
 var (
@@ -87,13 +86,13 @@ var (
 
 // UK8S is a micro k8s client, using only base http and a token source.
 type UK8S struct {
-	Client   *http.Client
+	Client    *http.Client
 	ProjectID string
-	Base     string
-	Name     string
-	Id       string
-	Location string
-	Token    string
+	Base      string
+	Name      string
+	Id        string
+	Location  string
+	Token     string
 }
 
 func (uK8S *UK8S) String() string {
@@ -158,7 +157,7 @@ func (uk8s *UK8S) GetResource(ns, kind, name string, postdata []byte) ([]byte, e
 		req.Header.Add("content-type", "application/json")
 	}
 	if uk8s.Token != "" {
-		req.Header.Add("authorization", "bearer " + uk8s.Token)
+		req.Header.Add("authorization", "bearer "+uk8s.Token)
 	}
 	resp, err = uk8s.Client.Do(req)
 
@@ -181,5 +180,3 @@ func (uk8s *UK8S) GetResource(ns, kind, name string, postdata []byte) ([]byte, e
 
 	return data, nil
 }
-
-

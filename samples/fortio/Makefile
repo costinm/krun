@@ -111,8 +111,7 @@ pull:
 # SSH to the deployed CloudRun using HBONE
 ssh: CR_URL=$(shell gcloud run services --project ${PROJECT_ID} --region ${REGION} describe ${SERVICE} --format="value(status.address.url)")
 ssh:
-	env
-	ssh -v -F /dev/null  \
+	ssh  -F /dev/null  \
         -o StrictHostKeyChecking=no -o "UserKnownHostsFile /dev/null" \
  	    -o ProxyCommand='hbone ${CR_URL}:443/_hbone/22' \
      	root@proxybase ${SSH_ARGS}

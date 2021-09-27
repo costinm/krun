@@ -30,7 +30,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
-
 )
 
 const (
@@ -39,13 +38,13 @@ const (
 )
 
 type Options struct {
-	CAEndpoint string
+	CAEndpoint    string
 	CAEndpointSAN string
 
-	TokenProvider      credentials.PerRPCCredentials
+	TokenProvider credentials.PerRPCCredentials
 
 	CertSigner string
-	ClusterID string
+	ClusterID  string
 
 	TrustedRoots *x509.CertPool
 
@@ -57,17 +56,17 @@ type Options struct {
 }
 
 type CitadelClient struct {
-	enableTLS     bool
-	client        IstioCertificateServiceClient
-	conn          *grpc.ClientConn
-	opts          *Options
+	enableTLS bool
+	client    IstioCertificateServiceClient
+	conn      *grpc.ClientConn
+	opts      *Options
 }
 
 // NewCitadelClient create a CA client for Citadel.
 func NewCitadelClient(opts *Options) (*CitadelClient, error) {
 	c := &CitadelClient{
-		enableTLS:     true,
-		opts:          opts,
+		enableTLS: true,
+		opts:      opts,
 	}
 
 	conn, err := c.buildConnection()
@@ -166,7 +165,6 @@ func (c *CitadelClient) getTLSDialOption() (grpc.DialOption, error) {
 	return grpc.WithTransportCredentials(transportCreds), nil
 }
 
-
 func (c *CitadelClient) buildConnection() (*grpc.ClientConn, error) {
 	var opts grpc.DialOption
 	var err error
@@ -182,7 +180,7 @@ func (c *CitadelClient) buildConnection() (*grpc.ClientConn, error) {
 	conn, err := grpc.Dial(c.opts.CAEndpoint,
 		opts,
 		grpc.WithPerRPCCredentials(c.opts.TokenProvider))
-		//security.CARetryInterceptor())
+	//security.CARetryInterceptor())
 	if err != nil {
 		log.Printf("Failed to connect to endpoint %s: %v", c.opts.CAEndpoint, err)
 		return nil, fmt.Errorf("failed to connect to endpoint %s", c.opts.CAEndpoint)

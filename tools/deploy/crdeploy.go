@@ -8,14 +8,14 @@ package main
 // https://github.com/GoogleCloudPlatform/cloud-run-button/blob/18b4cd01c618/cmd/cloudshell_open/deploy.go
 
 import (
-"context"
-"fmt"
+	"context"
+	"fmt"
 	"log"
 	"math/rand"
-"strings"
-"time"
+	"strings"
+	"time"
 
-"google.golang.org/api/googleapi"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	runapi "google.golang.org/api/run/v1"
 )
@@ -60,7 +60,6 @@ func main() {
 	}
 	log.Println(k)
 }
-
 
 // deploy reimplements the "gcloud run deploy" command, including setting IAM policy and
 // waiting for Service to be Ready.

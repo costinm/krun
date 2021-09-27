@@ -21,7 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-
 // ConnectHGate will connect to an in-cluster reverse gateway, and maintain the connection.
 // Deprecated - loaded from mesh.env, to avoid complexity in the client ( and extra roundtrips/startup delay)
 func (kr *KRun) FindHGate(ctx context.Context) (string, error) {

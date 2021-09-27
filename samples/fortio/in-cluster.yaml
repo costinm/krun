@@ -46,23 +46,23 @@ spec:
         istio.io/rev: "asm-managed"
     spec:
       containers:
-      - name: fortio
-        image: costinm/fortio:latest
-        ports:
-         - containerPort: 8080
-           name: http
-         - containerPort: 8081
-           name: grpc
-         - containerPort: 8079
-        args:
-          - server
-        resources:
-          requests:
-            cpu: 10m
-            memory: "512Mi"
-          limits:
-            cpu: "2"
-            memory: "1G"
+        - name: fortio
+          image: costinm/fortio:latest
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 8081
+              name: grpc
+            - containerPort: 8079
+          args:
+            - server
+          resources:
+            requests:
+              cpu: 10m
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "1G"
 ---
 apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule

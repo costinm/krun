@@ -11,24 +11,24 @@ options:
 
 steps:
 
-# ~2 min
-#  - name: 'gcr.io/kaniko-project/executor:latest'
-#    args:
-#      - --destination=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
-#      - --cache=true
-#      - --cache-ttl=240h
-#    timeout: 1200s
-#
-# ~15sec
-#  - name: 'gcr.io/kaniko-project/executor:latest'
-#    args:
-#      - --destination=gcr.io/$PROJECT_ID/fortio-kaniko:$COMMIT_SHA
-#      - --dockerfile=samples/fortio/Dockerfile
-#      - --context=dir://samples/fortio
-#      - --build-arg=BASE=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
-#      - --cache=true
-#      - --cache-ttl=240h
-#    timeout: 1200s
+  # ~2 min
+  #  - name: 'gcr.io/kaniko-project/executor:latest'
+  #    args:
+  #      - --destination=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
+  #      - --cache=true
+  #      - --cache-ttl=240h
+  #    timeout: 1200s
+  #
+  # ~15sec
+  #  - name: 'gcr.io/kaniko-project/executor:latest'
+  #    args:
+  #      - --destination=gcr.io/$PROJECT_ID/fortio-kaniko:$COMMIT_SHA
+  #      - --dockerfile=samples/fortio/Dockerfile
+  #      - --context=dir://samples/fortio
+  #      - --build-arg=BASE=gcr.io/$PROJECT_ID/krun-kaniko:$COMMIT_SHA
+  #      - --cache=true
+  #      - --cache-ttl=240h
+  #    timeout: 1200s
 
   # To compare against kankiko
   # Super slow - most in getting the 1.6G image including gcloud
@@ -116,9 +116,9 @@ steps:
   # https://github.com/GoogleCloudPlatform/cloud-builders-community/tree/master/ko is a good
   # base, includes ko, kubectl, gcloud
   # They use: CLOUDSDK_COMPUTE_ZONE, CLOUDSDK_CONTAINER_CLUSTER, CLOUDSDK_CORE_PROJECT
-#go get -u github.com/jstemmer/go-junit-report
-#2>&1 go test -timeout 1m -v ./... | tee sponge.log
-#/go/bin/go-junit-report -set-exit-code < sponge.log > ${SHORT_SHA}_test_log.xml
+  #go get -u github.com/jstemmer/go-junit-report
+  #2>&1 go test -timeout 1m -v ./... | tee sponge.log
+  #/go/bin/go-junit-report -set-exit-code < sponge.log > ${SHORT_SHA}_test_log.xml
 
 
   # Final step - if everything was fine, tag branch golden image
@@ -131,7 +131,7 @@ steps:
       - -c
       - |
         cat /workspace/base_image
-        
+
         docker tag  $(cat /workspace/base_image) gcr.io/$PROJECT_ID/mesh-base:$BRANCH_NAME
 
         docker push gcr.io/$PROJECT_ID/mesh-base:$BRANCH_NAME

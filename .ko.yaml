@@ -1,5 +1,5 @@
 # Custom build from master
-defaultBaseImage:  gcr.io/wlhe-cr/proxyv2:main
+defaultBaseImage: gcr.io/wlhe-cr/proxyv2:main
 
 # defaultBaseImage: gcr.io/istio-testing/proxyv2:1.12-alpha.9bbb2ee34b84ed89a3b271df9af53915ebc9e721
 

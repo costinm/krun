@@ -119,7 +119,7 @@ metadata:
   namespace: ${WORKLOAD_NAMESPACE}
   name: ${K_SERVICE}
   labels:
-     service.istio.io/canonical-name: fortio-cr
+    service.istio.io/canonical-name: fortio-cr
 #    topology.istio.io/network: hbone
 spec:
   hosts:
@@ -147,11 +147,11 @@ spec:
   workloadSelector:
     labels:
       app: ${WORKLOAD_NAME}
-#  egress:
-#    - hosts:
-#        # For now, visibility only on same namespace and istio-system.
-#        - ${WORKLOAD_NAMESPACE}/*
-#        - istio-system/*
+  #  egress:
+  #    - hosts:
+  #        # For now, visibility only on same namespace and istio-system.
+  #        - ${WORKLOAD_NAMESPACE}/*
+  #        - istio-system/*
   ingress:
     - port:
         number: 15003

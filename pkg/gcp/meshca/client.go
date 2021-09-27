@@ -32,7 +32,7 @@ type GoogleCAClient struct {
 	caEndpoint string
 	client     MeshCertificateServiceClient
 	conn       *grpc.ClientConn
-	Location string
+	Location   string
 }
 
 // NewGoogleCAClient create a CA client for Google CA.

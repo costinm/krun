@@ -76,7 +76,6 @@ func (kr *KRun) GetRequestMetadata(ctx context.Context, aud ...string) (map[stri
 	}, nil
 }
 
-
 // GetToken returns a token with the given audience for the current KSA, using CreateToken request.
 // Used by the STS token exchanger.
 func (kr *KRun) GetToken(ctx context.Context, aud string) (string, error) {
@@ -94,7 +93,7 @@ func (kr *KRun) GetToken(ctx context.Context, aud string) (string, error) {
 	return ts.Status.Token, nil
 }
 
-func  (kr *KRun) saveTokenToFile(ns string, audience string, destFile string) error {
+func (kr *KRun) saveTokenToFile(ns string, audience string, destFile string) error {
 	t, err := kr.GetToken(context.TODO(), audience)
 	if err != nil {
 		log.Println("Error creating ", ns, kr.KSA, audience, err)

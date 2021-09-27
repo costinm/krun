@@ -119,11 +119,11 @@ type KRun struct {
 
 func New(addr string) *KRun {
 	kr := &KRun{
-		MeshAddr: addr,
-		StartTime:    time.Now(),
-		Aud2File:     map[string]string{},
-		Labels:       map[string]string{},
-		ProxyConfig:  &ProxyConfig{},
+		MeshAddr:    addr,
+		StartTime:   time.Now(),
+		Aud2File:    map[string]string{},
+		Labels:      map[string]string{},
+		ProxyConfig: &ProxyConfig{},
 	}
 	return kr
 }
@@ -131,7 +131,7 @@ func New(addr string) *KRun {
 // initFromEnv will use the env variables, metadata server and cluster configmaps
 // to get the initial configuration for Istio and KRun.
 //
-func (kr *KRun) initFromEnv()  {
+func (kr *KRun) initFromEnv() {
 
 	if kr.KSA == "" {
 		// Same environment used for VMs

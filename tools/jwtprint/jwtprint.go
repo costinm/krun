@@ -23,7 +23,7 @@ import (
 
 func main() {
 	if len(os.Args) == 1 {
-		panic( "Usage: jwtprint TOKEN")
+		panic("Usage: jwtprint TOKEN")
 	}
 	t := os.Args[1]
 	fmt.Println(mesh.TokenPayload(t))

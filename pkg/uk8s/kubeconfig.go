@@ -184,15 +184,15 @@ func GetUK8S(cluster *KubeCluster, user *KubeUser) (*UK8S, error) {
 			Source: ts,
 		}
 
-		kubernetesClient.Transport =  oauthTransport
+		kubernetesClient.Transport = oauthTransport
 	} else {
 		kubernetesClient.Transport = tr
 	}
 
 	return &UK8S{
 		Client: kubernetesClient,
-		Base: resourceURL,
-		Token: user.Token,
+		Base:   resourceURL,
+		Token:  user.Token,
 		//Name: cluster.Name,
 		//Id: "/projects/" + p + "/locations/" + cluster.Location + "/cluster/" + cluster.Name,
 		//Location: cluster.Location,
@@ -233,4 +233,3 @@ func NewUK8S(kc *KubeConfig) (s *UK8S, err error) {
 
 	return uk, err
 }
-
