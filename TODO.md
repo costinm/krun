@@ -1,9 +1,6 @@
 Short note on remaining work, before the new repo is created for issue tracking:
 
-[] P0: Only forward to registered services. Watch services with the CR label, use this to add the JWT.
 
-[] P0: Add EnvoyFilter to handle the localhost forwarding. Need envoy listner for inbound to be patched to bind to port
-and behave like a normal forwarder, and forward to this instead of 8080 ( so authz policy is applied )
 
 [] P2: Move meshca public key to connector, save it to the mesh-env ( to avoid an extra roundtrip/complexity )
 
