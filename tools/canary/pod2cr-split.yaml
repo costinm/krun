@@ -1,0 +1,104 @@
+#---
+#apiVersion: networking.istio.io/v1alpha3
+#kind: VirtualService
+#metadata:
+#  # Name should match the workload name used in cloudrun
+#  name: url-fortio-cr-icq63pqnqq-uc
+#  namespace: fortio
+#spec:
+#  hosts:
+#    - fortio-cr-icq63pqnqq-uc
+#    - fortio-cr-icq63pqnqq-uc.fortio.svc
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: myname
+  namespace: fortio
+spec:
+  # Service name matches the actual service name in CloudRun.
+  # This is used to acccess only the service in cloudrun, in a region. Can be used as a subset
+  # TODO: auto-create this if it doesn't exist, in SNIGate
+  ports:
+    # Standard port for SNI routing in gateways, same as east-west gateway
+    - port: 8080
+      name: http
+      targetPort: 15443
+  selector:
+    app: fortio-cr
+
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  # Custom name, can do traffic split
+  name: myname
+  namespace: fortio
+spec:
+  hosts:
+    - myname
+    - myname.fortio.svc
+  http:
+    - headers:
+        request:
+          add:
+            fooreq: bar %DOWNSTREAM_REMOTE_ADDRESS% %DOWNSTREAM_LOCAL_URI_SAN%  %DOWNSTREAM_PEER_URI_SAN%
+        response:
+          add:
+            foores: bar
+      route:
+        - destination:
+            host: fortio-cr-icq63pqnqq-uc
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: fortio-mcp
+  namespace: fortio
+spec:
+  hosts:
+    - fortio-mcp
+  http:
+    - headers:
+        request:
+          add:
+            x-foo00: "Hello"
+            x-foo01: "PROTOCOL %PROTOCOL%"
+            x-foo02: "DOWNSTREAM_REMOTE_ADDRESS %DOWNSTREAM_REMOTE_ADDRESS%"
+            x-foo03: "DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT %DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
+            x-foo04: "DOWNSTREAM_LOCAL_ADDRESS %DOWNSTREAM_LOCAL_ADDRESS%"
+            x-foo05: "DOWNSTREAM_LOCAL_ADDRESS_WITHOUT_PORT %DOWNSTREAM_LOCAL_ADDRESS_WITHOUT_PORT%"
+            x-foo06: "DOWNSTREAM_LOCAL_PORT %DOWNSTREAM_LOCAL_PORT%"
+            x-foo07: "DOWNSTREAM_PEER_URI_SAN %DOWNSTREAM_PEER_URI_SAN%"
+            x-foo08: "DOWNSTREAM_LOCAL_URI_SAN %DOWNSTREAM_LOCAL_URI_SAN%"
+            x-foo09: "DOWNSTREAM_PEER_ISSUER %DOWNSTREAM_PEER_ISSUER%"
+            x-foo10: "DOWNSTREAM_PEER_SUBJECT %DOWNSTREAM_PEER_SUBJECT%"
+            x-foo11: "DOWNSTREAM_LOCAL_SUBJECT %DOWNSTREAM_LOCAL_SUBJECT%"
+            x-foo12: "DOWNSTREAM_TLS_SESSION_ID %DOWNSTREAM_TLS_SESSION_ID%"
+            x-foo13: "DOWNSTREAM_TLS_CIPHER %DOWNSTREAM_TLS_CIPHER%"
+            x-foo14: "DOWNSTREAM_TLS_VERSION %DOWNSTREAM_TLS_VERSION%"
+            x-foo15: "DOWNSTREAM_PEER_FINGERPRINT_256 %DOWNSTREAM_PEER_FINGERPRINT_256%"
+            x-foo16: "DOWNSTREAM_PEER_SERIAL %DOWNSTREAM_PEER_SERIAL%"
+            x-foo17: "DOWNSTREAM_PEER_CERT %DOWNSTREAM_PEER_CERT%"
+            x-foo18: "DOWNSTREAM_PEER_CERT_V_START %DOWNSTREAM_PEER_CERT_V_START%"
+            x-foo19: "DOWNSTREAM_PEER_CERT_V_END %DOWNSTREAM_PEER_CERT_V_END%"
+            x-foo20: "START_TIME %START_TIME%"
+            x-foo21: "PER_REQUEST_STATE(source.principal) %PER_REQUEST_STATE(source.principal)%"
+            x-foo22: "HOSTNAME %HOSTNAME%"
+            info-peer-cert1: "%DOWNSTREAM_PEER_CERT%"
+            info-peer-cert: dpc=%DOWNSTREAM_PEER_CERT% dlu=%DOWNSTREAM_LOCAL_URI_SAN%  duri=%DOWNSTREAM_PEER_URI_SAN%
+            info-upstream: ura=%UPSTREAM_REMOTE_ADDRESS% dra=%DOWNSTREAM_REMOTE_ADDRESS% START_TIME=%START_TIME%
+        response:
+          add:
+            foores: bar
+      route:
+        - destination:
+            host: fortio-mcp
+          headers:
+            response:
+              add:
+                rinfo-peer-cert: dpc=%DOWNSTREAM_PEER_CERT% dlu=%DOWNSTREAM_LOCAL_URI_SAN%  duri=%DOWNSTREAM_PEER_URI_SAN%
+                rinfo-upstream: ura=%UPSTREAM_REMOTE_ADDRESS% dra=%DOWNSTREAM_REMOTE_ADDRESS% RESPONSE_CODE_DETAILS=%RESPONSE_CODE_DETAILS% RESPONSE_FLAGS=%RESPONSE_FLAGS%
+
