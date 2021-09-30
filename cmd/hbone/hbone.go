@@ -27,9 +27,9 @@ import (
 	"time"
 
 	"github.com/costinm/cloud-run-mesh/pkg/gcp"
-	"github.com/costinm/cloud-run-mesh/pkg/gcp/meshca"
+	"github.com/costinm/cloud-run-mesh/third_party/istio/meshca"
 	"github.com/costinm/cloud-run-mesh/pkg/hbone"
-	"github.com/costinm/cloud-run-mesh/pkg/istioca"
+	"github.com/costinm/cloud-run-mesh/third_party/istio/istioca"
 	"github.com/costinm/cloud-run-mesh/pkg/mesh"
 	"github.com/costinm/cloud-run-mesh/pkg/meshconnectord"
 	"github.com/costinm/cloud-run-mesh/pkg/sts"
