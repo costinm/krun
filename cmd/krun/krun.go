@@ -21,9 +21,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/costinm/cloud-run-mesh/pkg/gcp"
-	"github.com/costinm/cloud-run-mesh/pkg/hbone"
-	"github.com/costinm/cloud-run-mesh/pkg/mesh"
+	"github.com/costinm/hbone"
+	"github.com/costinm/krun/pkg/gcp"
+	"github.com/costinm/krun/pkg/mesh"
 )
 
 var initDebug func(run *mesh.KRun)
@@ -81,8 +81,6 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to find mesh certificates ", err)
 	}
-	// Support MeshCA (required for MCP). Citadel will be supported if it is used in the mesh.
-	auth.AddRoots([]byte(gcp.MeshCA))
 
 	// 15009 is the reserved port for HBONE using H2C. CloudRun or other gateways using H2C will forward to this
 	// port.

@@ -3,8 +3,8 @@ on: [ push ]
 
 env:
   GO111MODULE: on
-  #KO_DOCKER_REPO: ghcr.io/costinm/cloud-run-mesh
-  #KRUN_IMAGE: ghcr.io/costinm/cloud-run-mesh/krun:latest
+  #KO_DOCKER_REPO: ghcr.io/costinm/krun
+  #KRUN_IMAGE: ghcr.io/costinm/krun/krun:latest
 
 jobs:
   build-ko:

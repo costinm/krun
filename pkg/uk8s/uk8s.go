@@ -16,6 +16,7 @@ package uk8s
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -93,6 +94,7 @@ type UK8S struct {
 	Id        string
 	Location  string
 	Token     string
+	TokenProvider func(context.Context, string) (string, error)
 }
 
 func (uK8S *UK8S) String() string {

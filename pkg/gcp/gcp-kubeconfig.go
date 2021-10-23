@@ -30,7 +30,7 @@ import (
 
 	container "cloud.google.com/go/container/apiv1"
 
-	"github.com/costinm/cloud-run-mesh/pkg/mesh"
+	"github.com/costinm/krun/pkg/mesh"
 
 	"k8s.io/client-go/kubernetes"
 	kubeconfig "k8s.io/client-go/tools/clientcmd/api"
@@ -516,6 +516,7 @@ func AllClusters(ctx context.Context, kr *mesh.KRun, defCluster string, label st
 		return nil, err
 	}
 
+	// This uses the gRPC interface.
 	clusters, err := cl.ListClusters(ctx, &containerpb.ListClustersRequest{
 		Parent: "projects/" + kr.ProjectId + "/locations/-",
 	})

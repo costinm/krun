@@ -59,6 +59,6 @@ function deploy_app() {
 
 # Deploy the in-cluster test application
 function setup_fortio() {
-  kubectl apply -f https://raw.githubusercontent.com/costinm/cloud-run-mesh/main/samples/fortio/in-cluster.yaml
+  kubectl apply -f https://raw.githubusercontent.com/costinm/krun/main/samples/fortio/in-cluster.yaml
 }
 

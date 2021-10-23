@@ -23,8 +23,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/costinm/cloud-run-mesh/pkg/gcp"
-	"github.com/costinm/cloud-run-mesh/pkg/mesh"
+	"github.com/costinm/krun/pkg/gcp"
+	"github.com/costinm/krun/pkg/mesh"
 	"k8s.io/client-go/tools/clientcmd"
 )
 

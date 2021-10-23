@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/costinm/cloud-run-mesh/pkg/mesh"
+	"github.com/costinm/krun/pkg/mesh"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -39,7 +39,7 @@ func TestK8S(t *testing.T) {
 		return
 	}
 	// For the entire test
-	ctx, cf := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cf := context.WithTimeout(context.Background(), 1000*time.Second)
 	defer cf()
 
 	kr := mesh.New("")

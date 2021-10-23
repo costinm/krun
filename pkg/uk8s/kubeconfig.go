@@ -172,7 +172,7 @@ func GetUK8S(cluster *KubeCluster, user *KubeUser) (*UK8S, error) {
 	kubernetesClient := &http.Client{}
 
 	if user.Token == "" {
-
+		// Can load ~/.config/gcloud/application_default_credentials.json, GCE via cloud.google.com/go/compute/metadata.
 		ts, err := google.DefaultTokenSource(context.TODO(), "https://www.googleapis.com/auth/cloud-platform")
 		if err != nil {
 			log.Println(err)

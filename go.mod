@@ -1,4 +1,4 @@
-module github.com/costinm/cloud-run-mesh
+module github.com/costinm/krun
 
 go 1.16
 
@@ -6,13 +6,17 @@ go 1.16
 
 require (
 	cloud.google.com/go v0.84.0
+	contrib.go.opencensus.io/exporter/prometheus v0.4.0
+	github.com/GoogleCloudPlatform/cloud-run-mesh v0.0.0-20211011224317-e08ac6c5eda9
 	github.com/costinm/cert-ssh/ssh v0.0.0-20210914000841-64495e35bb80
+	github.com/costinm/hbone v0.0.0-20211014182100-e32b869e6c4b
 	github.com/creack/pty v1.1.13
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.1.2
+	github.com/prometheus/client_golang v1.11.0
+	go.opencensus.io v0.23.0
 	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
-	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/api v0.48.0
 	google.golang.org/genproto v0.0.0-20210608205507-b6d2f5bf0d7d
 	google.golang.org/grpc v1.38.0

@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/costinm/cloud-run-mesh/pkg/mesh"
+	"github.com/costinm/krun/pkg/mesh"
 )
 
 func main() {
