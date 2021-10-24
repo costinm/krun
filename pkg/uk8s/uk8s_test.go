@@ -21,10 +21,21 @@ import (
 	"os"
 	"testing"
 
+	"github.com/costinm/krun/pkg/mesh"
 	"gopkg.in/yaml.v2"
 )
 
+// Requires a GSA (either via GOOGLE_APPLICATION_CREDENTIALS, gcloud config, metadata) with hub and
+// container access.
+// Requires a kube config - the default cluster should be in same project.
+//
+// Will verify kube config loading and queries to hub and gke.
+//
 func TestUK8S(t *testing.T) {
+	ctx, cf := context.WithCancel(context.Background())
+	defer cf()
+
+	uk := New()
 
 	kcd, err := ioutil.ReadFile(os.Getenv("HOME") + "/.kube/config")
 	if err != nil {
@@ -38,27 +49,61 @@ func TestUK8S(t *testing.T) {
 	if kc.CurrentContext == "" {
 		t.Fatal("No default context", kc)
 	}
-	uk, err := NewUK8S(kc)
+	ecl, _, err := extractClusters(uk, kc)
 	if err != nil {
 		t.Fatal("Failed to load k8s", err)
 	}
 
-	//me, err := uk.GetConfigMap("istio-system", "mesh-env")
-	//log.Println(me, err)
 	//
-	//me1, err := uk.GetConfigMap("istio-system", "istio")
-	//log.Println(me1, err)
-	cd, err := GetHubClusters(context.TODO(), uk.ProjectID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	uk.Current=  ecl
+	uk.ProjectID= ecl.ProjectId
 
-	cd, err = GetClusters(context.TODO(), uk.ProjectID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, c := range cd {
-		log.Println(c)
-	}
+	t.Run("kubeconfig", func(t *testing.T) {
+		cm, err := uk.GetCM(ctx, "istio-system", "mesh-env")
+		if err != nil {
+			t.Fatal("Failed to load k8s", err)
+		}
+		log.Println(cm)
+	})
+
+	t.Run("hublist", func(t *testing.T) {
+		cd, err := getHubClusters(context.TODO(), uk, uk.ProjectID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range cd {
+			//uk.Current = c
+
+			log.Println(c)
+		}
+	})
+
+
+	t.Run("gkelist", func(t *testing.T) {
+		cd, err := getGKEClusters(context.TODO(), nil, uk.ProjectID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range cd {
+			log.Println(c)
+		}
+	})
+
+	t.Run("init", func(t *testing.T) {
+		kr := mesh.New("")
+		kr.ProjectId = uk.ProjectID
+
+		_, err := K8SClient(ctx, kr)
+
+		cd, err := getGKEClusters(context.TODO(), nil, uk.ProjectID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range cd {
+			log.Println(c)
+		}
+	})
+
+
 }
 

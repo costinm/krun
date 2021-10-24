@@ -23,7 +23,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/costinm/krun/pkg/gcp"
+	gcp2 "github.com/costinm/krun/k8s/gcp"
 	"github.com/costinm/krun/pkg/mesh"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -61,13 +61,13 @@ func main() {
 	kr := mesh.New("")
 	//if meshID == "" {
 	//  // if location is specified, create a single-cluster config.
-	//	err := kr.CreateClusterConfig(gcpProj, location, cluster)
+	//	err := kr.Mesh.CreateClusterConfig(gcpProj, location, cluster)
 	//	if err != nil {
 	//		panic(err)
 	//	}
 	//} else {
 	//kr.AllHub(gcpProj, cluster, meshIDLabel, meshID)
-	cl, err := gcp.AllClusters(context.Background(), kr, "", "mesh_id", "")
+	cl, err := gcp2.AllClusters(context.Background(), kr, "", "mesh_id", "")
 	if err != nil {
 		panic(err)
 	}
@@ -78,9 +78,9 @@ func main() {
 	}
 	kc := cl[0].KubeConfig
 	for _, c := range cl {
-		gcp.MergeKubeConfig(kc, c.KubeConfig)
+		gcp2.MergeKubeConfig(kc, c.KubeConfig)
 	}
-	err = gcp.SaveKubeConfig(kc, "", "config")
+	err = gcp2.SaveKubeConfig(kc, "", "config")
 	if err != nil {
 		panic(err)
 	}

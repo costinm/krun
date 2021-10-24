@@ -12,28 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package mesh
+package main
 
 import (
 	"context"
 	"log"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/costinm/cert-ssh/ssh"
+	"github.com/costinm/krun/pkg/mesh"
 )
 
-// ConnectHGate will connect to an in-cluster reverse gateway, and maintain the connection.
-// Deprecated - loaded from mesh.env, to avoid complexity in the client ( and extra roundtrips/startup delay)
-func (kr *KRun) FindHGate(ctx context.Context) (string, error) {
+// Optional debug dependency, using cert-based SSH or loaded from a secret.
+// TODO: add conditional compilation, or move it to a separate binary that can be forked
 
-	ts, err := kr.Client.CoreV1().Services("istio-system").Get(ctx, "hgate", metav1.GetOptions{})
+func init() {
+	initDebug = InitDebug
+}
+
+func InitDebug(kr *mesh.KRun) {
+	sshCM, err := kr.Cfg.GetSecret(context.Background(), kr.Namespace, "sshdebug")
 	if err != nil {
-		log.Println("Error getting service hgate ", err)
-		return "", err
+		log.Println("SSH config error", err)
 	}
-
-	if len(ts.Status.LoadBalancer.Ingress) > 0 {
-		return ts.Status.LoadBalancer.Ingress[0].IP, nil
-	}
-
-	return "", nil
+	ssh.InitFromSecret(sshCM, kr.Namespace)
 }

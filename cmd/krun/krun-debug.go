@@ -30,7 +30,7 @@ func init() {
 }
 
 func InitDebug(kr *mesh.KRun) {
-	sshCM, err := kr.GetSecret(context.Background(), kr.Namespace, "sshdebug")
+	sshCM, err := kr.Cfg.GetSecret(context.Background(), kr.Namespace, "sshdebug")
 	if err != nil {
 		log.Println("SSH config error", err)
 	}

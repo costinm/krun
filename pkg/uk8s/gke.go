@@ -3,8 +3,10 @@ package uk8s
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"strings"
 
 	"golang.org/x/oauth2/google"
@@ -85,47 +87,94 @@ type Cluster struct {
 
 }
 
-func GetClusters(ctx context.Context, p string) ([]*Cluster, error) {
+func getGKEClusters(ctx context.Context, uk *UK8S, token string, p string) ([]*RestCluster, error) {
 	httpClient, err := google.DefaultClient(ctx,
 		"https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
 		return nil, err
 	}
+	req, _ := http.NewRequest("GET", "https://container.googleapis.com/v1/projects/" + p + "/locations/-/clusters", nil)
+	req = req.WithContext(ctx)
+	req.Header.Add("authorization", "bearer " + token)
 
-	res, err := httpClient.Get("https://container.googleapis.com/v1/projects/" + p + "/locations/-/clusters")
-	log.Println(res.StatusCode)
+	res, err := httpClient.Do(req)
+	if res.StatusCode != 200 {
+		return nil, fmt.Errorf("Error reading clusters %d", res.StatusCode)
+	}
 	rd, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
-	//log.Println(string(rd))
-	cl := &Clusters{}
-	json.Unmarshal(rd, cl)
+	if Debug {
+		log.Println(string(rd))
+	}
 
-	return cl.Clusters, err
+	cl := &Clusters{}
+	err = json.Unmarshal(rd, cl)
+	if err != nil {
+		return nil, err
+	}
+	rcl := []*RestCluster{}
+	for _, c := range cl.Clusters {
+		rc := &RestCluster{
+			Client: uk.httpClient(c.MasterAuth.ClusterCaCertificate),
+			Base: c.Endpoint,
+			Location: c.Location,
+			TokenProvider: uk.TokenProvider,
+			Id: "gke_" + p + "_" + c.Location + "_" + c.Name,
+		}
+		rcl = append(rcl, rc)
+
+		uk.add(rc)
+	}
+
+	return rcl, err
 }
 
-func GetCluster(ctx context.Context, path string) (*Cluster, error) {
+func (uk *UK8S) add(rc *RestCluster) {
+	uk.m.Lock()
+	if uk.Clusters[rc.Id] != nil {
+		log.Println("Cluster in kube config")
+	} else {
+		uk.Clusters[rc.Id] = rc
+		uk.ClustersByLocation[rc.Location] = append(uk.ClustersByLocation[rc.Location], rc)
+	}
+	uk.m.Unlock()
+}
+
+func GetCluster(ctx context.Context, uk *UK8S, path string) (*RestCluster, error) {
 	httpClient, err := google.DefaultClient(ctx,
 		"https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
 		return nil, err
 	}
 
+	parts := strings.Split(path, "/")
+	p := parts[2]
 	res, err := httpClient.Get("https://container.googleapis.com/v1" + path)
 	log.Println(res.StatusCode)
 	rd, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
-	//log.Println(string(rd))
-	cl := &Cluster{}
-	json.Unmarshal(rd, cl)
+	c := &Cluster{}
+	err = json.Unmarshal(rd, c)
+	if err != nil {
+		return nil, err
+	}
 
-	return cl, err
+	rc := &RestCluster{
+		Client: uk.httpClient(c.MasterAuth.ClusterCaCertificate),
+		Base: c.Endpoint,
+		Location: c.Location,
+		TokenProvider: uk.TokenProvider,
+		Id: "gke_" + p + "_" + c.Location + "_" + c.Name,
+	}
+
+	return rc, err
 }
 
-func GetHubClusters(ctx context.Context, p string) ([]*Cluster, error) {
+func getHubClusters(ctx context.Context,uk *UK8S, p string) ([]*RestCluster, error) {
 	httpClient, err := google.DefaultClient(ctx,
 		"https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
@@ -142,23 +191,22 @@ func GetHubClusters(ctx context.Context, p string) ([]*Cluster, error) {
 	hcl := &HubClusters{}
 	json.Unmarshal(rd, hcl)
 
-	cl := []*Cluster{}
+	cl := []*RestCluster{}
 	for _, hc := range hcl.Resources {
 		// hc doesn't provide the endpoint. Need to query GKE - but instead of going over each cluster we can do
 		// batch query on the project and filter.
 		if hc.Endpoint != nil && hc.Endpoint.GkeCluster != nil {
 			ca := hc.Endpoint.GkeCluster.ResourceLink
 			if strings.HasPrefix(ca, "//container.googleapis.com") {
-				cc, err := GetCluster(ctx, ca[len("//container.googleapis.com"):])
+				rc, err := GetCluster(ctx, uk, ca[len("//container.googleapis.com"):])
 				if err != nil {
 					log.Println("Failed to get ", ca, err)
-				}
-				if cc != nil {
-					cl = append(cl, cc)
+				} else {
+					uk.add(rc)
+					cl = append(cl, rc)
 				}
 			}
 		}
-
 	}
 	return cl, err
 }

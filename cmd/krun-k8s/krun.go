@@ -22,8 +22,9 @@ import (
 	"time"
 
 	"github.com/costinm/hbone"
+	"github.com/costinm/krun/k8s/gcp"
+	k8s2 "github.com/costinm/krun/k8s/k8s"
 	"github.com/costinm/krun/pkg/mesh"
-	"github.com/costinm/krun/pkg/uk8s"
 )
 
 var initDebug func(run *mesh.KRun)
@@ -35,10 +36,18 @@ func main() {
 	// Init the mesh ojbect, using env variables.
 	kr := mesh.New("")
 
-	_, err := uk8s.K8SClient(ctx, kr)
+	// Init K8S - discovering using GCP API and env.
+	k8s := &k8s2.K8S{Mesh: kr}
+	k8s.VendorInit = gcp.InitGCP
+	kr.Cfg = k8s
+	kr.TokenProvider = k8s
+
+	// Init K8S client, using official API server.
+	// Will attempt to use GCP API to load metadata and populate the fields
+	k8s.K8SClient(ctx)
 
 	// Load mesh-env and other configs from k8s.
-	err = kr.LoadConfig(context.Background())
+	err := kr.LoadConfig(context.Background())
 	if err != nil {
 		log.Fatal("Failed to connect to mesh ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}
@@ -46,7 +55,7 @@ func main() {
 	log.Println("K8S Client initialized", kr.ProjectId, kr.ClusterLocation, kr.ClusterName, kr.ProjectNumber,
 		kr.KSA, kr.Namespace, kr.Name, kr.Labels, kr.XDSAddr)
 
-	// End initialization - start the app and istio
+	// End initialization
 
 	err = kr.WaitIstioAgent()
 	if err != nil {
@@ -71,41 +80,35 @@ func main() {
 		log.Fatal("Failed to find mesh certificates ", err)
 	}
 
-	hb, err := InitHBone(auth)
-	if err != nil {
-	}
-
-	if os.Getenv("H2R") != "" && kr.MeshConnectorAddr != "" {
-		InitHBoneR(hb, kr.Name, kr.Namespace, kr.MeshConnectorAddr)
-	}
-
-	select {}
-}
-
-func InitHBone(auth *hbone.Auth) (*hbone.HBone, error) {
 	// 15009 is the reserved port for HBONE using H2C. CloudRun or other gateways using H2C will forward to this
 	// port.
 	hb := hbone.New(auth)
 	// This is a port on envoy, created by Sidecar or directly by Istiod.
 	// Needs to be plain-text HTTP
 	hb.TcpAddr = "127.0.0.1:15003" // must match sni-service-template port in Sidecar
-	_, err := hbone.ListenAndServeTCP(":15009", hb.HandleAcceptedH2C)
+	_, err = hbone.ListenAndServeTCP(":15009", hb.HandleAcceptedH2C)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to start h2c on 15009 %v", err)
+		log.Fatal("Failed to start h2c on 15009", err)
 	}
-	return hb, nil
-}
 
-// Experimental: if hgate east-west gateway present, create a connection.
-func InitHBoneR(hb *hbone.HBone, name, ns, conaddr string) error {
-	hg := conaddr
-	attachC := hb.NewClient(name + "." + ns + ":15009")
-	attachE := attachC.NewEndpoint("")
-	attachE.SNI = fmt.Sprintf("outbound_.8080_._.%s.%s.svc.cluster.local", name, ns)
-	go func() {
-		_, err := attachE.DialH2R(context.Background(), hg+":15441")
-		log.Println("H2R connected", hg, err)
-	}()
+	// Experimental: if hgate east-west gateway present, create a connection.
+	if os.Getenv("H2R") != "" {
+		hg := kr.MeshConnectorInternalAddr
+		if hg == "" {
+			hg = kr.MeshConnectorAddr
+		}
+		if hg == "" {
+			log.Println("hgate not found, not attaching to the cluster", err)
+		} else {
+			attachC := hb.NewClient(kr.Name + "." + kr.Namespace + ":15009")
+			attachE := attachC.NewEndpoint("")
+			attachE.SNI = fmt.Sprintf("outbound_.8080_._.%s.%s.svc.cluster.local", kr.Name, kr.Namespace)
+			go func() {
+				_, err := attachE.DialH2R(context.Background(), hg+":15441")
+				log.Println("H2R connected", hg, err)
+			}()
+		}
+	}
 
-	return nil
+	select {}
 }

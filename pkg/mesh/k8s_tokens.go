@@ -18,13 +18,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"io/ioutil"
-	"log"
-	"os"
 	"strings"
-
-	authenticationv1 "k8s.io/api/authentication/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // IstiodCredentialsProvider returns tokens for Istiod.
@@ -79,42 +73,9 @@ func (kr *KRun) GetRequestMetadata(ctx context.Context, aud ...string) (map[stri
 // GetToken returns a token with the given audience for the current KSA, using CreateToken request.
 // Used by the STS token exchanger.
 func (kr *KRun) GetToken(ctx context.Context, aud string) (string, error) {
-	treq := &authenticationv1.TokenRequest{
-		Spec: authenticationv1.TokenRequestSpec{
-			Audiences: []string{aud},
-		},
-	}
-	ts, err := kr.Client.CoreV1().ServiceAccounts(kr.Namespace).CreateToken(ctx,
-		kr.KSA, treq, metav1.CreateOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	return ts.Status.Token, nil
+	return kr.TokenProvider.GetToken(ctx, aud)
 }
 
-func (kr *KRun) saveTokenToFile(ns string, audience string, destFile string) error {
-	t, err := kr.GetToken(context.TODO(), audience)
-	if err != nil {
-		log.Println("Error creating ", ns, kr.KSA, audience, err)
-		return err
-	}
-	log.Println("Saving ", TokenPayload(t), destFile)
-	lastSlash := strings.LastIndex(destFile, "/")
-	err = os.MkdirAll(destFile[:lastSlash], 0755)
-	if err != nil {
-		log.Println("Error creating dir", ns, kr.KSA, destFile[:lastSlash])
-	}
-	// Save the token, readable by app. Little value to have istio token as different user,
-	// for this separate container/sandbox is needed.
-	err = ioutil.WriteFile(destFile, []byte(t), 0644)
-	if err != nil {
-		log.Println("Error creating ", ns, kr.KSA, audience, destFile, err)
-		return err
-	}
-
-	return nil
-}
 
 // TokenPayload returns the decoded token. Used for logging/debugging token content, without printing the signature.
 func TokenPayload(jwt string) string {

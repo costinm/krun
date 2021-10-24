@@ -5,25 +5,12 @@ go 1.16
 //replace github.com/costinm/cert-ssh/ssh => ../cert-ssh/ssh
 
 require (
-	cloud.google.com/go v0.84.0
-	contrib.go.opencensus.io/exporter/prometheus v0.4.0
-	github.com/GoogleCloudPlatform/cloud-run-mesh v0.0.0-20211011224317-e08ac6c5eda9
-	github.com/costinm/cert-ssh/ssh v0.0.0-20210914000841-64495e35bb80
-	github.com/costinm/hbone v0.0.0-20211014182100-e32b869e6c4b
+	cloud.google.com/go v0.84.0 // indirect
 	github.com/creack/pty v1.1.13
-	github.com/golang/protobuf v1.5.2
-	github.com/google/uuid v1.1.2
-	github.com/prometheus/client_golang v1.11.0
-	go.opencensus.io v0.23.0
-	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d
+	github.com/kr/text v0.2.0 // indirect
+	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
+	golang.org/x/net v0.0.0-20210813160813-60bc85c4be6d // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
-	google.golang.org/api v0.48.0
-	google.golang.org/genproto v0.0.0-20210608205507-b6d2f5bf0d7d
-	google.golang.org/grpc v1.38.0
-	google.golang.org/protobuf v1.26.0
+	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.21.2
-	k8s.io/apimachinery v0.21.2
-	k8s.io/client-go v0.21.2
-	k8s.io/klog v1.0.0
 )

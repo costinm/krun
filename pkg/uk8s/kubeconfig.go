@@ -15,17 +15,10 @@
 package uk8s
 
 import (
-	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
+	"errors"
 	"log"
-	"net/http"
 	"strings"
-	"time"
-
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 )
 
 // KubeConfig is the JSON representation of the kube config.
@@ -125,7 +118,9 @@ type KubeUser struct {
 	Password string `json:"password,omitempty"`
 	// AuthProvider specifies a custom authentication plugin for the kubernetes cluster.
 	// +optional
-	//AuthProvider *AuthProviderConfig `json:"auth-provider,omitempty"`
+	AuthProvider *struct {
+		Name string `json:"name,omitempty"`
+	} `json:"auth-provider,omitempty"`
 	// Exec specifies a custom exec-based authentication plugin for the kubernetes cluster.
 	// +optional
 	//Exec *ExecConfig `json:"exec,omitempty"`
@@ -145,91 +140,90 @@ type Context struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
-// DefaultTokenSource will:
-// - check GOOGLE_APPLICATION_CREDENTIALS
-// - ~/.config/gcloud/application_default_credentials.json"
-// - use metadata
-func GetUK8S(cluster *KubeCluster, user *KubeUser) (*UK8S, error) {
-	resourceURL := cluster.Server
+func kubeconfig2Rest(uk *UK8S, name string, cluster *KubeCluster, user *KubeUser,ns string) (*RestCluster, error) {
+	rc := &RestCluster{
+		Base: cluster.Server,
+		Token: user.Token,
+		Namespace: ns,
+	}
+	parts := strings.Split(name, "_")
+	if parts[0] == "gke" {
+		rc.ProjectId = parts[1]
+		rc.Location = parts[2]
+		rc.Name = parts[3]
+	} else {
+		rc.Name = name
+	}
+	rc.Id = name
 
+
+	// May be useful to add: strings.HasPrefix(name, "gke_") ||
+	if user.AuthProvider != nil && user.AuthProvider.Name == "gcp" {
+		rc.TokenProvider = uk.TokenProvider
+	}
+
+	// TODO: support client cert, token file (with reload)
 	caCert, err := base64.StdEncoding.DecodeString(cluster.CertificateAuthorityData)
 	if err != nil {
-		log.Println(err)
 		return nil, err
 	}
 
-	roots := x509.NewCertPool()
-	roots.AppendCertsFromPEM(caCert)
+	rc.Client = uk.httpClient(caCert)
 
-	tr := &http.Transport{
-		MaxIdleConns:    10,
-		IdleConnTimeout: 30 * time.Second,
-		TLSClientConfig: &tls.Config{
-			RootCAs: roots,
-		},
-	}
-
-	kubernetesClient := &http.Client{}
-
-	if user.Token == "" {
-		// Can load ~/.config/gcloud/application_default_credentials.json, GCE via cloud.google.com/go/compute/metadata.
-		ts, err := google.DefaultTokenSource(context.TODO(), "https://www.googleapis.com/auth/cloud-platform")
-		if err != nil {
-			log.Println(err)
-			return nil, err
-		}
-
-		oauthTransport := &oauth2.Transport{
-			Base:   tr,
-			Source: ts,
-		}
-
-		kubernetesClient.Transport = oauthTransport
-	} else {
-		kubernetesClient.Transport = tr
-	}
-
-	return &UK8S{
-		Client: kubernetesClient,
-		Base:   resourceURL,
-		Token:  user.Token,
-		//Name: cluster.Name,
-		//Id: "/projects/" + p + "/locations/" + cluster.Location + "/cluster/" + cluster.Name,
-		//Location: cluster.Location,
-	}, nil
+	return rc, nil
 }
 
-func NewUK8S(kc *KubeConfig) (s *UK8S, err error) {
-	var clusterName string
+func extractClusters(uk *UK8S, kc *KubeConfig) (*RestCluster, map[string][]*RestCluster, error) {
 	var cluster *KubeCluster
 	var user *KubeUser
 
+	cByLoc := map[string][]*RestCluster{}
+	cByName := map[string]*RestCluster{}
+
+	if len(kc.Contexts) == 0 || kc.CurrentContext == "" {
+		if len(kc.Clusters) == 0 || len(kc.Users) == 0 {
+			return nil, cByLoc, errors.New("Kubeconfig has no clusters")
+		}
+		user = &kc.Users[0].User
+		cluster = &kc.Clusters[0].Cluster
+		rc, err := kubeconfig2Rest(uk, "", cluster, user, "")
+		if err != nil {
+			return nil, nil, err
+		}
+		cByLoc[rc.Location] = append(cByLoc[rc.Location], rc)
+		return rc, cByLoc, nil
+	}
+
+	// Have contexts
 	for _, cc := range kc.Contexts {
-		if cc.Name == kc.CurrentContext {
-			clusterName = kc.CurrentContext
-			for _, c := range kc.Clusters {
-				if c.Name == cc.Context.Cluster {
-					cluster = &c.Cluster
-				}
+		for _, c := range kc.Clusters {
+			if c.Name == cc.Context.Cluster {
+				cluster = &c.Cluster
 			}
-			for _, c := range kc.Users {
-				if c.Name == cc.Context.User {
-					user = &c.User
-				}
+		}
+		for _, c := range kc.Users {
+			if c.Name == cc.Context.User {
+				user = &c.User
 			}
+		}
+		rc, err := kubeconfig2Rest(uk, cc.Context.Cluster, cluster, user, cc.Context.Namespace)
+		if err != nil {
+			log.Println("Skipping incompatible cluster ", cc.Context.Cluster, err)
+		} else {
+			cByLoc[rc.Location] = append(cByLoc[rc.Location], rc)
+			cByName[cc.Name] = rc
+		}
+	}
+
+	if len(cByName) == 0 {
+		return nil, nil, errors.New("no clusters found")
+	}
+	defc := cByName[kc.CurrentContext]
+	if defc == nil {
+		for _, c := range cByName {
+			defc = c
 			break
 		}
 	}
-	//log.Println(clusterName, cluster.Server, cluster.CertificateAuthority)
-
-	uk, err := GetUK8S(cluster, user)
-	parts := strings.Split(clusterName, "_")
-	if parts[0] == "gke" {
-		uk.ProjectID = parts[1]
-		uk.Location = parts[2]
-		uk.Name = parts[3]
-	}
-	uk.Id = clusterName
-
-	return uk, err
+	return defc, cByLoc, nil
 }

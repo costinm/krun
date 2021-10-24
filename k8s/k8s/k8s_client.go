@@ -21,8 +21,11 @@ import (
 	"os"
 	"strings"
 
+	"errors"
+
+	"github.com/costinm/krun/pkg/mesh"
 	authenticationv1 "k8s.io/api/authentication/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
@@ -36,10 +39,9 @@ import (
 var Debug = false
 
 type K8S struct {
-	ProjectId, ClusterName, ClusterLocation string
+	Mesh *mesh.KRun
 	Client                                  *kubernetes.Clientset
-	InCluster                               bool
-	Namespace, KSA                          string
+	VendorInit func(context.Context, *K8S)  error
 }
 
 // Init klog.InitFlags from an env (to avoid messing with the CLI of
@@ -69,17 +71,17 @@ func (kr *K8S) initUsingKubeConfig() error {
 			parts := strings.Split(cf.CurrentContext, "_")
 			if len(parts) > 3 {
 				// TODO: if env variable with cluster name/location are set - use that for context
-				kr.ProjectId = parts[1]
-				kr.ClusterLocation = parts[2]
-				kr.ClusterName = parts[3]
+				kr.Mesh.ProjectId = parts[1]
+				kr.Mesh.ClusterLocation = parts[2]
+				kr.Mesh.ClusterName = parts[3]
 			}
 		}
 		if strings.HasPrefix(cf.CurrentContext, "connectgateway_") {
 			parts := strings.Split(cf.CurrentContext, "_")
 			if len(parts) > 2 {
 				// TODO: if env variable with cluster name/location are set - use that for context
-				kr.ProjectId = parts[1]
-				kr.ClusterName = parts[2]
+				kr.Mesh.ProjectId = parts[1]
+				kr.Mesh.ClusterName = parts[2]
 			}
 		}
 
@@ -119,8 +121,37 @@ func (kr *K8S) initInCluster() error {
 	if Debug {
 		log.Println("Using in-cluster k8s ", hostInClustser)
 	}
-	kr.InCluster = true
+	kr.Mesh.InCluster = true
 	return nil
+}
+
+// K8SClient will discover a K8S config cluster and return the client
+func (kr *K8S) K8SClient(ctx context.Context) error {
+	if kr.Client != nil {
+		return nil
+	}
+
+	err := kr.initUsingKubeConfig()
+	if err != nil {
+		return err
+	}
+
+	err = kr.initInCluster()
+	if err != nil {
+		return err
+	}
+
+	if kr.VendorInit != nil {
+		err = kr.VendorInit(ctx, kr)
+		if err != nil {
+			return err
+		}
+	}
+	if kr.Client != nil {
+		return nil
+	}
+
+	return errors.New("not found")
 }
 
 // LoadConfig gets the default k8s client, using environment
@@ -141,6 +172,9 @@ func (kr *K8S) initInCluster() error {
 func (kr *K8S) GetCM(ctx context.Context, ns string, name string) (map[string]string, error) {
 	s, err := kr.Client.CoreV1().ConfigMaps(ns).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
+		if Is404(err) {
+			err = nil
+		}
 		return map[string]string{}, err
 	}
 
@@ -160,7 +194,7 @@ func (kr *K8S) GetSecret(ctx context.Context, ns string, name string) (map[strin
 }
 
 func Is404(err error) bool {
-	if se, ok := err.(*errors.StatusError); ok {
+	if se, ok := err.(*k8serrors.StatusError); ok {
 		if se.ErrStatus.Code == 404 {
 			return true
 		}
@@ -176,8 +210,8 @@ func (kr *K8S) GetToken(ctx context.Context, aud string) (string, error) {
 			Audiences: []string{aud},
 		},
 	}
-	ts, err := kr.Client.CoreV1().ServiceAccounts(kr.Namespace).CreateToken(ctx,
-		kr.KSA, treq, metav1.CreateOptions{})
+	ts, err := kr.Client.CoreV1().ServiceAccounts(kr.Mesh.Namespace).CreateToken(ctx,
+		kr.Mesh.KSA, treq, metav1.CreateOptions{})
 	if err != nil {
 		panic(err)
 	}

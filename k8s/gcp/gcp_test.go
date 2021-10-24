@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/costinm/krun/k8s/k8s"
 	"github.com/costinm/krun/pkg/mesh"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,7 +43,9 @@ func TestK8S(t *testing.T) {
 	ctx, cf := context.WithTimeout(context.Background(), 1000*time.Second)
 	defer cf()
 
-	kr := mesh.New("")
+	m := mesh.New("")
+	kr := &k8s.K8S{Mesh: m}
+
 	cl, err := AllClusters(ctx, kr, "", "mesh_id", "")
 	if err != nil {
 		t.Fatal(err)
@@ -50,8 +53,8 @@ func TestK8S(t *testing.T) {
 	if len(cl) == 0 {
 		t.Fatal("No ASM clusters")
 	}
-	if kr.ProjectId != projectID {
-		t.Error("Project ID initialization", kr.ProjectId, projectID)
+	if kr.Mesh.ProjectId != projectID {
+		t.Error("Project ID initialization", kr.Mesh.ProjectId, projectID)
 	}
 	testCluster := cl[0]
 
@@ -107,19 +110,21 @@ func TestK8S(t *testing.T) {
 		// This is the main function for the package - given a KRun object, initialize the K8S Client based
 		// on settings and GKE API result.
 		kr1 := mesh.New("")
-		kr1.ProjectId = kr.ProjectId
+		kr1.ProjectId = kr.Mesh.ProjectId
 		kr1.ClusterName = testCluster.ClusterName
 		kr1.ClusterLocation = testCluster.ClusterLocation
 
-		err = InitGCP(context.Background(), kr1)
+		k8 := &k8s.K8S{Mesh: kr1}
+
+		err = InitGCP(context.Background(), k8)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if kr1.Client == nil {
+		if k8.Client == nil {
 			t.Fatal("No client")
 		}
 
-		err = checkClient(kr1.Client)
+		err = checkClient(k8.Client)
 		if err != nil {
 			t.Fatal(err)
 		}

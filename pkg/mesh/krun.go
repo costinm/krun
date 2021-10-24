@@ -16,6 +16,7 @@ package mesh
 
 import (
 	"context"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -23,11 +24,16 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v2"
-
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 )
+
+type Cfg interface {
+	GetSecret(ctx context.Context, ns string, name string) (map[string][]byte, error)
+	GetCM(ctx context.Context, ns string, name string) (map[string]string, error)
+}
+
+type TokenProvider interface {
+	GetToken(ctx context.Context, aud string) (string, error)
+}
 
 // KRun allows running an app in an Istio and K8S environment.
 type KRun struct {
@@ -86,10 +92,6 @@ type KRun struct {
 	// TODO: use service name as default
 	KSA string
 
-	// Primary client is the k8s client to use. If not set will be created based on
-	// the config.
-	Client *kubernetes.Clientset
-
 	ProjectId       string
 	ProjectNumber   string
 	ClusterName     string
@@ -101,7 +103,6 @@ type KRun struct {
 
 	StartTime  time.Time
 	Labels     map[string]string
-	VendorInit func(context.Context, *KRun) error
 
 	// WhiteboxMode indicates no iptables capture
 	WhiteboxMode bool
@@ -115,7 +116,13 @@ type KRun struct {
 	MeshAddr    string
 	CitadelRoot string
 	InstanceID  string
+
+	// Interface to abstract k8s implementation
+	TokenProvider TokenProvider
+	Cfg Cfg
 }
+
+var Debug = false
 
 func New(addr string) *KRun {
 	kr := &KRun{
@@ -125,6 +132,7 @@ func New(addr string) *KRun {
 		Labels:      map[string]string{},
 		ProxyConfig: &ProxyConfig{},
 	}
+	kr.initFromEnv()
 	return kr
 }
 
@@ -183,6 +191,8 @@ func (kr *KRun) initFromEnv() {
 	}
 	if kr.BaseDir != "" {
 		prefix = kr.BaseDir
+	} else {
+		kr.BaseDir = prefix
 	}
 
 	if kr.TrustDomain == "" {
@@ -191,10 +201,11 @@ func (kr *KRun) initFromEnv() {
 	if kr.TrustDomain == "" {
 		kr.TrustDomain = kr.ProjectId + ".svc.id.goog"
 	}
-	kr.Aud2File[kr.TrustDomain] = prefix + "/var/run/secrets/tokens/istio-token"
-	if !kr.InCluster {
-		kr.Aud2File["api"] = prefix + "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	}
+	// This can be used to provide a k8s-like environment, for apps that need it.
+	// It might be better to just generate a kubeconfig file and not pretend we are inside a cluster.
+	//if !kr.InCluster {
+	//	kr.Aud2File["api"] = prefix + "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	//}
 	if kr.KSA == "" {
 		kr.KSA = "default"
 	}
@@ -221,25 +232,40 @@ func (kr *KRun) initFromEnv() {
 	kr.AgentDebug = cfg("XDS_AGENT_DEBUG", "")
 }
 
-// RefreshAndSaveFiles is run periodically to create token, secrets, config map files.
+// RefreshAndSaveTokens is run periodically to create token, secrets, config map files.
 // The primary use is istio token expected by pilot agent.
 // This should not be called unless pilot-agent/envoy  or proxyless gRPC without library are used.
 // pilot-agent is currently refreshing the certificates - WIP to move that here.
 //
 // Certs for 'direct' (library) use can be created without saving the tokens.
 // 'library' means linking this or a similar package with the application.
-func (kr *KRun) RefreshAndSaveFiles() {
+func (kr *KRun) RefreshAndSaveTokens() {
 	for aud, f := range kr.Aud2File {
 		kr.saveTokenToFile(kr.Namespace, aud, f)
 	}
-	time.AfterFunc(30*time.Minute, kr.RefreshAndSaveFiles)
+	time.AfterFunc(30*time.Minute, kr.RefreshAndSaveTokens)
 }
 
-// SaveFile is a helper to save a file used by agent or app.
-// Depending on root, will use / or ./. Other customizations ( ~/.cache, etc)
-// can be added here.
-func (kr *KRun) SaveFile(relPath string, data []byte, mode int) {
+func (kr *KRun) saveTokenToFile(ns string, audience string, destFile string) error {
+	t, err := kr.GetToken(context.TODO(), audience)
+	if err != nil {
+		log.Println("Error creating ", ns, kr.KSA, audience, err)
+		return err
+	}
+	lastSlash := strings.LastIndex(destFile, "/")
+	err = os.MkdirAll(destFile[:lastSlash], 0755)
+	if err != nil {
+		log.Println("Error creating dir", ns, kr.KSA, destFile[:lastSlash])
+	}
+	// Save the token, readable by app. Little value to have istio token as different user,
+	// for this separate container/sandbox is needed.
+	err = ioutil.WriteFile(destFile, []byte(t), 0644)
+	if err != nil {
+		log.Println("Error creating ", ns, kr.KSA, audience, destFile, err)
+		return err
+	}
 
+	return nil
 }
 
 // Internal implementation detail for the 'mesh-env' for Istio and MCP.
@@ -268,15 +294,14 @@ func (kr *KRun) SaveToMap(d map[string]string) bool {
 // TODO: URL, like 'konfig' ( including gcp pseudo-URL like gcp://cluster.location.project/.... )
 //
 func (kr *KRun) loadMeshEnv(ctx context.Context) error {
-	s, err := kr.Client.CoreV1().ConfigMaps("istio-system").Get(ctx,
-		"mesh-env", metav1.GetOptions{})
+	d, err := kr.Cfg.GetCM(ctx, "istio-system", "mesh-env")
 	if err != nil {
-		if Is404(err) {
-			return nil
-		}
 		return err
 	}
-	d := s.Data
+	return kr.initFromMap(d)
+}
+
+func (kr *KRun) initFromMap(d map[string]string) error {
 	// See connector for supported values
 	updateFromMap(d, "PROJECT_NUMBER", &kr.ProjectNumber)
 	updateFromMap(d, "MESH_TENANT", &kr.MeshTenant)
@@ -320,11 +345,3 @@ func cfg(name, def string) string {
 	return v
 }
 
-func Is404(err error) bool {
-	if se, ok := err.(*errors.StatusError); ok {
-		if se.ErrStatus.Code == 404 {
-			return true
-		}
-	}
-	return false
-}

@@ -21,7 +21,7 @@ import (
 	"time"
 
 	// Required for k8s client to link in the authenticator
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	//_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
 // Requires KUBECONFIG or $HOME/.kube/config
@@ -39,7 +39,7 @@ func TestK8S(t *testing.T) {
 	}
 
 	// For Istio agent
-	kr.RefreshAndSaveFiles()
+	kr.RefreshAndSaveTokens()
 
 	kr.StartIstioAgent()
 

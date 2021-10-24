@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/costinm/krun/pkg/gcp"
 	"github.com/costinm/krun/pkg/mesh"
 )
 

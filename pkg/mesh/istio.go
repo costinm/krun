@@ -145,6 +145,30 @@ func (kr *KRun) WaitReady(max time.Duration) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 }
+func (kr *KRun) WaitIstioAgent() (error) {
+	meshMode := true
+
+	if _, err := os.Stat("/usr/local/bin/pilot-agent"); os.IsNotExist(err) {
+		meshMode = false
+	}
+	if kr.XDSAddr == "-" {
+		meshMode = false
+	}
+
+	if meshMode {
+		// Use k8s client to autoconfigure, reading from cluster.
+		err := kr.StartIstioAgent()
+		if err != nil {
+			return fmt.Errorf("Failed to start the mesh agent %v", err)
+		}
+		err = kr.WaitReady(10 * time.Second)
+		if err != nil {
+			return fmt.Errorf("Mesh agent not ready %v", err)
+		}
+	}
+
+	return nil
+}
 
 // StartIstioAgent creates the env and starts istio agent.
 // If running as root, will also init iptables and change UID to 1337.
@@ -190,7 +214,7 @@ func (kr *KRun) StartIstioAgent() error {
 	// If using a private CA - add it's root to the docker images, everything will be consistent
 	// and simpler !
 	if os.Getenv("PROXY_CONFIG") == "" {
-		if kr.MeshTenant == "-" {
+		if kr.MeshTenant == "-" || kr.MeshTenant == "" {
 			// Explicitly in-cluster
 			kr.XDSAddr = kr.MeshConnectorAddr + ":15012"
 		}
@@ -199,14 +223,33 @@ func (kr *KRun) StartIstioAgent() error {
 		env = append(env, "PROXY_CONFIG="+proxyConfig)
 	}
 
+	// Pilot-agent requires this file, to connect to CA and XDS.
+	// The plan is to add code to get the certs to this package, so proxyless doesn't depend on pilot-agent.
+	//
+	// OSS Istio uses 'istio-ca' as token audience when connecting to Citadel
+	// ASM uses the 'trust domain' - which is also needed for MCP and Stackdriver.
+	// Recent Istiod supports customization of the expected audiences, via an env variable.
+	//
 	if strings.HasSuffix(kr.XDSAddr, ":15012") {
 		env = addIfMissing(env, "ISTIOD_SAN", "istiod.istio-system.svc")
+		// Temp workaround to handle OSS-specific behavior. By default we will expect OSS Istio
+		// to be installed in 'compatibility' mode with ASM, i.e. accept both istio-ca and trust domain
+		// as audience.
+		if os.Getenv("OSS_ISTIO") != "" {
+			kr.Aud2File["istio-ca"] = kr.BaseDir + "/var/run/secrets/tokens/istio-token"
+		} else {
+			kr.Aud2File[kr.TrustDomain] = kr.BaseDir + "/var/run/secrets/tokens/istio-token"
+		}
 	} else {
+		kr.Aud2File[kr.TrustDomain] = kr.BaseDir + "/var/run/secrets/tokens/istio-token"
 		env = addIfMissing(env, "XDS_ROOT_CA", "SYSTEM")
 		env = addIfMissing(env, "PILOT_CERT_PROVIDER", "system")
 		env = addIfMissing(env, "CA_ROOT_CA", "SYSTEM")
 	}
 	env = addIfMissing(env, "POD_NAMESPACE", kr.Namespace)
+
+	kr.RefreshAndSaveTokens()
+
 
 	// Pod name MUST be an unique name - it is used in stackdriver which requires this ( errors on 'ordered updates' and
 	//  lost data otherwise)
@@ -308,6 +351,14 @@ func (kr *KRun) StartIstioAgent() error {
 	// i.e. only get certificate.
 	if _, err := os.Stat("/usr/local/bin/envoy"); os.IsNotExist(err) {
 		env = append(env, "DISABLE_ENVOY=true")
+	}
+	// TODO: look in /var...
+	if _, err := os.Stat(" ./var/lib/istio/envoy/envoy_bootstrap_tmpl.json"); os.IsNotExist(err) {
+		if _, err := os.Stat("/var/lib/istio/envoy/envoy_bootstrap_tmpl.json"); os.IsNotExist(err) {
+			env = append(env, "DISABLE_ENVOY=true")
+		} else {
+			env = append(env, "ISTIO_BOOTSTRAP", "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json")
+		}
 	}
 
 	// Generate grpc bootstrap - no harm, low cost
