@@ -98,32 +98,33 @@ var (
 // UK8S is a micro k8s client, using only base http and a token source.
 type UK8S struct {
 	// Client using platform tokens
-	Client *http.Client
+	Client        *http.Client
 	TokenProvider func(context.Context, string) (string, error)
 
-	// Information from the cluster name
+	// Hub or user project ID. If set, will be used to lookup clusters.
 	ProjectID string
-	Base      string
-	Name      string
-	Id        string
-	Location  string
+
+	// Location where the workload is running, to select local clusters.
+	Location string
 
 	// Configs about the mesh.
-	Mesh    *mesh.KRun
+	Mesh *mesh.KRun
 
 	// Current active cluster.
 	Current *RestCluster
 
-	Clusters map[string]*RestCluster
+	Clusters           map[string]*RestCluster
 	ClustersByLocation map[string][]*RestCluster
 
 	m sync.RWMutex
+
+	TransportWrapper func(transport http.RoundTripper) http.RoundTripper
 }
 
 type RestCluster struct {
 	// Base URL, including https://IP:port/v1
 	// Created from endpoint.
-	Base  string
+	Base string
 
 	// Token is set if the project is created from a k8s config using
 	// the long lived secret (for example Istio)
@@ -144,7 +145,7 @@ type RestCluster struct {
 }
 
 func (uK8S *UK8S) String() string {
-	return uK8S.Id
+	return uK8S.Current.Id
 }
 
 func (uK8S *UK8S) httpClient(caCert []byte) *http.Client {
@@ -155,7 +156,8 @@ func (uK8S *UK8S) httpClient(caCert []byte) *http.Client {
 
 	// The 'max idle conns, idle con timeout, etc are shorter - this is meant for
 	// fast initial config, not as a general purpose client.
-	tr := &http.Transport{
+	var tr http.RoundTripper
+	tr = &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
@@ -169,6 +171,10 @@ func (uK8S *UK8S) httpClient(caCert []byte) *http.Client {
 		TLSClientConfig: &tls.Config{
 			RootCAs: roots,
 		},
+	}
+
+	if uK8S.TransportWrapper != nil {
+		tr = uK8S.TransportWrapper(tr)
 	}
 
 	return &http.Client{
@@ -210,7 +216,12 @@ func (uK8S *UK8S) GetToken(ctx context.Context, aud string) (string, error) {
 }
 
 func (uK8S *UK8S) GetTokenRaw(ctx context.Context, ns, name, aud string) (string, error) {
-	data, err := uK8S.Do(ctx, ns, "serviceaccount", name+"/token", nil)
+	// If no audience is specified, something like
+	//   https://container.googleapis.com/v1/projects/costin-asm1/locations/us-central1-c/clusters/big1
+	// is generated ( on GKE ) - which seems to be the audience for K8S
+	data, err := uK8S.Do(ctx, ns, "serviceaccount", name+"/token", []byte(fmt.Sprintf(`
+{"kind":"TokenRequest","apiVersion":"authentication.k8s.io/v1","spec":{"audiences":["%s"]}}
+`, aud)))
 	if err != nil {
 		return "", err
 	}
@@ -227,7 +238,7 @@ var Debug = false
 
 func (uk8s *UK8S) Do(ctx context.Context, ns, kind, name string, postdata []byte) ([]byte, error) {
 
-	resourceURL := uk8s.Base + fmt.Sprintf("/api/v1/namespaces/%s/%ss/%s",
+	resourceURL := uk8s.Current.Base + fmt.Sprintf("/api/v1/namespaces/%s/%ss/%s",
 		ns, kind, name)
 
 	var resp *http.Response
@@ -236,7 +247,7 @@ func (uk8s *UK8S) Do(ctx context.Context, ns, kind, name string, postdata []byte
 	if postdata == nil {
 		req, _ = http.NewRequest("GET", resourceURL, nil)
 	} else {
-		req, _ := http.NewRequest("POST", resourceURL, bytes.NewReader(postdata))
+		req, _ = http.NewRequest("POST", resourceURL, bytes.NewReader(postdata))
 		req.Header.Add("content-type", "application/json")
 	}
 
@@ -245,7 +256,7 @@ func (uk8s *UK8S) Do(ctx context.Context, ns, kind, name string, postdata []byte
 	if uk8s.Current.Token != "" {
 		req.Header.Add("authorization", "bearer "+uk8s.Current.Token)
 	} else if uk8s.Current.TokenProvider != nil {
-		t, err := uk8s.Current.TokenProvider(ctx, uk8s.Base)
+		t, err := uk8s.Current.TokenProvider(ctx, uk8s.Current.Base)
 		if err != nil {
 			return nil, err
 		}
@@ -261,15 +272,14 @@ func (uk8s *UK8S) Do(ctx context.Context, ns, kind, name string, postdata []byte
 		return nil, err
 	}
 
+	defer resp.Body.Close()
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
 
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
+	if resp.StatusCode >= 300 || resp.StatusCode < 200 {
 		return nil, errors.New(fmt.Sprintf("kconfig: unable to get %s.%s %s from Kubernetes status code %v",
 			ns, name, kind, resp.StatusCode))
 	}
@@ -291,6 +301,7 @@ func New() *UK8S {
 func K8SClient(ctx context.Context, m *mesh.KRun) (*UK8S, error) {
 	uk := New()
 	uk.Mesh = m
+	uk.TransportWrapper = m.TransportWrapper
 	m.Cfg = uk
 	m.TokenProvider = uk
 
@@ -299,7 +310,7 @@ func K8SClient(ctx context.Context, m *mesh.KRun) (*UK8S, error) {
 	// - check GOOGLE_APPLICATION_CREDENTIALS
 	// - ~/.config/gcloud/application_default_credentials.json"
 	// - use metadata
-	ts, err := google.DefaultTokenSource(context.TODO(), "https://www.googleapis.com/auth/cloud-platform")
+	ts, err := google.DefaultTokenSource(ctx, "https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
 		return nil, err
 	}

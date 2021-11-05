@@ -8,8 +8,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-
-	"golang.org/x/oauth2/google"
 )
 
 type Clusters struct {
@@ -62,7 +60,7 @@ type Cluster struct {
 	// loggingService, monitoringService
 	//Network string "default"
 	//Subnetwork string
-	ClusterIpv4Cidr string
+	ClusterIpv4Cidr  string
 	ServicesIpv4Cidr string
 	// addonsConfig
 	// nodePools
@@ -76,7 +74,7 @@ type Cluster struct {
 	// autoscaling
 	NetworkConfig struct {
 		// projects/NAME/global/networks/default
-		Network string
+		Network    string
 		Subnetwork string
 	}
 	// releaseChannel
@@ -88,16 +86,11 @@ type Cluster struct {
 }
 
 func getGKEClusters(ctx context.Context, uk *UK8S, token string, p string) ([]*RestCluster, error) {
-	httpClient, err := google.DefaultClient(ctx,
-		"https://www.googleapis.com/auth/cloud-platform")
-	if err != nil {
-		return nil, err
-	}
-	req, _ := http.NewRequest("GET", "https://container.googleapis.com/v1/projects/" + p + "/locations/-/clusters", nil)
+	req, _ := http.NewRequest("GET", "https://container.googleapis.com/v1/projects/"+p+"/locations/-/clusters", nil)
 	req = req.WithContext(ctx)
-	req.Header.Add("authorization", "bearer " + token)
+	req.Header.Add("authorization", "bearer "+token)
 
-	res, err := httpClient.Do(req)
+	res, err := uk.Client.Do(req)
 	if res.StatusCode != 200 {
 		return nil, fmt.Errorf("Error reading clusters %d", res.StatusCode)
 	}
@@ -117,11 +110,11 @@ func getGKEClusters(ctx context.Context, uk *UK8S, token string, p string) ([]*R
 	rcl := []*RestCluster{}
 	for _, c := range cl.Clusters {
 		rc := &RestCluster{
-			Client: uk.httpClient(c.MasterAuth.ClusterCaCertificate),
-			Base: c.Endpoint,
-			Location: c.Location,
+			Client:        uk.httpClient(c.MasterAuth.ClusterCaCertificate),
+			Base:          c.Endpoint,
+			Location:      c.Location,
 			TokenProvider: uk.TokenProvider,
-			Id: "gke_" + p + "_" + c.Location + "_" + c.Name,
+			Id:            "gke_" + p + "_" + c.Location + "_" + c.Name,
 		}
 		rcl = append(rcl, rc)
 
@@ -142,16 +135,14 @@ func (uk *UK8S) add(rc *RestCluster) {
 	uk.m.Unlock()
 }
 
-func GetCluster(ctx context.Context, uk *UK8S, path string) (*RestCluster, error) {
-	httpClient, err := google.DefaultClient(ctx,
-		"https://www.googleapis.com/auth/cloud-platform")
-	if err != nil {
-		return nil, err
-	}
+func GetCluster(ctx context.Context, uk *UK8S, token, path string) (*RestCluster, error) {
+	req, _ := http.NewRequest("GET", "https://container.googleapis.com/v1"+path, nil)
+	req = req.WithContext(ctx)
+	req.Header.Add("authorization", "bearer "+token)
 
 	parts := strings.Split(path, "/")
 	p := parts[2]
-	res, err := httpClient.Get("https://container.googleapis.com/v1" + path)
+	res, err := uk.Client.Do(req)
 	log.Println(res.StatusCode)
 	rd, err := ioutil.ReadAll(res.Body)
 	if err != nil {
@@ -164,24 +155,23 @@ func GetCluster(ctx context.Context, uk *UK8S, path string) (*RestCluster, error
 	}
 
 	rc := &RestCluster{
-		Client: uk.httpClient(c.MasterAuth.ClusterCaCertificate),
-		Base: c.Endpoint,
-		Location: c.Location,
+		Client:        uk.httpClient(c.MasterAuth.ClusterCaCertificate),
+		Base:          c.Endpoint,
+		Location:      c.Location,
 		TokenProvider: uk.TokenProvider,
-		Id: "gke_" + p + "_" + c.Location + "_" + c.Name,
+		Id:            "gke_" + p + "_" + c.Location + "_" + c.Name,
 	}
 
 	return rc, err
 }
 
-func getHubClusters(ctx context.Context,uk *UK8S, p string) ([]*RestCluster, error) {
-	httpClient, err := google.DefaultClient(ctx,
-		"https://www.googleapis.com/auth/cloud-platform")
-	if err != nil {
-		return nil, err
-	}
+func getHubClusters(ctx context.Context, uk *UK8S, tok, p string) ([]*RestCluster, error) {
+	req, _ := http.NewRequest("GET",
+		"https://gkehub.googleapis.com/v1/projects/"+p+"/locations/-/memberships", nil)
+	req = req.WithContext(ctx)
+	req.Header.Add("authorization", "bearer "+tok)
 
-	res, err := httpClient.Get("https://gkehub.googleapis.com/v1/projects/" + p + "/locations/-/memberships")
+	res, err := uk.Client.Do(req)
 	log.Println(res.StatusCode)
 	rd, err := ioutil.ReadAll(res.Body)
 	if err != nil {
@@ -198,7 +188,7 @@ func getHubClusters(ctx context.Context,uk *UK8S, p string) ([]*RestCluster, err
 		if hc.Endpoint != nil && hc.Endpoint.GkeCluster != nil {
 			ca := hc.Endpoint.GkeCluster.ResourceLink
 			if strings.HasPrefix(ca, "//container.googleapis.com") {
-				rc, err := GetCluster(ctx, uk, ca[len("//container.googleapis.com"):])
+				rc, err := GetCluster(ctx, uk, tok, ca[len("//container.googleapis.com"):])
 				if err != nil {
 					log.Println("Failed to get ", ca, err)
 				} else {
@@ -209,4 +199,27 @@ func getHubClusters(ctx context.Context,uk *UK8S, p string) ([]*RestCluster, err
 		}
 	}
 	return cl, err
+}
+
+func queryMetadata(path string) (string, error) {
+	// metadata.google.internal
+	// TODO: read GCE_METADATA_HOST
+	req, err := http.NewRequest("GET", "http://169.254.169.254/computeMetadata/v1/"+path, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Metadata-Flavor", "Google")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("metadata server responeded with code=%d %s", resp.StatusCode, resp.Status)
+	}
+	defer resp.Body.Close()
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(b)), err
 }

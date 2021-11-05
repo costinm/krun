@@ -18,6 +18,7 @@ import (
 	"context"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -92,17 +93,18 @@ type KRun struct {
 	// TODO: use service name as default
 	KSA string
 
-	ProjectId       string
-	ProjectNumber   string
-	ClusterName     string
+	ProjectId     string
+	ProjectNumber string
+	ClusterName   string
+	// Location of the cluster
 	ClusterLocation string
 
 	agentCmd    *exec.Cmd
 	appCmd      *exec.Cmd
 	TrustDomain string
 
-	StartTime  time.Time
-	Labels     map[string]string
+	StartTime time.Time
+	Labels    map[string]string
 
 	// WhiteboxMode indicates no iptables capture
 	WhiteboxMode bool
@@ -118,8 +120,9 @@ type KRun struct {
 	InstanceID  string
 
 	// Interface to abstract k8s implementation
-	TokenProvider TokenProvider
-	Cfg Cfg
+	TokenProvider    TokenProvider
+	Cfg              Cfg
+	TransportWrapper func(transport http.RoundTripper) http.RoundTripper
 }
 
 var Debug = false
@@ -134,6 +137,15 @@ func New(addr string) *KRun {
 	}
 	kr.initFromEnv()
 	return kr
+}
+
+// Extract Region from ClusterLocation
+func (kr *KRun) Region() string {
+	p := strings.Split(kr.ClusterLocation, "-")
+	if len(p) < 3 {
+		return kr.ClusterLocation
+	}
+	return strings.Join(p[0:2], "-")
 }
 
 // initFromEnv will use the env variables, metadata server and cluster configmaps
@@ -198,7 +210,7 @@ func (kr *KRun) initFromEnv() {
 	if kr.TrustDomain == "" {
 		kr.TrustDomain = os.Getenv("TRUST_DOMAIN")
 	}
-	if kr.TrustDomain == "" {
+	if kr.TrustDomain == "" && kr.ProjectId != "" {
 		kr.TrustDomain = kr.ProjectId + ".svc.id.goog"
 	}
 	// This can be used to provide a k8s-like environment, for apps that need it.
@@ -230,6 +242,7 @@ func (kr *KRun) initFromEnv() {
 
 	// example dns:debug
 	kr.AgentDebug = cfg("XDS_AGENT_DEBUG", "")
+
 }
 
 // RefreshAndSaveTokens is run periodically to create token, secrets, config map files.
@@ -313,10 +326,6 @@ func (kr *KRun) initFromMap(d map[string]string) error {
 	updateFromMap(d, "IMCON_ADDR", &kr.MeshConnectorInternalAddr)
 	updateFromMap(d, "CAROOT_ISTIOD", &kr.CitadelRoot)
 
-	// Old style:
-	updateFromMap(d, "CLOUDRUN_ADDR", &kr.MeshTenant)
-	updateFromMap(d, "ISTIOD_ROOT", &kr.CitadelRoot)
-
 	if kr.CitadelRoot != "" {
 		kr.CARoots = append(kr.CARoots, kr.CitadelRoot)
 	}
@@ -344,4 +353,3 @@ func cfg(name, def string) string {
 	}
 	return v
 }
-

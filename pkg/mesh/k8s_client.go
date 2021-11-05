@@ -26,8 +26,11 @@ func (kr *KRun) LoadConfig(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		// Adjust 'derived' values if needed.
+		if kr.TrustDomain == "" && kr.ProjectId != "" {
+			kr.TrustDomain = kr.ProjectId + ".svc.id.goog"
+		}
 	}
 
 	return nil
 }
-

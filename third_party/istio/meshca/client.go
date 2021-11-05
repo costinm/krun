@@ -29,20 +29,17 @@ import (
 )
 
 type GoogleCAClient struct {
-	caEndpoint string
-	client     MeshCertificateServiceClient
-	conn       *grpc.ClientConn
-	Location   string
+	client   MeshCertificateServiceClient
+	conn     *grpc.ClientConn
+	Location string
 }
 
 // NewGoogleCAClient create a CA client for Google CA.
-func NewGoogleCAClient(endpoint string, tokenProvider credentials.PerRPCCredentials) (*GoogleCAClient, error) {
+func NewGoogleCAClient(endpoint string, ol []grpc.DialOption) (*GoogleCAClient, error) {
 	if endpoint == "" {
 		endpoint = "meshca.googleapis.com:443"
 	}
-	c := &GoogleCAClient{
-		caEndpoint: endpoint,
-	}
+	c := &GoogleCAClient{}
 
 	var opts grpc.DialOption
 	var err error
@@ -51,10 +48,11 @@ func NewGoogleCAClient(endpoint string, tokenProvider credentials.PerRPCCredenti
 		return nil, err
 	}
 
+	ol = append(ol, opts)
+
 	conn, err := grpc.Dial(endpoint,
-		opts,
-		grpc.WithPerRPCCredentials(tokenProvider),
-		//security.CARetryInterceptor(),
+		ol...,
+	//security.CARetryInterceptor(),
 	)
 	if err != nil {
 		log.Printf("Failed to connect to endpoint %s: %v", endpoint, err)

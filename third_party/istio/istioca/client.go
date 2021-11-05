@@ -42,6 +42,7 @@ type Options struct {
 	CAEndpointSAN string
 
 	TokenProvider credentials.PerRPCCredentials
+	GRPCOptions   []grpc.DialOption
 
 	CertSigner string
 	ClusterID  string
@@ -166,6 +167,7 @@ func (c *CitadelClient) getTLSDialOption() (grpc.DialOption, error) {
 }
 
 func (c *CitadelClient) buildConnection() (*grpc.ClientConn, error) {
+	var ol []grpc.DialOption
 	var opts grpc.DialOption
 	var err error
 	if c.enableTLS {
@@ -173,14 +175,16 @@ func (c *CitadelClient) buildConnection() (*grpc.ClientConn, error) {
 		if err != nil {
 			return nil, err
 		}
+		ol = append(ol, opts)
 	} else {
 		opts = grpc.WithInsecure()
+		ol = append(ol, opts)
 	}
-
-	conn, err := grpc.Dial(c.opts.CAEndpoint,
-		opts,
-		grpc.WithPerRPCCredentials(c.opts.TokenProvider))
+	ol = append(ol, grpc.WithPerRPCCredentials(c.opts.TokenProvider))
+	ol = append(ol, c.opts.GRPCOptions...)
 	//security.CARetryInterceptor())
+
+	conn, err := grpc.Dial(c.opts.CAEndpoint, ol...)
 	if err != nil {
 		log.Printf("Failed to connect to endpoint %s: %v", c.opts.CAEndpoint, err)
 		return nil, fmt.Errorf("failed to connect to endpoint %s", c.opts.CAEndpoint)

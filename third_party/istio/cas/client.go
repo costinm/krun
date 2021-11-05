@@ -23,6 +23,8 @@ import (
 	privateca "cloud.google.com/go/security/privateca/apiv1"
 	"google.golang.org/api/option"
 	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
@@ -34,12 +36,14 @@ type GoogleCASClient struct {
 }
 
 // NewGoogleCASClient create a CA client for Google CAS.
-func NewGoogleCASClient(capool string, options ...option.ClientOption) (*GoogleCASClient, error) {
+// capool is in format: projects/*/locations/*/caPools/*
+func NewGoogleCASClient(capool string, tokenProvider credentials.PerRPCCredentials) (*GoogleCASClient, error) {
 	caClient := &GoogleCASClient{caSigner: capool}
 	ctx := context.Background()
 	var err error
 
-	caClient.caClient, err = privateca.NewCertificateAuthorityClient(ctx, options...)
+	caClient.caClient, err = privateca.NewCertificateAuthorityClient(ctx,
+		option.WithGRPCDialOption(grpc.WithPerRPCCredentials(tokenProvider)))
 
 	if err != nil {
 		log.Printf("unable to initialize google cas caclient: %v", err)
@@ -95,6 +99,7 @@ func (r *GoogleCASClient) CSRSign(csrPEM []byte, certValidTTLInSec int64) ([]str
 	certChain := []string{}
 
 	rand.Seed(time.Now().UnixNano())
+	// TODO: use location, pod identity
 	name := fmt.Sprintf("csr-workload-%s", rand.String(8))
 	creq := r.createCertReq(name, csrPEM, time.Duration(certValidTTLInSec)*time.Second)
 

@@ -55,8 +55,8 @@ func TestUK8S(t *testing.T) {
 	}
 
 	//
-	uk.Current=  ecl
-	uk.ProjectID= ecl.ProjectId
+	uk.Current = ecl
+	uk.ProjectID = ecl.ProjectId
 
 	t.Run("kubeconfig", func(t *testing.T) {
 		cm, err := uk.GetCM(ctx, "istio-system", "mesh-env")
@@ -66,8 +66,10 @@ func TestUK8S(t *testing.T) {
 		log.Println(cm)
 	})
 
+	tok, err := uk.TokenProvider(ctx, "")
+
 	t.Run("hublist", func(t *testing.T) {
-		cd, err := getHubClusters(context.TODO(), uk, uk.ProjectID)
+		cd, err := getHubClusters(ctx, uk, tok, uk.ProjectID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -78,9 +80,8 @@ func TestUK8S(t *testing.T) {
 		}
 	})
 
-
 	t.Run("gkelist", func(t *testing.T) {
-		cd, err := getGKEClusters(context.TODO(), nil, uk.ProjectID, "")
+		cd, err := getGKEClusters(ctx, uk, tok, uk.ProjectID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -104,6 +105,4 @@ func TestUK8S(t *testing.T) {
 		}
 	})
 
-
 }
-

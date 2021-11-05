@@ -73,8 +73,10 @@ const (
 	stsIssuedTokenType = "urn:ietf:params:oauth:token-type:access_token"
 )
 
-// STS provides token exchanges. Implements grpc and golang.org/x/oauth2.TokenSource
-// The source of trust is the K8S token with TrustDomain audience, it is exchanged with access or ID tokens.
+// STS provides token exchanges using google STS.
+// Implements grpc and golang.org/x/oauth2.TokenSource
+// The source of trust is the K8S token with TrustDomain audience, it is exchanged
+// with access or ID tokens for the P4SA.
 type STS struct {
 	httpClient *http.Client
 	kr         *mesh.KRun
@@ -108,10 +110,14 @@ func (s *STS) Token() (*oauth2.Token, error) {
 // GetRequestMetadata implements credentials.PerRPCCredentials
 // This can be used for both ID tokens or access tokens - if the 'aud' containts googleapis.com, access tokens are returned.
 func (s *STS) GetRequestMetadata(ctx context.Context, aud ...string) (map[string]string, error) {
+
+	// The K8S-signed JWT
 	kt, err := s.kr.GetToken(ctx, s.kr.TrustDomain)
 	if err != nil {
 		return nil, err
 	}
+
+	// Federated token - a google token equivalent with the k8s JWT, using STS
 	ft, err := s.TokenFederated(ctx, kt)
 	if err != nil {
 		return nil, err
@@ -124,6 +130,7 @@ func (s *STS) GetRequestMetadata(ctx context.Context, aud ...string) (map[string
 		return nil, errors.New("Single audience supporte")
 	}
 
+	// TODO: better way to determine if the destination supports federated token directly.
 	if strings.Contains(a0, "googleapis.com/") {
 		return map[string]string{
 			"authorization": "Bearer " + ft,
@@ -177,6 +184,12 @@ func (s *STS) TokenFederated(ctx context.Context, k8sSAjwt string) (string, erro
 	return respData.AccessToken, nil
 }
 
+// Exchange a federated token equivalent with the k8s JWT with the ASM p4SA.
+// TODO: can be used with any GSA, if the permission to call generateAccessToken is granted.
+// This is a good way to get access tokens for a GSA using the KSA, similar with TokenRequest in
+// the other direction.
+//
+// May return an ID token with aud or access token.
 func (s *STS) TokenAccess(ctx context.Context, federatedToken string, audience string) (string, error) {
 	req, err := s.constructGenerateAccessTokenRequest(federatedToken, audience)
 	if err != nil {
