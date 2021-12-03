@@ -35,7 +35,7 @@ func main() {
 	// Init the mesh ojbect, using env variables.
 	kr := mesh.New("")
 
-	_, err := uk8s.K8SClient(ctx, kr)
+	_, err := urest.K8SClient(ctx, kr)
 
 	// Load mesh-env and other configs from k8s.
 	err = kr.LoadConfig(context.Background())

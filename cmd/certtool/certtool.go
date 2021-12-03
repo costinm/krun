@@ -5,11 +5,13 @@ import (
 	"crypto/x509"
 	"flag"
 	"log"
+	"os"
 	"time"
 
 	"google.golang.org/grpc"
 
 	"github.com/costinm/hbone"
+	"github.com/costinm/hbone/otel"
 	"github.com/costinm/krun/pkg/mesh"
 	"github.com/costinm/krun/pkg/sts"
 	"github.com/costinm/krun/pkg/uk8s"
@@ -30,10 +32,11 @@ func main() {
 
 	kr := mesh.New("")
 
-	f := initOTel(startCtx, kr)
+	initOTel(startCtx, kr)
+	f := otel.FileExporter(startCtx, os.Stdout)
 	defer f()
 
-	_, err := uk8s.K8SClient(startCtx, kr)
+	_, err := urest.K8SClient(startCtx, kr)
 	err = kr.LoadConfig(startCtx)
 	if err != nil {
 		panic(err)

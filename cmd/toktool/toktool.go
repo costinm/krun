@@ -23,7 +23,7 @@ func main() {
 	ctx := context.Background()
 
 	kr := mesh.New("")
-	_, err := uk8s.K8SClient(ctx, kr)
+	_, err := urest.K8SClient(ctx, kr)
 	err = kr.LoadConfig(ctx)
 	if err != nil {
 		panic(err)
