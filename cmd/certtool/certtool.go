@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/costinm/hbone"
+	"github.com/costinm/hbone/otel"
 	"github.com/costinm/krun/pkg/mesh"
 	"github.com/costinm/krun/pkg/sts"
 	"github.com/costinm/krun/pkg/uk8s"
@@ -37,6 +38,7 @@ func main() {
 		kr.Namespace = *ns
 	}
 
+	defer f()
 	// Using the micro or real k8s client.
 	if false {
 		_, err := uk8s.K8SClient(startCtx, kr)

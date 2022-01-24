@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package uk8s
+package urest
 
 import (
 	"encoding/base64"
@@ -140,10 +140,10 @@ type Context struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
-func kubeconfig2Rest(uk *UK8S, name string, cluster *KubeCluster, user *KubeUser,ns string) (*RestCluster, error) {
+func kubeconfig2Rest(uk *UK8S, name string, cluster *KubeCluster, user *KubeUser, ns string) (*RestCluster, error) {
 	rc := &RestCluster{
-		Base: cluster.Server,
-		Token: user.Token,
+		Base:      cluster.Server,
+		Token:     user.Token,
 		Namespace: ns,
 	}
 	parts := strings.Split(name, "_")
@@ -155,7 +155,6 @@ func kubeconfig2Rest(uk *UK8S, name string, cluster *KubeCluster, user *KubeUser
 		rc.Name = name
 	}
 	rc.Id = name
-
 
 	// May be useful to add: strings.HasPrefix(name, "gke_") ||
 	if user.AuthProvider != nil && user.AuthProvider.Name == "gcp" {

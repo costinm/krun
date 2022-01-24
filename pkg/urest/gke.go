@@ -1,4 +1,4 @@
-package uk8s
+package urest
 
 import (
 	"context"

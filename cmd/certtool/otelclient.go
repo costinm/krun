@@ -4,8 +4,6 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"os"
-	"time"
 
 	"github.com/costinm/krun/pkg/mesh"
 	"github.com/costinm/krun/pkg/sts"
@@ -26,13 +24,9 @@ import (
 	mexporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric"
 	cloudtrace "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace"
 
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/host"
-	"go.opentelemetry.io/contrib/instrumentation/runtime"
 
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 )
 
 // TODO: use otelhttptrace to get httptrace (low level client traces)
@@ -153,6 +147,13 @@ func initOTel(ctx context.Context, kr *mesh.KRun) (func(), error) {
 			log.Fatal(err)
 		}
 	}, nil
+	/*
+	kr.TransportWrapper = func(transport http.RoundTripper) http.RoundTripper {
+		return otelhttp.NewTransport(transport)
+	}
+	// Host telemetry -
+	host.Start()
+       */
 }
 
 func OTELGRPCClient() []grpc.DialOption {
@@ -160,4 +161,3 @@ func OTELGRPCClient() []grpc.DialOption {
 		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor())}
 }
-

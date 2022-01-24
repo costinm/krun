@@ -9,6 +9,7 @@ replace github.com/costinm/krun/k8s/k8s => ../../k8s
 replace github.com/costinm/krun/third_party => ../../third_party
 
 replace github.com/costinm/hbone => ../../../hbone
+replace github.com/costinm/hbone/otel => ../../../hbone/otel
 
 require (
 	github.com/costinm/hbone v0.0.0-20211028162624-73e290a5b331

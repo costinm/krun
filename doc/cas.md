@@ -52,6 +52,17 @@ Permissions:
   roles/privateca.templateUser - get and use template. 
 
 
+Example:
+(works - using the federated token for the SA directly)
+gcloud privateca pools add-iam-policy-binding istio --role=roles/privateca.workloadCertificateRequester --member="se
+rviceAccount:wlhe-cr.svc.id.goog[default/default]" --project wlhe-cr --location=us-central1
+
+Using the P4SA for dataplane:
+- serviceAccount:service-601426346923@gcp-sa-meshdataplane.iam.gserviceaccount.com
+  role: roles/meshdataplane.serviceAgent
+
+
+
 If using KMS certs - service-PROJECT_NUMBER@gcp-sa-privateca.iam.gserviceaccount.com must be granted permission 
 to the key, roles/cloudkms.signerVerifier and roles/viewer
 
