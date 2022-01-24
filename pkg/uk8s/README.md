@@ -1,12 +1,28 @@
-WIP, not used yet: using the rest API directly to fetch mesh-env and tokens.
+# Rest
 
-Based on a subset of kelseyhightower/konfig.
+This package includes a basic wrapper around http Client interface, to support common 'REST' API for GCP, K8S and 
+other similar APIs without a full dependency on the (rather large) client libraries.
 
-All we really need is getting a config map with a GET request, and creating a token with a POST request - both using
+It is ONLY intended for bootstrap and 'light' usage - and optimized for code size instead of performance.
+
+The initial code was modeled after k8s, later extended for GCP APIs. 
+
+'REST' uses the basic HTTP protocol - the payload is a []byte with some metadata, which can be further interpreted as 
+json, protobuf, certificates or other formats.
+
+
+
+# K8S 
+
+Using the rest API directly to fetch mesh-env and tokens.
+
+Originally based on a subset of kelseyhightower/konfig, using the K8S and CloudRun REST interface directly.
+
+For bootstrap, all we really need is getting a config map with a GET request, and creating a token with a POST request - both using
 JWTs from the default credentials source. We also don't need the full json - just few fields that are stable, so keeping
 a dependency to the full generated structs of all k8s APIs is overkill.
 
-This includes minimal code to parse kubeconfig, just enough for debugging.
+This includes minimal code to parse kubeconfig, just enough for debugging and running in environments without a metadata server.
 
 The 'primary' auth mode is using google service account, using golang.org/x/oauth2/google:
 - metadata server
@@ -25,7 +41,7 @@ TODO: document hub discovery
 
 #  Others
 
-https://github.com/ericchiang/k8s
+K8S-only: https://github.com/ericchiang/k8s
 - archived
 - using the protobuf option instead of JSON - would be good for high-perf clients, we only need few configs
 - generated

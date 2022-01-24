@@ -12,25 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package mesh
+package main
 
 import (
-	"context"
+	"flag"
+	"fmt"
+
+	"github.com/costinm/krun/pkg/mesh"
 )
 
-func (kr *KRun) LoadConfig(ctx context.Context) error {
-	// It is possible to have only one of the 2 mesh connector services installed
-	if kr.XDSAddr == "" || kr.ProjectNumber == "" ||
-		(kr.MeshConnectorAddr == "" && kr.MeshConnectorInternalAddr == "") {
-		err := kr.loadMeshEnv(ctx)
-		if err != nil {
-			return err
-		}
-		// Adjust 'derived' values if needed.
-		if kr.TrustDomain == "" && kr.ProjectId != "" {
-			kr.TrustDomain = kr.ProjectId + ".svc.id.goog"
-		}
+var (
+	decode = flag.String("d", "", "Decode token")
+)
+
+func main() {
+	flag.Parse()
+
+	if *decode != "" {
+		fmt.Println(mesh.TokenPayload(*decode))
+		return
 	}
 
-	return nil
+
 }

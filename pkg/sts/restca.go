@@ -1,5 +1,7 @@
 package sts
 
+import "context"
+
 // REST based interface with the CAs - to keep the binary size small.
 // We just need to make 1 request at startup and maybe one per hour.
 
@@ -24,4 +26,12 @@ var (
 // -
 func MeshCAClient() {
 
+}
+
+func FetchRoots(ctx context.Context, base string) [][]string {
+	roots := [][]string{}
+
+
+
+	return roots
 }

@@ -32,8 +32,9 @@ func main() {
 	ctx, cf := context.WithCancel(context.Background())
 	defer cf()
 
-	// Init the mesh ojbect, using env variables.
-	kr := mesh.New("")
+	kr := mesh.New()
+
+
 
 	_, err := uk8s.K8SClient(ctx, kr)
 

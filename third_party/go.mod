@@ -4,9 +4,9 @@ go 1.17
 
 replace github.com/costinm/krun/ => ../
 
-replace github.com/costinm/krun/k8s/gcp => ../k8s/gcp
+replace github.com/costinm/krun/k8s/gcp => ../gcp
 
-replace github.com/costinm/krun/k8s/k8s => ../k8s/k8s
+replace github.com/costinm/krun/k8s/k8s => ../k8s
 
 require (
 	cloud.google.com/go/security v1.1.0

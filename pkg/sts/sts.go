@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -73,13 +74,19 @@ const (
 	stsIssuedTokenType = "urn:ietf:params:oauth:token-type:access_token"
 )
 
-// STS provides token exchanges using google STS.
-// Implements grpc and golang.org/x/oauth2.TokenSource
-// The source of trust is the K8S token with TrustDomain audience, it is exchanged
-// with access or ID tokens for the P4SA.
+// STS provides token exchanges. Implements grpc and golang.org/x/oauth2.TokenSource
+// The source of trust is the K8S token with TrustDomain audience, it is exchanged with access or ID tokens.
 type STS struct {
 	httpClient *http.Client
 	kr         *mesh.KRun
+
+	// Google service account to impersonate and return tokens for.
+	// The KSA returned from K8S must have the IAM permissions
+	GSA string
+
+	// Use mesh data plane SA.
+	MDPSA          bool
+	UseAccessToken bool
 }
 
 func NewSTS(kr *mesh.KRun) (*STS, error) {
@@ -101,10 +108,19 @@ func NewSTS(kr *mesh.KRun) (*STS, error) {
 	}, nil
 }
 
-// Implements oauth2.TokenSource
+// Implements oauth2.TokenSource - returning access tokens
+// May return federated token or service account tokens
 func (s *STS) Token() (*oauth2.Token, error) {
-
-	return nil, nil
+	mv, err := s.GetRequestMetadata(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	a := mv["authorization"]
+	// WIP - split, etc
+	t := &oauth2.Token{
+		AccessToken:  a,
+	}
+	return t, nil
 }
 
 // GetRequestMetadata implements credentials.PerRPCCredentials
@@ -122,6 +138,7 @@ func (s *STS) GetRequestMetadata(ctx context.Context, aud ...string) (map[string
 	if err != nil {
 		return nil, err
 	}
+
 	a0 := ""
 	if len(aud) > 0 {
 		a0 = aud[0]
@@ -131,7 +148,7 @@ func (s *STS) GetRequestMetadata(ctx context.Context, aud ...string) (map[string
 	}
 
 	// TODO: better way to determine if the destination supports federated token directly.
-	if strings.Contains(a0, "googleapis.com/") {
+	if !s.MDPSA && strings.Contains(a0, "googleapis.com/") {
 		return map[string]string{
 			"authorization": "Bearer " + ft,
 		}, nil
@@ -163,10 +180,13 @@ func (s *STS) TokenFederated(ctx context.Context, k8sSAjwt string) (string, erro
 	req = req.WithContext(ctx)
 
 	res, err := s.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("token exchange failed: %v, (aud: %s, STS endpoint: %s)", err, stsAud, SecureTokenEndpoint)
+	}
 
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return "", fmt.Errorf("token exchange failed: %v, (aud: %s, STS endpoint: %s)", err, stsAud, SecureTokenEndpoint)
+		return "", fmt.Errorf("token exchange read failed: %v, (aud: %s, STS endpoint: %s)", err, stsAud, SecureTokenEndpoint)
 	}
 	respData := &federatedTokenResponse{}
 	if err := json.Unmarshal(body, respData); err != nil {
@@ -197,13 +217,15 @@ func (s *STS) TokenAccess(ctx context.Context, federatedToken string, audience s
 	}
 	req = req.WithContext(ctx)
 	res, err := s.httpClient.Do(req)
-
+	if err != nil {
+		return "", err
+	}
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return "", fmt.Errorf("token exchange failed: %v", err)
 	}
 
-	if audience == "" {
+	if audience == "" || s.UseAccessToken {
 		respData := &accessTokenResponse{}
 
 		if err := json.Unmarshal(body, respData); err != nil {
@@ -257,8 +279,7 @@ type federatedTokenResponse struct {
 func (s *STS) constructAudience(provider, trustDomain string) string {
 
 	if provider == "" {
-		provider = fmt.Sprintf("https://container.googleapis.com/v1/projects/%s/locations/%s/clusters/%s",
-			s.kr.ProjectId, s.kr.ClusterLocation, s.kr.ClusterName)
+		provider = s.kr.ClusterAddress
 	}
 	return fmt.Sprintf("identitynamespace:%s:%s", trustDomain, provider)
 }
@@ -382,12 +403,23 @@ type idTokenResponse struct {
 //      https://www.googleapis.com/auth/cloud-platform
 //  ],
 // }
+//
+// This requires permission to impersonate:
+// gcloud iam service-accounts add-iam-policy-binding \
+//  GSA_NAME@GSA_PROJECT_ID.iam.gserviceaccount.com \
+//  --role=roles/iam.workloadIdentityUser \
+//  --member="serviceAccount:WORKLOAD_IDENTITY_POOL[K8S_NAMESPACE/KSA_NAME]"
+//
+// The p4sa is auto-setup for all authenticated users.
 func (s *STS) constructGenerateAccessTokenRequest(fResp string, audience string) (*http.Request, error) {
 	gsa := "service-" + s.kr.ProjectNumber + "@gcp-sa-meshdataplane.iam.gserviceaccount.com"
+	if s.GSA != "" {
+		gsa = s.GSA
+	}
 	endpoint := ""
 	var err error
 	var jsonQuery []byte
-	if audience == "" {
+	if audience == "" || s.UseAccessToken {
 		endpoint = fmt.Sprintf(accessTokenEndpoint, gsa)
 		// Request for access token with a lifetime of 3600 seconds.
 		query := accessTokenRequest{
@@ -559,4 +591,21 @@ func (s *STS) sendSuccessfulResponse(w http.ResponseWriter, tokenData []byte) {
 		log.Printf("failure in sending STS success response: %v", err)
 		return
 	}
+}
+
+// TokenPayload returns the decoded token. Used for logging/debugging token content, without printing the signature.
+func TokenPayload(jwt string) string {
+	jwtSplit := strings.Split(jwt, ".")
+	if len(jwtSplit) != 3 {
+		return ""
+	}
+	//azp,"email","exp":1629832319,"iss":"https://accounts.google.com","sub":"1118295...
+	payload := jwtSplit[1]
+
+	payloadBytes, err := base64.RawStdEncoding.DecodeString(payload)
+	if err != nil {
+		return ""
+	}
+
+	return string(payloadBytes)
 }

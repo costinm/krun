@@ -16,12 +16,10 @@ package mesh
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
@@ -130,46 +128,6 @@ func (kr *KRun) agentCommand() *exec.Cmd {
 	return exec.Command("/usr/local/bin/pilot-agent", args...)
 }
 
-func (kr *KRun) WaitReady(max time.Duration) error {
-	t0 := time.Now()
-	for {
-		res, _ := http.Get("http://127.0.0.1:15021/healthz/ready")
-		if res != nil && res.StatusCode == 200 {
-			log.Println("Ready")
-			return nil
-		}
-
-		if time.Since(t0) > max {
-			return errors.New("Timeout waiting for ready")
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-}
-func (kr *KRun) WaitIstioAgent() (error) {
-	meshMode := true
-
-	if _, err := os.Stat("/usr/local/bin/pilot-agent"); os.IsNotExist(err) {
-		meshMode = false
-	}
-	if kr.XDSAddr == "-" {
-		meshMode = false
-	}
-
-	if meshMode {
-		// Use k8s client to autoconfigure, reading from cluster.
-		err := kr.StartIstioAgent()
-		if err != nil {
-			return fmt.Errorf("Failed to start the mesh agent %v", err)
-		}
-		err = kr.WaitReady(10 * time.Second)
-		if err != nil {
-			return fmt.Errorf("Mesh agent not ready %v", err)
-		}
-	}
-
-	return nil
-}
-
 // StartIstioAgent creates the env and starts istio agent.
 // If running as root, will also init iptables and change UID to 1337.
 func (kr *KRun) StartIstioAgent() error {
@@ -198,8 +156,13 @@ func (kr *KRun) StartIstioAgent() error {
 		os.Chown(prefix+"/etc/istio/proxy", 1337, 1337)
 	}
 
+	// Pilot agent expects this file, containing citadel roots. Will be used to connect to the XDS server, and as
+	// default root CA.
 	if kr.CitadelRoot != "" {
-		ioutil.WriteFile(prefix+"/var/run/secrets/istio/root-cert.pem", []byte(kr.CitadelRoot), 0755)
+		err := ioutil.WriteFile(prefix+"/var/run/secrets/istio/root-cert.pem", []byte(kr.CitadelRoot), 0755)
+		if err != nil {
+			log.Println("Failed to write citadel root", "rootCAFile", prefix + "/var/run/secrets/istio/root-cert.pem", "error", err)
+		}
 	}
 
 	// /dev/stdout is rejected - it is a pipe.
@@ -210,17 +173,20 @@ func (kr *KRun) StartIstioAgent() error {
 	}
 
 	env := os.Environ()
+
 	// XDS and CA servers are using system certificates ( recommended ).
 	// If using a private CA - add it's root to the docker images, everything will be consistent
 	// and simpler !
-	if os.Getenv("PROXY_CONFIG") == "" {
-		if kr.MeshTenant == "-" || kr.MeshTenant == "" {
-			// Explicitly in-cluster
-			kr.XDSAddr = kr.MeshConnectorAddr + ":15012"
-		}
+	proxyConfigEnv := os.Getenv("PROXY_CONFIG")
+	if proxyConfigEnv == "" {
+		addr := kr.FindXDSAddr()
+		kr.XDSAddr = addr
+		log.Println("XDSAddr discovery", addr, "XDS_ADDR", kr.XDSAddr, "MESH_TENANT", kr.MeshTenant)
 
-		proxyConfig := fmt.Sprintf(`{"discoveryAddress": "%s"}`, kr.XDSAddr)
+		proxyConfig := fmt.Sprintf(`{"discoveryAddress": "%s"}`, addr)
 		env = append(env, "PROXY_CONFIG="+proxyConfig)
+	} else {
+		log.Println("Using injected PROXY_CONFIG", proxyConfigEnv)
 	}
 
 	// Pilot-agent requires this file, to connect to CA and XDS.
@@ -235,12 +201,16 @@ func (kr *KRun) StartIstioAgent() error {
 		// Temp workaround to handle OSS-specific behavior. By default we will expect OSS Istio
 		// to be installed in 'compatibility' mode with ASM, i.e. accept both istio-ca and trust domain
 		// as audience.
+		// TODO: use the trust domain from mesh-env
 		if os.Getenv("OSS_ISTIO") != "" {
+			log.Println("Using istio-ca audience")
 			kr.Aud2File["istio-ca"] = kr.BaseDir + "/var/run/secrets/tokens/istio-token"
 		} else {
+			log.Println("Using audience", kr.TrustDomain)
 			kr.Aud2File[kr.TrustDomain] = kr.BaseDir + "/var/run/secrets/tokens/istio-token"
 		}
 	} else {
+		log.Println("Using system certifates for XDS and CA")
 		kr.Aud2File[kr.TrustDomain] = kr.BaseDir + "/var/run/secrets/tokens/istio-token"
 		env = addIfMissing(env, "XDS_ROOT_CA", "SYSTEM")
 		env = addIfMissing(env, "PILOT_CERT_PROVIDER", "system")
@@ -257,21 +227,49 @@ func (kr *KRun) StartIstioAgent() error {
 
 	// K_REVISION (ex: fortio-cr-00011-duq) and metadata.
 	podName := os.Getenv("K_REVISION")
-	if podName == "" {
-		podName = kr.Name
+	hn := os.Getenv("HOSTNAME")
+	if hn == "" {
+		hn, _ = os.Hostname()
+		hnp := strings.Split(hn, ".")
+		if len(hnp) > 0 {
+			hn = hnp[0]
+		}
 	}
-	if kr.InstanceID == "" {
-		podName = podName + "-" + strconv.Itoa(time.Now().Second())
-	} else if len(kr.InstanceID) > 8 {
-		podName = podName + "-" + kr.InstanceID[0:8]
+	if podName != "" {
+		if kr.InstanceID == "" {
+			podName = podName + "-" + strconv.Itoa(time.Now().Second())
+			kr.InstanceID = podName
+		} else if len(kr.InstanceID) > 8 {
+			podName = podName + "-" + kr.InstanceID[0:8]
+		} else {
+			podName = podName + "-" + kr.InstanceID
+		}
+
+		if kr.Rev == "" {
+			kr.Rev = podName
+		}
+	} else if hn != "" {
+		podName = os.Getenv("HOSTNAME")
 	} else {
-		podName = podName + "-" + kr.InstanceID
+		podName = kr.Name + "-" + "-" + strconv.Itoa(time.Now().Second())
+		log.Println("Setting POD_NAME from name, missing instance ", podName)
 	}
+	// Some default value.
+	if kr.Rev == "" {
+		kr.Rev = "v1"
+	}
+
+	// If running in k8s, this is set to an unique ID
 	env = addIfMissing(env, "POD_NAME", podName)
+	env = addIfMissing(env, "ISTIO_META_WORKLOAD_NAME", kr.Name)
+
+	env = addIfMissing(env, "SERVICE_ACCOUNT", kr.KSA)
+
 	if kr.ProjectNumber != "" {
 		env = addIfMissing(env, "ISTIO_META_MESH_ID", "proj-"+kr.ProjectNumber)
 	}
 	env = addIfMissing(env, "CANONICAL_SERVICE", kr.Name)
+	env = addIfMissing(env, "CANONICAL_REVISION", kr.Rev)
 	kr.initLabelsFile()
 
 	env = addIfMissing(env, "OUTPUT_CERTS", prefix+"/var/run/secrets/istio.io/")
@@ -280,7 +278,7 @@ func (kr *KRun) StartIstioAgent() error {
 	// TODO: add support for passing a long lived 1p JWT in a file, for local run
 	//env = append(env, "JWT_POLICY=first-party-jwt")
 
-	kr.WhiteboxMode = os.Getenv("ISTIO_META_INTERCEPTION_MODE") == "NONE"
+	kr.WhiteboxMode = kr.Config("ISTIO_META_INTERCEPTION_MODE", "") == "NONE"
 	if os.Getuid() != 0 {
 		kr.WhiteboxMode = true
 	}
@@ -288,8 +286,11 @@ func (kr *KRun) StartIstioAgent() error {
 		kr.WhiteboxMode = true
 	}
 
-	if !kr.WhiteboxMode { //&& kr.Gateway != "" {
-		err := kr.runIptablesSetup(env)
+	iptablesEnv := []string{}
+	iptablesEnv = append(iptablesEnv, env...)
+
+	if !kr.WhiteboxMode {
+		err := kr.runIptablesSetup(iptablesEnv)
 		if err != nil {
 			log.Println("iptables disabled ", err)
 			kr.WhiteboxMode = true
@@ -309,8 +310,7 @@ func (kr *KRun) StartIstioAgent() error {
 
 	// MCP config
 	// The following 2 are required for MeshCA.
-	env = addIfMissing(env, "GKE_CLUSTER_URL", fmt.Sprintf("https://container.googleapis.com/v1/projects/%s/locations/%s/clusters/%s",
-		kr.ProjectId, kr.ClusterLocation, kr.ClusterName))
+	env = addIfMissing(env, "GKE_CLUSTER_URL", kr.ClusterAddress)
 	env = addIfMissing(env, "GCP_METADATA", fmt.Sprintf("%s|%s|%s|%s",
 		kr.ProjectId, kr.ProjectNumber, kr.ClusterName, kr.ClusterLocation))
 
@@ -325,8 +325,17 @@ func (kr *KRun) StartIstioAgent() error {
 
 	env = addIfMissing(env, "TRUST_DOMAIN", kr.TrustDomain)
 
+	// Gets translated to "APP_CONTAINERS" metadata, used to identify the container.
+	env = addIfMissing(env, "ISTIO_META_APP_CONTAINERS", "cloudrun")
+
+	if kr.X509KeyPair != nil {
+		// Loaded from workload cert file - no need to use citadel or mesh CA.
+		env = addIfMissing(env, "CA_PROVIDER", "GoogleGkeWorkloadCertificate")
+	}
 	// If MCP is available, and PROXY_CONFIG is not set explicitly
-	if kr.MeshTenant != "" && kr.MeshTenant != "-" && os.Getenv("PROXY_CONFIG") == "" {
+	if kr.MeshTenant != "" &&
+		kr.MeshTenant != "-" &&
+		os.Getenv("PROXY_CONFIG") == "" {
 		env = addIfMissing(env, "CA_ADDR", "meshca.googleapis.com:443")
 		env = addIfMissing(env, "XDS_AUTH_PROVIDER", "gcp")
 
@@ -357,13 +366,14 @@ func (kr *KRun) StartIstioAgent() error {
 		if _, err := os.Stat("/var/lib/istio/envoy/envoy_bootstrap_tmpl.json"); os.IsNotExist(err) {
 			env = append(env, "DISABLE_ENVOY=true")
 		} else {
-			env = append(env, "ISTIO_BOOTSTRAP", "/var/lib/istio/envoy/envoy_bootstrap_tmpl.json")
+			env = append(env, "ISTIO_BOOTSTRAP=/var/lib/istio/envoy/envoy_bootstrap_tmpl.json")
 		}
 	}
 
-	// Generate grpc bootstrap - no harm, low cost
+	// Generate grpc bootstrap - no harm, low cost.
+	// TODO: New version of Istio does this automatically, will be removed
 	if os.Getenv("GRPC_XDS_BOOTSTRAP") == "" {
-		env = append(env, "GRPC_XDS_BOOTSTRAP=./var/run/grpc_bootstrap.json")
+		env = append(env, "GRPC_XDS_BOOTSTRAP=./etc/istio/proxy/grpc_bootstrap.json")
 	}
 	cmd := kr.agentCommand()
 	var stdout io.ReadCloser
@@ -386,8 +396,6 @@ func (kr *KRun) StartIstioAgent() error {
 			err = tty.Chown(1337, 1337)
 			if err != nil {
 				log.Println("Error chown ", tty.Name(), err)
-			} else {
-				log.Println("Opened pyy", tty.Name(), pty.Name())
 			}
 			stdout = pty
 		}
@@ -401,8 +409,12 @@ func (kr *KRun) StartIstioAgent() error {
 	cmd.Stderr = os.Stderr
 	os.MkdirAll(prefix+"/var/lib/istio/envoy/", 0700)
 
+	//saveLaunchInfo(cmd)
+
 	go func() {
-		log.Println("Starting mesh agent ", env)
+		if Debug {
+			log.Println("Starting cmd", cmd.Args)
+		}
 		err := cmd.Start()
 		if err != nil {
 			log.Println("Failed to start ", cmd, err)
@@ -415,13 +427,40 @@ func (kr *KRun) StartIstioAgent() error {
 		}
 		err = cmd.Wait()
 		if err != nil {
-			log.Println("Wait err ", err)
+			if cmd.ProcessState.ExitCode() == 255 {
+				log.Println("Wait err ", err, cmd.Env)
+			} else {
+				log.Println("Wait err ", err)
+			}
+			kr.Exit(1)
 		}
 		kr.Exit(0)
 	}()
 
-	// TODO: wait for agent to be ready
 	return nil
+}
+
+// For troubleshooting, generate a file with the env and command.
+// This can also be used for running krun as a periodic job instead of as a launcher
+// Compile with  -gcflags  "all=-N -l"
+func saveLaunchInfo(cmd *exec.Cmd) {
+	b := bytes.Buffer{}
+	for _, e := range cmd.Env {
+		kv := strings.SplitN(e, "=", 2)
+		if len(kv) == 2 {
+			b.Write([]byte("export " + kv[0] + "=" + "'" + kv[1] + "'\n"))
+		}
+	}
+	b.Write([]byte{'\n'})
+	b.Write([]byte("dlv --listen=127.0.0.1:44997 --headless=true --api-version=2 --check-go-version=false --only-same-user=false exec "))
+	b.Write([]byte(cmd.Args[0]))
+	b.Write([]byte(" -- "))
+	for _, e := range cmd.Args[1:] {
+		b.Write([]byte(e))
+		b.Write([]byte{' '})
+	}
+	b.Write([]byte{'\n'})
+	ioutil.WriteFile("./var/lib/istio/envoy/cmd.sh", b.Bytes(), 0700)
 }
 
 func addIfMissing(env []string, key, val string) []string {
@@ -434,10 +473,23 @@ func addIfMissing(env []string, key, val string) []string {
 
 func (kr *KRun) Exit(code int) {
 	if kr.agentCmd != nil && kr.agentCmd.Process != nil {
+		kr.agentCmd.Process.Signal(syscall.SIGTERM)
+	}
+	if kr.appCmd != nil && kr.appCmd.Process != nil {
+		kr.agentCmd.Process.Signal(syscall.SIGTERM)
+	}
+	for _, a := range kr.Children {
+		a.Process.Signal(syscall.SIGTERM)
+	}
+	time.Sleep(5 * time.Second)
+	if kr.agentCmd != nil && kr.agentCmd.Process != nil {
 		kr.agentCmd.Process.Kill()
 	}
 	if kr.appCmd != nil && kr.appCmd.Process != nil {
 		kr.appCmd.Process.Kill()
+	}
+	for _, a := range kr.Children {
+		a.Process.Kill()
 	}
 	os.Exit(code)
 }
@@ -446,43 +498,67 @@ func (kr *KRun) initLabelsFile() {
 	labels := ""
 	if kr.Gateway != "" {
 		labels = fmt.Sprintf(
-			`version="v1"
+			`version="%s"
 security.istio.io/tlsMode="istio"
 istio="%s"
-`, kr.Gateway)
+`, kr.Rev, kr.Gateway)
 	} else {
 		labels = fmt.Sprintf(
-			`version="v1"
+			`version="%s"
 security.istio.io/tlsMode="istio"
 app="%s"
 service.istio.io/canonical-name="%s"
 environment="cloud-run-mesh"
-`, kr.Name, kr.Name)
+`, kr.Rev, kr.Name, kr.Name)
 	}
 	os.MkdirAll("./etc/istio/pod", 755)
 	err := ioutil.WriteFile("./etc/istio/pod/labels", []byte(labels), 0777)
-	if err == nil {
-		log.Println("Written labels: ", labels)
-	} else {
+	if err != nil {
 		log.Println("Error writing labels", err)
 	}
 }
 
 func (kr *KRun) runIptablesSetup(env []string) error {
-	// TODO: make the args the default !
-	// pilot-agent istio-iptables -p 15001 -u 1337 -m REDIRECT -i '*' -b "" -x "" -- crash
+	/*
+	Injected default:
+	  - -p
+	    - "15001"
+	    - -z
+	    - "15006"
+	    - -u
+	    - "1337"
+	    - -m
+	    - REDIRECT
+	    - -i
+	    - '*'
+	    - -x
+	    - ""
+	    - -b
+	    - '*'
+	    - -d
+	    - 15090,15021,15020
 
-	//pilot-agent istio-iptables -p 15001 -u 1337 -m REDIRECT -i '10.8.4.0/24' -b "" -x ""
+	*/
+	outRange := kr.Config("OUTBOUND_IP_RANGES_INCLUDE", "10.0.0.0/8")
+	// Exclude ports from Envoy capture - hbone-h2, hbone-h2c
+	excludePorts := kr.Config("OUTBOUND_PORTS_EXCLUDE", "15008,15009")
+	if excludePorts != "15008,15009" {
+		excludePorts = excludePorts + ",15008,15009"
+	}
+
 	cmd := exec.Command("/usr/local/bin/pilot-agent",
 		"istio-iptables",
-		"-p", "15001", // outbound capture port
-		//"-z", "15006", - no inbound interception
-		"-u", "1337",
-		"-m", "REDIRECT",
-		"-i", "10.0.0.0/8", // all outbound captured
-		"-b", "", // disable all inbound redirection
-		// "-d", "15090,15021,15020", // exclude specific ports
-		"-x", "")
+		// "-p", "15001", // outbound capture port, default value
+		//"-z", "15006", - no inbound interception, default value
+		"-u", "1337", // REQUIRED - code default is 128
+		//"-m", "REDIRECT", // default value
+		//"-i", "*", // OUTBOUND_IP_RANGES_INCLUDE
+		"-i", outRange, // Alternative - only mesh traffic
+		// "-b", "", // disable all inbound redirection, default
+		// "-d", "15090,15021,15020", // exclude specific ports from inbound capture, if -b '*'
+		"-o", excludePorts,
+		//"-x", "", // exclude CIDR, default
+	)
 	cmd.Env = env
 	cmd.Dir = "/"
 	so := &bytes.Buffer{}

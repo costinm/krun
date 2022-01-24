@@ -17,8 +17,6 @@ package gcp
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -88,12 +86,8 @@ func configFromEnvAndMD(ctx context.Context, kr *k8s.K8S) {
 		kr.Mesh.ProjectNumber = os.Getenv("PROJECT_NUMBER")
 	}
 
+	// If ADC is set, we will only use the env variables. Else attempt to init from metadata server.
 	if os.Getenv("APPLICATION_DEFAULT_CREDENTIALS") != "" {
-		// Not using metadata server, except for project number if not set
-		if kr.Mesh.ProjectNumber == "" && kr.Mesh.ProjectId != "" {
-			kr.Mesh.ProjectNumber = ProjectNumber(kr.Mesh.ProjectId)
-			log.Println("Got project number from GCP API", kr.Mesh.ProjectNumber)
-		}
 		return
 	}
 
@@ -101,7 +95,6 @@ func configFromEnvAndMD(ctx context.Context, kr *k8s.K8S) {
 	if metadata.OnGCE() {
 		// TODO: detect if the cluster is k8s from some env ?
 		// If ADC is set, we will only use the env variables. Else attempt to init from metadata server.
-		log.Println("Detecting GCE ", time.Since(t0))
 		metaProjectId, _ := metadata.ProjectID()
 		if kr.Mesh.ProjectId == "" {
 			kr.Mesh.ProjectId = metaProjectId
@@ -143,17 +136,6 @@ func configFromEnvAndMD(ctx context.Context, kr *k8s.K8S) {
 			}
 		}
 
-		//if kr.ClusterLocation == "" {
-		//	kr.ClusterLocation, _ = RegionFromMetadata()
-		//}
-		//
-		if kr.Mesh.ProjectNumber == "" && kr.Mesh.ProjectId == metaProjectId {
-			// If project Id explicitly set, and not same as what metadata reports - fallback to getting it from GCP
-			kr.Mesh.ProjectNumber, _ = metadata.NumericProjectID()
-		}
-		if kr.Mesh.ProjectNumber == "" {
-			kr.Mesh.ProjectNumber = ProjectNumber(kr.Mesh.ProjectId)
-		}
 		if kr.Mesh.InstanceID == "" {
 			kr.Mesh.InstanceID, _ = metadata.InstanceID()
 		}
@@ -194,60 +176,20 @@ func Token(ctx context.Context, aud string) (string, error) {
 	return tok, nil
 }
 
-// detectAuthEnv will use the JWT token that is mounted in istiod to set the default audience
-// and trust domain for Istiod, if not explicitly defined.
-// K8S will use the same kind of tokens for the pods, and the value in istiod's own token is
-// simplest and safest way to have things match.
-//
-// Note that K8S is not required to use JWT tokens - we will fallback to the defaults
-// or require explicit user option for K8S clusters using opaque tokens.
-//
-// Use with:
-//		t,err := Token(ctx, kr.Mesh.ProjectId + ".svc.id.goog")
-//		if err != nil {
-//			log.Println("Failed to get id token ", err)
-//		} else {
-//			detectAuthEnv(t)
-//		}
-//
-// Copied from Istio
-func detectAuthEnv(jwt string) (*JwtPayload, error) {
-	jwtSplit := strings.Split(jwt, ".")
-	if len(jwtSplit) != 3 {
-		return nil, fmt.Errorf("invalid JWT parts: %s", jwt)
-	}
-	//azp,"email","exp":1629832319,"iss":"https://accounts.google.com","sub":"1118295...
-	payload := jwtSplit[1]
+func ConfigGCP(ctx context.Context, kr *mesh.KRun) error {
+	// Avoid direct dependency on GCP libraries - may be replaced by a REST client or different XDS server discovery.
+	kc := &k8s.K8S{Mesh: kr, VendorInit: gcp.InitGCP}
+	err := kc.K8SClient(ctx)
 
-	payloadBytes, err := base64.RawStdEncoding.DecodeString(payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode jwt: %v", err.Error())
-	}
-
-	structuredPayload := &JwtPayload{}
-	err = json.Unmarshal(payloadBytes, &structuredPayload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal jwt: %v", err.Error())
-	}
-
-	return structuredPayload, nil
+	return err
 }
 
-type JwtPayload struct {
-	// Aud is the expected audience, defaults to istio-ca - but is based on istiod.yaml configuration.
-	// If set to a different value - use the value defined by istiod.yaml. Env variable can
-	// still override
-	Aud []string `json:"aud"`
-
-	// Exp is not currently used - we don't use the token for authn, just to determine k8s settings
-	Exp int `json:"exp"`
-
-	// Issuer - configured by K8S admin for projected tokens. Will be used to verify all tokens.
-	Iss string `json:"iss"`
-
-	Sub string `json:"sub"`
-}
-
+// InitGCP loads GCP-specific metadata and discovers the config cluster.
+// This step is skipped if user has explicit configuration for required settings.
+//
+// Namespace,
+// ProjectId, ProjectNumber
+// ClusterName, ClusterLocation
 func InitGCP(ctx context.Context, kr *k8s.K8S) error {
 	// Load GCP env variables - will be needed.
 	configFromEnvAndMD(ctx, kr)
@@ -261,15 +203,60 @@ func InitGCP(ctx context.Context, kr *k8s.K8S) error {
 	var kc *kubeconfig.Config
 	var err error
 
-	if kr.Mesh.ProjectId == "" {
+	// TODO: attempt to get the config project ID from a label on the workload or project
+	// (if metadata servere or CR can provide them)
+
+	configProjectID := kr.Mesh.ProjectId
+	configLocation := kr.Mesh.ClusterLocation
+	configClusterName := krMesh..ClusterName
+
+	if kr.Mesh.MeshAddr != nil {
+		if kr.Mesh.MeshAddr.Scheme == "gke" {
+			configProjectID = kr.MeshAddr.Host
+		} else if kr.MeshAddr.Host == "container.googleapis.com" {
+			// Not using the hub resourceLink format:
+			//    container.googleapis.com/projects/wlhe-cr/locations/us-central1-c/clusters/asm-cr
+			// or the 'selfLink' from GKE list API
+			// "https://container.googleapis.com/v1/projects/wlhe-cr/locations/us-west1/clusters/istio"
+
+			configProjectID = kr.Mesh.MeshAddr.Host
+			if len(kr.Mesh.MeshAddr.Path) > 1 {
+				parts := strings.Split(kr.Mesh.MeshAddr.Path, "/")
+				for i := 0 ; i < len(parts); i++ {
+					if parts[i] == "projects" && i+1 < len(parts) {
+						configProjectID = parts[i+1]
+					}
+					if parts[i] == "locations" && i+1 < len(parts) {
+						configLocation = parts[i+1]
+					}
+					if parts[i] == "clusters" && i+1 < len(parts) {
+						configClusterName = parts[i+1]
+					}
+				}
+			}
+		}
+	}
+
+	if configProjectID == "" {
 		// GCP can't be initialized without a project ID
 		return nil
 	}
 
 	var cl *Cluster
-	if kr.Mesh.ClusterName == "" || kr.Mesh.ClusterLocation == "" {
+	if configLocation == "" || configClusterName == "" {
 		// ~500ms
-		cll, err := AllClusters(ctx, kr, "", "mesh_id", "")
+		label := "mesh_id"
+		// Try to get the region from metadata server. For Cloudrun, this is not the same with the cluster - it may be zonal
+		myRegion, _ := RegionFromMetadata()
+		if myRegion == "" {
+			myRegion = configLocation
+		}
+		if kr.MeshAddr != nil && kr.MeshAddr.Scheme == "gke" {
+			// Explicit mesh config clusters, no label selector ( used for ASM clusters in current project )
+			label = ""
+		}
+		log.Println("Selecting a GKE cluster ", kr.ProjectId, configProjectID, myRegion)
+		cll, err := AllClusters(ctx, kr, configProjectID, label, "")
 		if err != nil {
 			return err
 		}
@@ -278,28 +265,25 @@ func InitGCP(ctx context.Context, kr *k8s.K8S) error {
 			return nil // no cluster to use
 		}
 
-		// Try to get the region from metadata server. For Cloudrun, this is not the same with the cluster - it may be zonal
-		myRegion, _ := RegionFromMetadata()
-		if myRegion == "" {
-			myRegion = kr.Mesh.ClusterLocation
-		}
 
 		cl = findCluster(kr, cll, myRegion, cl)
 		// TODO: connect to cluster, find istiod - and keep trying until a working one is found ( fallback )
 	} else {
+		// Explicit override - user specified the full path to the cluster.
 		// ~400 ms
-		cl, err = GKECluster(ctx, kr.Mesh.ProjectId, kr.Mesh.ClusterLocation, kr.Mesh.ClusterName)
-		//rc, err := CreateRestConfig(kr, kc, kr.ProjectId, kr.Mesh.ClusterLocation, kr.Mesh.ClusterName)
+		cl, err = GKECluster(ctx, configProjectID, kr.Mesh.ClusterLocation, kr.Mesh.ClusterName)
 		if err != nil {
 			return err
 		}
-		//kr.Client, err = kubernetes.NewForConfig(rc)
 		if err != nil {
 			log.Println("Failed in NewForConfig", kr, err)
 			return err
 		}
 	}
 
+	kr.ProjectId = configProjectID
+
+	kr.TrustDomain = configProjectID + ".svc.id.goog"
 	kc = cl.KubeConfig
 	if kr.Mesh.ClusterName == "" {
 		kr.Mesh.ClusterName = cl.ClusterName
@@ -307,6 +291,9 @@ func InitGCP(ctx context.Context, kr *k8s.K8S) error {
 	if kr.Mesh.ClusterLocation == "" {
 		kr.Mesh.ClusterLocation = cl.ClusterLocation
 	}
+	kr.ClusterAddress =  fmt.Sprintf("https://container.googleapis.com/v1/projects/%s/locations/%s/clusters/%s",
+		configProjectID, kr.Mesh.ClusterLocation, kr.Mesh.ClusterName)
+
 	GCPInitTime = time.Since(t0)
 
 	rc, err := restConfig(kc)
@@ -318,9 +305,12 @@ func InitGCP(ctx context.Context, kr *k8s.K8S) error {
 		return err
 	}
 
-	SaveKubeConfig(kc, "./var/run/.kube", "config")
-
 	return nil
+}
+
+func restConfig(kc *kubeconfig.Config) (*rest.Config, error) {
+	// TODO: set default if not set ?
+	return clientcmd.NewNonInteractiveClientConfig(*kc, "", &clientcmd.ConfigOverrides{}, nil).ClientConfig()
 }
 
 func findCluster(kr *k8s.K8S, cll []*Cluster, myRegion string, cl *Cluster) *Cluster {
@@ -381,7 +371,7 @@ func findCluster(kr *k8s.K8S, cll []*Cluster, myRegion string, cl *Cluster) *Clu
 }
 
 func GKECluster(ctx context.Context, p, l, clusterName string) (*Cluster, error) {
-	cl, err := container.NewClusterManagerClient(ctx)
+	cl, err := container.NewClusterManagerClient(ctx, option.WithQuotaProject(p))
 	if err != nil {
 		log.Println("Failed NewClusterManagerClient", p, l, clusterName, err)
 		return nil, err
@@ -501,32 +491,29 @@ func AllHub(ctx context.Context, kr *k8s.K8S) ([]*Cluster, error) {
 	return ml, nil
 }
 
-func AllClusters(ctx context.Context, kr *k8s.K8S, defCluster string, label string, meshID string) ([]*Cluster, error) {
+func AllClusters(ctx context.Context, kr *mesh.KRun, configProjectId string,
+	label string, meshID string) ([]*Cluster, error) {
 	clustersL := []*Cluster{}
 
-	if kr.Mesh.ProjectId == "" {
-		configFromEnvAndMD(nil, kr)
-	}
-	if kr.Mesh.ProjectId == "" {
-		return nil, errors.New("requires PROJECT_ID")
-	}
-
-	cl, err := container.NewClusterManagerClient(ctx)
+	cl, err := container.NewClusterManagerClient(ctx,option.WithQuotaProject(configProjectId))
 	if err != nil {
 		return nil, err
 	}
 
-	// This uses the gRPC interface.
-	clusters, err := cl.ListClusters(ctx, &containerpb.ListClustersRequest{
-		Parent: "projects/" + kr.Mesh.ProjectId + "/locations/-",
-	})
+	if configProjectId == "" {
+		configProjectId = kr.Mesh.ProjectId
+	}
+	clcr := &containerpb.ListClustersRequest{
+		Parent: "projects/" + configProjectId + "/locations/-",
+	}
+	clusters, err := cl.ListClusters(ctx, clcr)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, c := range clusters.Clusters {
-		if label != "" {
-			if meshID == "" {
+		if label != "" { // Filtered by label - if the filter is specified, ignore non-labeled clusters
+			if meshID == "" { // If a value for label was specified, used it for filtering
 				if c.ResourceLabels[label] == "" {
 					continue
 				}
@@ -537,11 +524,11 @@ func AllClusters(ctx context.Context, kr *k8s.K8S, defCluster string, label stri
 			}
 		}
 		clustersL = append(clustersL, &Cluster{
-			ProjectId:       kr.Mesh.ProjectId,
+			ProjectId:       configProjectId,
 			ClusterName:     c.Name,
 			ClusterLocation: c.Location,
 			GKECluster:      c,
-			KubeConfig:      addClusterConfig(c, kr.Mesh.ProjectId, c.Location, c.Name),
+			KubeConfig:      addClusterConfig(c, configProjectId, c.Location, c.Name),
 		})
 	}
 	return clustersL, nil

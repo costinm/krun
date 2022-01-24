@@ -24,7 +24,6 @@ import (
 	"google.golang.org/api/option"
 	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
@@ -37,13 +36,17 @@ type GoogleCASClient struct {
 
 // NewGoogleCASClient create a CA client for Google CAS.
 // capool is in format: projects/*/locations/*/caPools/*
-func NewGoogleCASClient(capool string, tokenProvider credentials.PerRPCCredentials) (*GoogleCASClient, error) {
+func NewGoogleCASClient(capool string, ol []grpc.DialOption) (*GoogleCASClient, error) {
 	caClient := &GoogleCASClient{caSigner: capool}
 	ctx := context.Background()
 	var err error
 
+	var ol1  []option.ClientOption
+	for _, v := range ol {
+		ol1 = append(ol1, option.WithGRPCDialOption(v))
+	}
 	caClient.caClient, err = privateca.NewCertificateAuthorityClient(ctx,
-		option.WithGRPCDialOption(grpc.WithPerRPCCredentials(tokenProvider)))
+		ol1...)
 
 	if err != nil {
 		log.Printf("unable to initialize google cas caclient: %v", err)

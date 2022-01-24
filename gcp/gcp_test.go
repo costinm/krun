@@ -28,22 +28,55 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// Requires GOOGLE_APPLICATION_CREDENTIALS or KUBECONFIG or $HOME/.kube/config
+// Requires GOOGLE_APPLICATION_CREDENTIALS or metadata server and PROJECT_ID
 func TestK8S(t *testing.T) {
 	os.Mkdir("../../out", 0775)
 	os.Chdir("../../out")
 
+	// For the entire test
+	ctx, cf := context.WithTimeout(context.Background(), 100*time.Second)
+	defer cf()
+
+	kr := mesh.New()
+	configFromEnvAndMD(ctx, kr)
 	// ADC or runner having permissions are required
+	projectID := kr.ProjectId
+	if projectID == "" {
+		// Attempt to use the kubeconfig
+		kr1 := mesh.New()
+		kr1.LoadConfig(ctx)
+		if kr1.ProjectId == "" {
+			t.Skip("Missing PROJECT_ID")
+			return
+		}
+		kr.ProjectId = kr1.ProjectId
+	}
+
+	t.Run("all-any", func(t *testing.T) {
+		cl, err := AllClusters(ctx, kr, "", "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(cl) == 0 {
+			t.Fatal("No ASM clusters")
+		}
+	})
+	t.Run("all-mesh-id", func(t *testing.T) {
+		cl, err := AllClusters(ctx, kr, "", "mesh_id", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(cl) == 0 {
+			t.Fatal("No ASM clusters")
+		}
+	})
+
 	projectID := os.Getenv("PROJECT_ID")
 	if projectID == "" {
 		t.Skip("Missing PROJECT_ID")
 		return
 	}
-	// For the entire test
-	ctx, cf := context.WithTimeout(context.Background(), 1000*time.Second)
-	defer cf()
-
-	m := mesh.New("")
+	
 	kr := &k8s.K8S{Mesh: m}
 
 	cl, err := AllClusters(ctx, kr, "", "mesh_id", "")
@@ -61,15 +94,6 @@ func TestK8S(t *testing.T) {
 	// Run the tests on the first found cluster, unless the test is run with env variables to select a specific
 	// location and cluster name.
 
-	t.Run("all_clusters", func(t *testing.T) {
-		cl, err := AllClusters(ctx, kr, "", "", "")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(cl) == 0 {
-			t.Fatal("No clusters")
-		}
-	})
 
 	// WIP: using the hub, for multi-project
 	t.Run("hub", func(t *testing.T) {
@@ -109,27 +133,62 @@ func TestK8S(t *testing.T) {
 	t.Run("gke", func(t *testing.T) {
 		// This is the main function for the package - given a KRun object, initialize the K8S Client based
 		// on settings and GKE API result.
-		kr1 := mesh.New("")
-		kr1.ProjectId = kr.Mesh.ProjectId
+		kr1 := mesh.New()
+		kr1.ProjectId = kr.ProjectId
 		kr1.ClusterName = testCluster.ClusterName
 		kr1.ClusterLocation = testCluster.ClusterLocation
 
-		k8 := &k8s.K8S{Mesh: kr1}
-
-		err = InitGCP(context.Background(), k8)
+		err = InitGCP(context.Background(), kr1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if k8.Client == nil {
+		if kr1.Client == nil {
 			t.Fatal("No client")
 		}
 
-		err = checkClient(k8.Client)
+		err = checkClient(kr1.Client)
 		if err != nil {
 			t.Fatal(err)
 		}
-
 	})
+
+	t.Run("configCluster", func(t *testing.T) {
+		kr1 := mesh.New()
+		kr1.MeshAddr, _ = url.Parse("gke://" + kr.ProjectId)
+
+		err = InitGCP(context.Background(), kr1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if kr1.Client == nil {
+			t.Fatal("No client")
+		}
+
+		err = checkClient(kr1.Client)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+
+	t.Run("configClusterExplicit", func(t *testing.T) {
+		kr1 := mesh.New()
+		kr1.MeshAddr, _ = url.Parse(fmt.Sprintf("https://container.googleapis.com/v1/projects/%s/locations/%s/clusters/%s", kr.ProjectId, kr.ClusterLocation, kr.ClusterName))
+
+		err = InitGCP(context.Background(), kr1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if kr1.Client == nil {
+			t.Fatal("No client")
+		}
+
+		err = checkClient(kr1.Client)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
 }
 
 func checkClient(kc *kubernetes.Clientset) error {
