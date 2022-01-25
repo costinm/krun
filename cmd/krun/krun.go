@@ -23,7 +23,7 @@ import (
 
 	"github.com/costinm/hbone"
 	"github.com/costinm/krun/pkg/mesh"
-	"github.com/costinm/krun/pkg/uk8s"
+	"github.com/costinm/krun/pkg/urest"
 )
 
 var initDebug func(run *mesh.KRun)

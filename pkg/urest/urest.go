@@ -64,8 +64,10 @@ var (
 
 // UK8S is a micro k8s client, using only base http and a token source.
 type UK8S struct {
-	// Client using platform tokens
+	// Client using system certificates, for external sites.
+	// The RestCluster has a separate Client, configured to authenticate servers using a custom root CA.
 	Client        *http.Client
+
 	TokenProvider func(context.Context, string) (string, error)
 
 	// Hub or user project ID. If set, will be used to lookup clusters.
@@ -206,6 +208,8 @@ func (uk8s *UK8S) Do(ctx context.Context, ns, kind, name string, postdata []byte
 func New() *UK8S {
 	return &UK8S{
 		ClustersByLocation: map[string][]*RestCluster{},
+		Clusters: map[string]*RestCluster{},
+		Client: http.DefaultClient,
 	}
 }
 
@@ -219,6 +223,7 @@ func K8SClient(ctx context.Context, m *mesh.KRun) (*UK8S, error) {
 	uk.Mesh = m
 	uk.TransportWrapper = m.TransportWrapper
 	m.Cfg = uk
+	uk.Client = http.DefaultClient
 	m.TokenProvider = uk
 
 	// Init GCP auth
@@ -254,7 +259,7 @@ func K8SClient(ctx context.Context, m *mesh.KRun) (*UK8S, error) {
 				return nil, err
 			}
 
-			def, cbyl, err := extractClusters(uk, kc)
+			def, cbyl, err := KubeConfig2RestCluster(uk, kc)
 			if err != nil {
 				return nil, err
 			}
@@ -271,7 +276,7 @@ func K8SClient(ctx context.Context, m *mesh.KRun) (*UK8S, error) {
 			log.Println("Failed to load GKE clusters, no token", err)
 		}
 
-		_, err = getGKEClusters(ctx, uk, accessToken, m.ProjectId)
+		_, err = GKE2RestCluster(ctx, uk, accessToken, m.ProjectId)
 		if err != nil {
 			return nil, err
 		}

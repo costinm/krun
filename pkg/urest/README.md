@@ -79,3 +79,8 @@ k8s.io/client-go/rest/client.go
 - includes rate limitter golang.org/x/time/rate
 - backoff
 
+
+# TODO
+
+[] Evaluate using same naming conventions and style with swagger-generated
+[] Evaluate using same naming as gRPC, possibly same transports.

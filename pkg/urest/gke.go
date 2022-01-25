@@ -85,13 +85,20 @@ type Cluster struct {
 
 }
 
-func getGKEClusters(ctx context.Context, uk *UK8S, token string, p string) ([]*RestCluster, error) {
+// GKE2RestCluster will fill in the uk.Clusters with all clusters in the project.
+// Will use an existing token (to avoid roundtrips for auth, access token can be shared)
+func GKE2RestCluster(ctx context.Context, uk *UK8S, token string, p string) ([]*RestCluster, error) {
 	req, _ := http.NewRequest("GET", "https://container.googleapis.com/v1/projects/"+p+"/locations/-/clusters", nil)
 	req = req.WithContext(ctx)
-	req.Header.Add("authorization", "bearer "+token)
+	req.Header.Add("authorization", "Bearer "+token)
 
 	res, err := uk.Client.Do(req)
 	if res.StatusCode != 200 {
+		rd, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+		log.Println(string(rd))
 		return nil, fmt.Errorf("Error reading clusters %d", res.StatusCode)
 	}
 	rd, err := ioutil.ReadAll(res.Body)
@@ -136,9 +143,8 @@ func (uk *UK8S) add(rc *RestCluster) {
 }
 
 func GetCluster(ctx context.Context, uk *UK8S, token, path string) (*RestCluster, error) {
-	req, _ := http.NewRequest("GET", "https://container.googleapis.com/v1"+path, nil)
-	req = req.WithContext(ctx)
-	req.Header.Add("authorization", "bearer "+token)
+	req, _ := http.NewRequestWithContext(ctx, "GET", "https://container.googleapis.com/v1"+path, nil)
+	req.Header.Add("authorization", "Bearer "+token)
 
 	parts := strings.Split(path, "/")
 	p := parts[2]
@@ -165,11 +171,11 @@ func GetCluster(ctx context.Context, uk *UK8S, token, path string) (*RestCluster
 	return rc, err
 }
 
-func getHubClusters(ctx context.Context, uk *UK8S, tok, p string) ([]*RestCluster, error) {
+func Hub2RestClusters(ctx context.Context, uk *UK8S, tok, p string) ([]*RestCluster, error) {
 	req, _ := http.NewRequest("GET",
 		"https://gkehub.googleapis.com/v1/projects/"+p+"/locations/-/memberships", nil)
 	req = req.WithContext(ctx)
-	req.Header.Add("authorization", "bearer "+tok)
+	req.Header.Add("authorization", "Bearer "+tok)
 
 	res, err := uk.Client.Do(req)
 	log.Println(res.StatusCode)

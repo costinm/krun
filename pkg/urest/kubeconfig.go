@@ -172,7 +172,10 @@ func kubeconfig2Rest(uk *UK8S, name string, cluster *KubeCluster, user *KubeUser
 	return rc, nil
 }
 
-func extractClusters(uk *UK8S, kc *KubeConfig) (*RestCluster, map[string][]*RestCluster, error) {
+// KubeConfig2RestCluster extracts supported RestClusters from the kube config, returns the default and the list
+// of clusters by location.
+// GKE naming conventions are assumed for extracting the location.
+func KubeConfig2RestCluster(uk *UK8S, kc *KubeConfig) (*RestCluster, map[string][]*RestCluster, error) {
 	var cluster *KubeCluster
 	var user *KubeUser
 
