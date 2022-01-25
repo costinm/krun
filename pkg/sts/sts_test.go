@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package sts
+package sts_test
 
 import (
 	"context"
@@ -22,11 +22,12 @@ import (
 	"time"
 
 	"github.com/costinm/krun/pkg/mesh"
+	"github.com/costinm/krun/pkg/sts"
 )
 
 // TestSTS uses a k8s connection and env to locate the mesh, and tests the token generation.
 func TestSTS(t *testing.T) {
-	kr := mesh.New("")
+	kr := mesh.New()
 
 	ctx, cf := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cf()
@@ -44,9 +45,9 @@ func TestSTS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	log.Println(mesh.TokenPayload(masterT), kr.ProjectNumber)
+	log.Println(sts.TokenPayload(masterT))
 
-	s, err := NewSTS(kr)
+	s, err := sts.NewSTS(kr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,5 +66,5 @@ func TestSTS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	log.Println(mesh.TokenPayload(a))
+	log.Println(sts.TokenPayload(a))
 }

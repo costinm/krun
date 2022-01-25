@@ -58,7 +58,7 @@ func main() {
 	// Used to provide access to all clusteres in the mesh
 	//meshID := os.Getenv("MESH_ID")
 
-	kr := mesh.New("")
+	kr := mesh.New()
 	//if meshID == "" {
 	//  // if location is specified, create a single-cluster config.
 	//	err := kr.Mesh.CreateClusterConfig(gcpProj, location, cluster)

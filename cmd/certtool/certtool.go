@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/costinm/krun/k8s/gcp"
+	k8s2 "github.com/costinm/krun/k8s/k8s"
 	"google.golang.org/grpc"
 
 	"github.com/costinm/hbone"
@@ -21,6 +23,7 @@ import (
 )
 
 var (
+	ns      = flag.String("n", "fortio", "Namespace")
 	aud      = flag.String("audience", "", "Audience to use in the CSR request")
 	provider = flag.String("addr", "", "Address. If empty will use the cluster default. meshca or cas can be used as shortcut")
 )
@@ -30,20 +33,44 @@ func main() {
 	flag.Parse()
 	startCtx := context.Background()
 
-	kr := mesh.New("")
-
-	initOTel(startCtx, kr)
-	f := otel.FileExporter(startCtx, os.Stdout)
-	defer f()
-
-	_, err := urest.K8SClient(startCtx, kr)
-	err = kr.LoadConfig(startCtx)
-	if err != nil {
-		panic(err)
+	kr := mesh.New()
+	if *ns != "" {
+		kr.Namespace = *ns
 	}
 
-	// k8s based GSA federated access and ID token provider
-	tokenProvider, err := sts.NewSTS(kr)
+	defer f()
+	// Using the micro or real k8s client.
+	if false {
+		_, err := uk8s.K8SClient(startCtx, kr)
+		err = kr.LoadConfig(startCtx)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		k8s := &k8s2.K8S{Mesh: kr}
+		k8s.VendorInit = gcp.InitGCP
+		kr.Cfg = k8s
+		kr.TokenProvider = k8s
+
+		// Init K8S client, using official API server.
+		// Will attempt to use GCP API to load metadata and populate the fields
+		k8s.K8SClient(startCtx)
+
+		// Load mesh-env and other configs from k8s.
+		err := kr.LoadConfig(startCtx)
+		if err != nil {
+			log.Fatal("Failed to connect to mesh ", time.Since(kr.StartTime), kr, os.Environ(), err)
+		}
+	}
+
+	// Need the settings from mesh-env
+	f, err := initOTel(startCtx, kr)
+	if err != nil {
+		log.Println("OTel init failed", err)
+	} else {
+		defer f()
+	}
+
 
 	if kr.MeshConnectorAddr == "" {
 		log.Fatal("Failed to find in-cluster, missing 'hgate' service in mesh env")
@@ -61,11 +88,11 @@ func main() {
 	// TODO: fetch public keys too - possibly from all
 
 	if *provider == "meshca" {
-		InitMeshCA(kr, auth, csr, priv, tokenProvider)
+		InitMeshCA(kr, auth, csr, priv)
 	} else if *provider == "cas" {
-		InitCAS(kr, auth, csr, priv, tokenProvider)
+		InitCAS(kr, auth, csr, priv)
 	} else {
-		InitMeshCert(kr, auth, csr, priv, tokenProvider)
+		InitMeshCert(kr, auth, csr, priv)
 	}
 	cert, err := x509.ParseCertificate(auth.Cert.Certificate[0])
 	if err != nil {
@@ -76,7 +103,7 @@ func main() {
 	time.Sleep(4 * time.Second)
 }
 
-func InitMeshCert(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte, tokenProvider *sts.STS) {
+func InitMeshCert(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte) {
 	if kr.CitadelRoot != "" && kr.MeshConnectorAddr != "" {
 		auth.AddRoots([]byte(kr.CitadelRoot))
 
@@ -98,11 +125,14 @@ func InitMeshCert(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte, toke
 			log.Fatal(err)
 		}
 	} else {
-		InitMeshCA(kr, auth, csr, priv, tokenProvider)
+		InitMeshCA(kr, auth, csr, priv)
 	}
 }
 
-func InitMeshCA(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte, tokenProvider *sts.STS) {
+func InitMeshCA(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte, ) {
+	tokenProvider, err := sts.NewSTS(kr)
+	tokenProvider.UseAccessToken = true // even if audience is provided.
+
 	// TODO: Use MeshCA if citadel is not in cluster
 	var ol []grpc.DialOption
 	ol = append(ol, grpc.WithPerRPCCredentials(tokenProvider))
@@ -124,11 +154,23 @@ func InitMeshCA(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte, tokenP
 }
 
 // TODO
-func InitCAS(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte, tokenProvider *sts.STS) {
+func InitCAS(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte) {
 	// TODO: Use MeshCA if citadel is not in cluster
+	tokenProvider, err := sts.NewSTS(kr)
+
+	// This doesn't work
+	//  Could not use the REFLECTED_SPIFFE subject mode because the caller does not have a SPIFFE identity. Please visit the CA Service documentation to ensure that this is a supported use-case
+	//  tokenProvider.MDPSA = true
+	// The token MUST be the federated access token
+
+	tokenProvider.UseAccessToken = true // even if audience is provided.
+
+	var ol []grpc.DialOption
+	ol = append(ol, grpc.WithPerRPCCredentials(tokenProvider))
+	ol = append(ol, OTELGRPCClient()...)
 
 	mca, err := cas.NewGoogleCASClient("projects/"+kr.ProjectId+
-		"/locations/"+kr.Region()+"/caPools/istio", tokenProvider)
+		"/locations/"+kr.Region()+"/caPools/istio", ol)
 	chain, err := mca.CSRSign(csr, 24*3600)
 
 	if err != nil {

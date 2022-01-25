@@ -213,7 +213,7 @@ func (kr *K8S) GetToken(ctx context.Context, aud string) (string, error) {
 	ts, err := kr.Client.CoreV1().ServiceAccounts(kr.Mesh.Namespace).CreateToken(ctx,
 		kr.Mesh.KSA, treq, metav1.CreateOptions{})
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	return ts.Status.Token, nil

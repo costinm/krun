@@ -13,35 +13,6 @@ import (
 type Clusters struct {
 	Clusters []*Cluster
 }
-type HubClusters struct {
-	Resources []HubCluster
-}
-
-type HubCluster struct {
-	// Full name - projects/wlhe-cr/locations/global/memberships/asm-cr
-	//Name     string
-	Endpoint *struct {
-		GkeCluster *struct {
-			// //container.googleapis.com/projects/wlhe-cr/locations/us-central1-c/clusters/asm-cr
-			ResourceLink string
-		}
-		// kubernetesMetadata: vcpuCount, nodeCount, api version
-	}
-	State *struct {
-		// READY
-		Code string
-	}
-
-	Authority struct {
-		Issuer               string `json:"issuer"`
-		WorkloadIdentityPool string `json:"workloadIdentityPool"`
-		IdentityProvider     string `json:"identityProvider"`
-	} `json:"authority"`
-
-	// Membership labels - different from GKE labels
-	Labels map[string]string
-}
-
 type Cluster struct {
 	Name string
 
@@ -53,7 +24,7 @@ type Cluster struct {
 
 	Endpoint string
 
-	ResourceLabels []string
+	ResourceLabels map[string]string
 
 	// Extras:
 
@@ -85,8 +56,36 @@ type Cluster struct {
 
 }
 
-// GKE2RestCluster will fill in the uk.Clusters with all clusters in the project.
-// Will use an existing token (to avoid roundtrips for auth, access token can be shared)
+type HubClusters struct {
+	Resources []HubCluster
+}
+
+type HubCluster struct {
+	// Full name - projects/wlhe-cr/locations/global/memberships/asm-cr
+	//Name     string
+	Endpoint *struct {
+		GkeCluster *struct {
+			// //container.googleapis.com/projects/wlhe-cr/locations/us-central1-c/clusters/asm-cr
+			ResourceLink string
+		}
+		// kubernetesMetadata: vcpuCount, nodeCount, api version
+	}
+	State *struct {
+		// READY
+		Code string
+	}
+
+	Authority struct {
+		Issuer               string `json:"issuer"`
+		WorkloadIdentityPool string `json:"workloadIdentityPool"`
+		IdentityProvider     string `json:"identityProvider"`
+	} `json:"authority"`
+
+	// Membership labels - different from GKE labels
+	Labels map[string]string
+}
+
+
 func GKE2RestCluster(ctx context.Context, uk *UK8S, token string, p string) ([]*RestCluster, error) {
 	req, _ := http.NewRequest("GET", "https://container.googleapis.com/v1/projects/"+p+"/locations/-/clusters", nil)
 	req = req.WithContext(ctx)
@@ -105,7 +104,7 @@ func GKE2RestCluster(ctx context.Context, uk *UK8S, token string, p string) ([]*
 	if err != nil {
 		return nil, err
 	}
-	if Debug {
+	if Debug  {
 		log.Println(string(rd))
 	}
 
@@ -142,6 +141,7 @@ func (uk *UK8S) add(rc *RestCluster) {
 	uk.m.Unlock()
 }
 
+// GetCluster returns a cluster config using the GKE API. Path must follow GKE API spec: /projects/P/locations/L/l
 func GetCluster(ctx context.Context, uk *UK8S, token, path string) (*RestCluster, error) {
 	req, _ := http.NewRequestWithContext(ctx, "GET", "https://container.googleapis.com/v1"+path, nil)
 	req.Header.Add("authorization", "Bearer "+token)
@@ -183,11 +183,16 @@ func Hub2RestClusters(ctx context.Context, uk *UK8S, tok, p string) ([]*RestClus
 	if err != nil {
 		return nil, err
 	}
+	cl := []*RestCluster{}
 	log.Println(string(rd))
+	if res.StatusCode == 403 {
+		log.Println("Hub not authorized ", string(rd))
+		// This is not considered an error - but user intent.
+		return cl, nil
+	}
 	hcl := &HubClusters{}
 	json.Unmarshal(rd, hcl)
 
-	cl := []*RestCluster{}
 	for _, hc := range hcl.Resources {
 		// hc doesn't provide the endpoint. Need to query GKE - but instead of going over each cluster we can do
 		// batch query on the project and filter.
@@ -207,10 +212,29 @@ func Hub2RestClusters(ctx context.Context, uk *UK8S, tok, p string) ([]*RestClus
 	return cl, err
 }
 
-func queryMetadata(path string) (string, error) {
+func TokenGKE(ctx context.Context, aud string) (string, error) {
+	uri := fmt.Sprintf("instance/service-accounts/default/identity?audience=%s", aud)
+	tok, err := MetadataGet(ctx, uri)
+	if err != nil {
+		return "", err
+	}
+	return tok, nil
+}
+
+func Token(ctx context.Context, aud string) (string, error) {
+	uri := fmt.Sprintf("instance/service-accounts/default/identity?audience=%s&format=full", aud)
+	tok, err := MetadataGet(ctx, uri)
+	if err != nil {
+		return "", err
+	}
+	return tok, nil
+}
+
+
+func MetadataGet(ctx context.Context, path string) (string, error) {
 	// metadata.google.internal
 	// TODO: read GCE_METADATA_HOST
-	req, err := http.NewRequest("GET", "http://169.254.169.254/computeMetadata/v1/"+path, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://169.254.169.254/computeMetadata/v1/"+path, nil)
 	if err != nil {
 		return "", err
 	}

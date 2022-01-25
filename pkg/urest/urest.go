@@ -87,6 +87,8 @@ type UK8S struct {
 
 	m sync.RWMutex
 
+	// If TransportWrapper is set, the http clients will be wrapped
+	// This is intended for integration with OpenTelemetry or other transport wrappers.
 	TransportWrapper func(transport http.RoundTripper) http.RoundTripper
 }
 
@@ -110,6 +112,8 @@ type RestCluster struct {
 
 	// Default namespace - extracted from kubeconfig
 	Namespace string
+
+	// Client configured with the root CA of the K8S cluster.
 	Client    *http.Client
 }
 
@@ -117,16 +121,11 @@ func (uK8S *UK8S) String() string {
 	return uK8S.Current.Id
 }
 
+// httpClient returns a http.Client configured with the specified root CA.
 func (uK8S *UK8S) httpClient(caCert []byte) *http.Client {
-	roots := x509.NewCertPool()
-	if !roots.AppendCertsFromPEM(caCert) {
-		log.Println("Failed to decode PEM")
-	}
-
 	// The 'max idle conns, idle con timeout, etc are shorter - this is meant for
 	// fast initial config, not as a general purpose client.
-	var tr http.RoundTripper
-	tr = &http.Transport{
+	tr := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
@@ -137,17 +136,25 @@ func (uK8S *UK8S) httpClient(caCert []byte) *http.Client {
 
 		MaxIdleConns:    10,
 		IdleConnTimeout: 30 * time.Second,
-		TLSClientConfig: &tls.Config{
+	}
+	if caCert != nil && len(caCert) > 0 {
+		roots := x509.NewCertPool()
+		if !roots.AppendCertsFromPEM(caCert) {
+			log.Println("Failed to decode PEM")
+		}
+		tr.TLSClientConfig = &tls.Config{
 			RootCAs: roots,
-		},
+		}
 	}
 
+	var rt http.RoundTripper
+	rt = tr
 	if uK8S.TransportWrapper != nil {
-		tr = uK8S.TransportWrapper(tr)
+		rt = uK8S.TransportWrapper(rt)
 	}
 
 	return &http.Client{
-		Transport: tr,
+		Transport: rt,
 	}
 
 }
@@ -225,7 +232,9 @@ func K8SClient(ctx context.Context, m *mesh.KRun) (*UK8S, error) {
 	m.Cfg = uk
 	uk.Client = http.DefaultClient
 	m.TokenProvider = uk
+}
 
+func (uk *UK8S) initDefaultTokenSource(ctx context.Context) error {
 	// Init GCP auth
 	// DefaultTokenSource will:
 	// - check GOOGLE_APPLICATION_CREDENTIALS
@@ -233,7 +242,7 @@ func K8SClient(ctx context.Context, m *mesh.KRun) (*UK8S, error) {
 	// - use metadata
 	ts, err := google.DefaultTokenSource(ctx, "https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	uk.TokenProvider = func(ctx context.Context, s string) (string, error) {
 		t, err := ts.Token()
@@ -242,6 +251,27 @@ func K8SClient(ctx context.Context, m *mesh.KRun) (*UK8S, error) {
 		}
 		return t.AccessToken, nil
 	}
+	return nil
+}
+
+// Init the K8S client:
+//
+// 1. Explicit KUBECONFIG
+// 2. GCP APIs, selecting a cluster.
+//
+func K8SClient(ctx context.Context, m *mesh.KRun) (*UK8S, error) {
+	uk := New()
+	uk.Mesh = m
+	uk.TransportWrapper = m.TransportWrapper
+	m.Cfg = uk
+	m.TokenProvider = uk
+	uk.Client = uk.httpClient(nil)
+
+	err := uk.initDefaultTokenSource(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	kc := os.Getenv("KUBECONFIG")
 	if kc == "" {
 		kc = os.Getenv("HOME") + "/.kube/config"
