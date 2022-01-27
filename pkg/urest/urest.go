@@ -30,7 +30,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/costinm/krun/pkg/mesh"
 	"golang.org/x/oauth2/google"
 	"gopkg.in/yaml.v2"
 )
@@ -62,11 +61,19 @@ var (
 		projectName, projectVersion, projectURL, runtime.Version())
 )
 
+// Various settings for the mesh
+type Mesh struct {
+	ProjectId        string
+	TransportWrapper func(transport http.RoundTripper) http.RoundTripper
+	Namespace        string
+	ServiceAccount   string
+}
+
 // UK8S is a micro k8s client, using only base http and a token source.
 type UK8S struct {
 	// Client using system certificates, for external sites.
 	// The RestCluster has a separate Client, configured to authenticate servers using a custom root CA.
-	Client        *http.Client
+	Client *http.Client
 
 	TokenProvider func(context.Context, string) (string, error)
 
@@ -77,7 +84,7 @@ type UK8S struct {
 	Location string
 
 	// Configs about the mesh.
-	Mesh *mesh.KRun
+	Mesh *Mesh
 
 	// Current active cluster.
 	Current *RestCluster
@@ -114,7 +121,7 @@ type RestCluster struct {
 	Namespace string
 
 	// Client configured with the root CA of the K8S cluster.
-	Client    *http.Client
+	Client *http.Client
 }
 
 func (uK8S *UK8S) String() string {
@@ -215,23 +222,9 @@ func (uk8s *UK8S) Do(ctx context.Context, ns, kind, name string, postdata []byte
 func New() *UK8S {
 	return &UK8S{
 		ClustersByLocation: map[string][]*RestCluster{},
-		Clusters: map[string]*RestCluster{},
-		Client: http.DefaultClient,
+		Clusters:           map[string]*RestCluster{},
+		Client:             http.DefaultClient,
 	}
-}
-
-// Init the K8S client:
-//
-// 1. Explicit KUBECONFIG
-// 2. GCP APIs, selecting a cluster.
-//
-func K8SClient(ctx context.Context, m *mesh.KRun) (*UK8S, error) {
-	uk := New()
-	uk.Mesh = m
-	uk.TransportWrapper = m.TransportWrapper
-	m.Cfg = uk
-	uk.Client = http.DefaultClient
-	m.TokenProvider = uk
 }
 
 func (uk *UK8S) initDefaultTokenSource(ctx context.Context) error {
@@ -259,13 +252,14 @@ func (uk *UK8S) initDefaultTokenSource(ctx context.Context) error {
 // 1. Explicit KUBECONFIG
 // 2. GCP APIs, selecting a cluster.
 //
-func K8SClient(ctx context.Context, m *mesh.KRun) (*UK8S, error) {
+func K8SClient(ctx context.Context, m *Mesh) (*UK8S, error) {
 	uk := New()
 	uk.Mesh = m
 	uk.TransportWrapper = m.TransportWrapper
-	m.Cfg = uk
-	m.TokenProvider = uk
-	uk.Client = uk.httpClient(nil)
+	//m.Cfg = uk
+	//m.TokenProvider = uk
+	uk.Client = http.DefaultClient
+	//uk.Client = uk.httpClient(nil)
 
 	err := uk.initDefaultTokenSource(ctx)
 	if err != nil {

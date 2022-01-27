@@ -8,27 +8,25 @@ import (
 	"os"
 	"time"
 
-	"github.com/costinm/krun/k8s/gcp"
-	k8s2 "github.com/costinm/krun/k8s/k8s"
+	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/k8s"
+	"github.com/costinm/krun/pkg/urest"
 	"google.golang.org/grpc"
 
 	"github.com/costinm/hbone"
-	"github.com/costinm/hbone/otel"
 	"github.com/costinm/krun/pkg/mesh"
 	"github.com/costinm/krun/pkg/sts"
-	"github.com/costinm/krun/pkg/uk8s"
 	"github.com/costinm/krun/third_party/istio/cas"
 	"github.com/costinm/krun/third_party/istio/istioca"
 	"github.com/costinm/krun/third_party/istio/meshca"
 )
 
 var (
-	ns      = flag.String("n", "fortio", "Namespace")
+	ns       = flag.String("n", "fortio", "Namespace")
 	aud      = flag.String("audience", "", "Audience to use in the CSR request")
 	provider = flag.String("addr", "", "Address. If empty will use the cluster default. meshca or cas can be used as shortcut")
 )
 
-// The tool is also using OTel, to validate the integration.
+// CLI to get the mesh certificates, using MeshCA, CAS os Istio CA.
 func main() {
 	flag.Parse()
 	startCtx := context.Background()
@@ -38,16 +36,15 @@ func main() {
 		kr.Namespace = *ns
 	}
 
-	defer f()
 	// Using the micro or real k8s client.
 	if false {
-		_, err := uk8s.K8SClient(startCtx, kr)
+		_, err := urest.K8SClient(startCtx, kr)
 		err = kr.LoadConfig(startCtx)
 		if err != nil {
 			panic(err)
 		}
 	} else {
-		k8s := &k8s2.K8S{Mesh: kr}
+		k8s := &k8s.K8S{Mesh: kr}
 		k8s.VendorInit = gcp.InitGCP
 		kr.Cfg = k8s
 		kr.TokenProvider = k8s
@@ -70,7 +67,6 @@ func main() {
 	} else {
 		defer f()
 	}
-
 
 	if kr.MeshConnectorAddr == "" {
 		log.Fatal("Failed to find in-cluster, missing 'hgate' service in mesh env")
@@ -108,7 +104,7 @@ func InitMeshCert(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte) {
 		auth.AddRoots([]byte(kr.CitadelRoot))
 
 		cca, err := istioca.NewCitadelClient(&istioca.Options{
-			TokenProvider: &mesh.K8SCredentials{KRun: kr, Audience: "istio-ca"},
+			TokenProvider: &sts.K8SCredentials{KRun: kr, Audience: "istio-ca"},
 			CAEndpoint:    kr.MeshConnectorAddr + ":15012",
 			TrustedRoots:  auth.TrustedCertPool,
 			CAEndpointSAN: "istiod.istio-system.svc",
@@ -129,7 +125,7 @@ func InitMeshCert(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte) {
 	}
 }
 
-func InitMeshCA(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte, ) {
+func InitMeshCA(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte) {
 	tokenProvider, err := sts.NewSTS(kr)
 	tokenProvider.UseAccessToken = true // even if audience is provided.
 

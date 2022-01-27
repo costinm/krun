@@ -22,12 +22,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/costinm/krun/pkg/mesh"
 	"github.com/costinm/krun/pkg/urest"
 	"golang.org/x/oauth2/google"
 	"gopkg.in/yaml.v2"
 )
-
 
 var (
 	hubResponse = `
@@ -366,7 +364,7 @@ func TestURest(t *testing.T) {
 	})
 
 	t.Run("init", func(t *testing.T) {
-		kr := mesh.New("")
+		kr := &urest.Mesh{}
 		kr.ProjectId = uk.ProjectID
 
 		uk1, err := urest.K8SClient(ctx, kr)

@@ -67,7 +67,7 @@ func (uK8S *UK8S) GetCM(ctx context.Context, ns string, name string) (map[string
 }
 
 func (uK8S *UK8S) GetToken(ctx context.Context, aud string) (string, error) {
-	return uK8S.GetTokenRaw(ctx, uK8S.Mesh.Namespace, uK8S.Mesh.Name, aud)
+	return uK8S.GetTokenRaw(ctx, uK8S.Mesh.Namespace, uK8S.Mesh.ServiceAccount, aud)
 }
 
 func (uK8S *UK8S) GetTokenRaw(ctx context.Context, ns, name, aud string) (string, error) {

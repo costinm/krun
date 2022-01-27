@@ -34,7 +34,7 @@ func main() {
 	defer cf()
 
 	// Init the mesh ojbect, using env variables.
-	kr := mesh.New("")
+	kr := mesh.New()
 
 	// Init K8S - discovering using GCP API and env.
 	k8s := &k8s2.K8S{Mesh: kr}
@@ -57,10 +57,10 @@ func main() {
 
 	// End initialization
 
-	err = kr.WaitIstioAgent()
-	if err != nil {
-		log.Fatal("Mesh agent not ready ", err)
-	}
+	//err = kr.WaitEnvoyReady()
+	//if err != nil {
+	//	log.Fatal("Mesh agent not ready ", err)
+	//}
 
 	kr.StartApp()
 

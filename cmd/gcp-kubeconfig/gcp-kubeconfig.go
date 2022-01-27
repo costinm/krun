@@ -23,6 +23,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/costinm/krun/gcp"
 	gcp2 "github.com/costinm/krun/k8s/gcp"
 	"github.com/costinm/krun/pkg/mesh"
 	"k8s.io/client-go/tools/clientcmd"
@@ -78,9 +79,9 @@ func main() {
 	}
 	kc := cl[0].KubeConfig
 	for _, c := range cl {
-		gcp2.MergeKubeConfig(kc, c.KubeConfig)
+		gcp.MergeKubeConfig(kc, c.KubeConfig)
 	}
-	err = gcp2.SaveKubeConfig(kc, "", "config")
+	err = gcp.SaveKubeConfig(kc, "", "config")
 	if err != nil {
 		panic(err)
 	}
