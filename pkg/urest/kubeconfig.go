@@ -167,7 +167,7 @@ func kubeconfig2Rest(uk *UK8S, name string, cluster *KubeCluster, user *KubeUser
 		return nil, err
 	}
 
-	rc.Client = uk.httpClient(caCert)
+	rc.Client = uk.HttpClient(caCert)
 
 	return rc, nil
 }

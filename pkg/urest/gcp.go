@@ -23,7 +23,6 @@ import (
 )
 
 // GCP secrets API
-// Free: 6 versions / project, 10k operations/mo
 // Example:
 //gcloud secrets create ca \
 //--data-file <PATH-TO-SECRET-FILE> \
@@ -33,13 +32,14 @@ import (
 //--quiet
 
 const SecretsAPIURL = ""
+
 type SecretsAPI struct {
 }
 
-func GcpSecret(ctx context.Context, uk *UK8S, token, p, n, v string) ([]byte, error){
+func GcpSecret(ctx context.Context, uk *UK8S, token, p, n, v string) ([]byte, error) {
 	req, _ := http.NewRequestWithContext(ctx, "GET",
-		"https://secretmanager.googleapis.com/v1/projects/"+ p + "/secrets/" + n +
-			"/versions/" + v + ":access", nil)
+		"https://secretmanager.googleapis.com/v1/projects/"+p+"/secrets/"+n+
+			"/versions/"+v+":access", nil)
 	req.Header.Add("authorization", "Bearer "+token)
 
 	res, err := uk.Client.Do(req)

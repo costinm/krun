@@ -309,10 +309,10 @@ func TestURest(t *testing.T) {
 	if kc.CurrentContext == "" {
 		t.Fatal("No default context", kc)
 	}
-	uk.initDefaultTokenSource(ctx)
-	uk.Client = uk.httpClient(nil)
+	uk.InitDefaultTokenSource(ctx)
+	uk.Client = uk.HttpClient(nil)
 
-	ecl, _, err := extractClusters(uk, kc)
+	ecl, _, err := urest.KubeConfig2RestCluster(uk, kc)
 	if err != nil {
 		t.Fatal("Failed to load k8s", err)
 	}

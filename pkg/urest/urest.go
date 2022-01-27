@@ -128,8 +128,8 @@ func (uK8S *UK8S) String() string {
 	return uK8S.Current.Id
 }
 
-// httpClient returns a http.Client configured with the specified root CA.
-func (uK8S *UK8S) httpClient(caCert []byte) *http.Client {
+// HttpClient returns a http.Client configured with the specified root CA.
+func (uK8S *UK8S) HttpClient(caCert []byte) *http.Client {
 	// The 'max idle conns, idle con timeout, etc are shorter - this is meant for
 	// fast initial config, not as a general purpose client.
 	tr := &http.Transport{
@@ -227,7 +227,7 @@ func New() *UK8S {
 	}
 }
 
-func (uk *UK8S) initDefaultTokenSource(ctx context.Context) error {
+func (uk *UK8S) InitDefaultTokenSource(ctx context.Context) error {
 	// Init GCP auth
 	// DefaultTokenSource will:
 	// - check GOOGLE_APPLICATION_CREDENTIALS
@@ -259,9 +259,9 @@ func K8SClient(ctx context.Context, m *Mesh) (*UK8S, error) {
 	//m.Cfg = uk
 	//m.TokenProvider = uk
 	uk.Client = http.DefaultClient
-	//uk.Client = uk.httpClient(nil)
+	//uk.Client = uk.HttpClient(nil)
 
-	err := uk.initDefaultTokenSource(ctx)
+	err := uk.InitDefaultTokenSource(ctx)
 	if err != nil {
 		return nil, err
 	}

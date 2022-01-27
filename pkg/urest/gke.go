@@ -85,7 +85,6 @@ type HubCluster struct {
 	Labels map[string]string
 }
 
-
 func GKE2RestCluster(ctx context.Context, uk *UK8S, token string, p string) ([]*RestCluster, error) {
 	req, _ := http.NewRequest("GET", "https://container.googleapis.com/v1/projects/"+p+"/locations/-/clusters", nil)
 	req = req.WithContext(ctx)
@@ -104,7 +103,7 @@ func GKE2RestCluster(ctx context.Context, uk *UK8S, token string, p string) ([]*
 	if err != nil {
 		return nil, err
 	}
-	if Debug  {
+	if Debug {
 		log.Println(string(rd))
 	}
 
@@ -116,7 +115,7 @@ func GKE2RestCluster(ctx context.Context, uk *UK8S, token string, p string) ([]*
 	rcl := []*RestCluster{}
 	for _, c := range cl.Clusters {
 		rc := &RestCluster{
-			Client:        uk.httpClient(c.MasterAuth.ClusterCaCertificate),
+			Client:        uk.HttpClient(c.MasterAuth.ClusterCaCertificate),
 			Base:          c.Endpoint,
 			Location:      c.Location,
 			TokenProvider: uk.TokenProvider,
@@ -161,7 +160,7 @@ func GetCluster(ctx context.Context, uk *UK8S, token, path string) (*RestCluster
 	}
 
 	rc := &RestCluster{
-		Client:        uk.httpClient(c.MasterAuth.ClusterCaCertificate),
+		Client:        uk.HttpClient(c.MasterAuth.ClusterCaCertificate),
 		Base:          c.Endpoint,
 		Location:      c.Location,
 		TokenProvider: uk.TokenProvider,
@@ -229,7 +228,6 @@ func Token(ctx context.Context, aud string) (string, error) {
 	}
 	return tok, nil
 }
-
 
 func MetadataGet(ctx context.Context, path string) (string, error) {
 	// metadata.google.internal
