@@ -13,6 +13,7 @@ import (
 type Clusters struct {
 	Clusters []*Cluster
 }
+
 type Cluster struct {
 	Name string
 
@@ -53,7 +54,6 @@ type Cluster struct {
 
 	// It seems zone and location are the same for zonal clusters.
 	//Zone string // ex: us-west1
-
 }
 
 type HubClusters struct {
@@ -85,10 +85,13 @@ type HubCluster struct {
 	Labels map[string]string
 }
 
-func GKE2RestCluster(ctx context.Context, uk *UK8S, token string, p string) ([]*RestCluster, error) {
+// GKE2RestCluster gets all the clusters for a project, and returns URestClient object.
+func GKE2RestCluster(ctx context.Context, uk *URest, token string, p string) ([]*URestClient, error) {
 	req, _ := http.NewRequest("GET", "https://container.googleapis.com/v1/projects/"+p+"/locations/-/clusters", nil)
 	req = req.WithContext(ctx)
-	req.Header.Add("authorization", "Bearer "+token)
+	if token != "" {
+		req.Header.Add("authorization", "Bearer "+token)
+	}
 
 	res, err := uk.Client.Do(req)
 	if res.StatusCode != 200 {
@@ -112,9 +115,9 @@ func GKE2RestCluster(ctx context.Context, uk *UK8S, token string, p string) ([]*
 	if err != nil {
 		return nil, err
 	}
-	rcl := []*RestCluster{}
+	rcl := []*URestClient{}
 	for _, c := range cl.Clusters {
-		rc := &RestCluster{
+		rc := &URestClient{
 			Client:        uk.HttpClient(c.MasterAuth.ClusterCaCertificate),
 			Base:          c.Endpoint,
 			Location:      c.Location,
@@ -129,7 +132,7 @@ func GKE2RestCluster(ctx context.Context, uk *UK8S, token string, p string) ([]*
 	return rcl, err
 }
 
-func (uk *UK8S) add(rc *RestCluster) {
+func (uk *URest) add(rc *URestClient) {
 	uk.m.Lock()
 	if uk.Clusters[rc.Id] != nil {
 		log.Println("Cluster in kube config")
@@ -141,7 +144,7 @@ func (uk *UK8S) add(rc *RestCluster) {
 }
 
 // GetCluster returns a cluster config using the GKE API. Path must follow GKE API spec: /projects/P/locations/L/l
-func GetCluster(ctx context.Context, uk *UK8S, token, path string) (*RestCluster, error) {
+func GetCluster(ctx context.Context, uk *URest, token, path string) (*URestClient, error) {
 	req, _ := http.NewRequestWithContext(ctx, "GET", "https://container.googleapis.com/v1"+path, nil)
 	req.Header.Add("authorization", "Bearer "+token)
 
@@ -159,7 +162,7 @@ func GetCluster(ctx context.Context, uk *UK8S, token, path string) (*RestCluster
 		return nil, err
 	}
 
-	rc := &RestCluster{
+	rc := &URestClient{
 		Client:        uk.HttpClient(c.MasterAuth.ClusterCaCertificate),
 		Base:          c.Endpoint,
 		Location:      c.Location,
@@ -170,7 +173,7 @@ func GetCluster(ctx context.Context, uk *UK8S, token, path string) (*RestCluster
 	return rc, err
 }
 
-func Hub2RestClusters(ctx context.Context, uk *UK8S, tok, p string) ([]*RestCluster, error) {
+func Hub2RestClusters(ctx context.Context, uk *URest, tok, p string) ([]*URestClient, error) {
 	req, _ := http.NewRequest("GET",
 		"https://gkehub.googleapis.com/v1/projects/"+p+"/locations/-/memberships", nil)
 	req = req.WithContext(ctx)
@@ -182,7 +185,7 @@ func Hub2RestClusters(ctx context.Context, uk *UK8S, tok, p string) ([]*RestClus
 	if err != nil {
 		return nil, err
 	}
-	cl := []*RestCluster{}
+	cl := []*URestClient{}
 	log.Println(string(rd))
 	if res.StatusCode == 403 {
 		log.Println("Hub not authorized ", string(rd))

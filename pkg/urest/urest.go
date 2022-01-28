@@ -25,13 +25,11 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"runtime"
 	"sync"
 	"time"
 
 	"golang.org/x/oauth2/google"
-	"gopkg.in/yaml.v2"
 )
 
 // WIP - removing the dep on k8s client library for the 2 bootstrap requests needed
@@ -53,6 +51,8 @@ import (
 //
 // Refactored/extacted from 'konfig'
 
+var Debug = false
+
 var (
 	projectName    = "konfig"
 	projectVersion = "0.1.0"
@@ -61,45 +61,56 @@ var (
 		projectName, projectVersion, projectURL, runtime.Version())
 )
 
-// Various settings for the mesh
-type Mesh struct {
-	ProjectId        string
-	TransportWrapper func(transport http.RoundTripper) http.RoundTripper
-	Namespace        string
-	ServiceAccount   string
-}
-
-// UK8S is a micro k8s client, using only base http and a token source.
-type UK8S struct {
-	// Client using system certificates, for external sites.
-	// The RestCluster has a separate Client, configured to authenticate servers using a custom root CA.
-	Client *http.Client
-
-	TokenProvider func(context.Context, string) (string, error)
-
-	// Hub or user project ID. If set, will be used to lookup clusters.
-	ProjectID string
-
-	// Location where the workload is running, to select local clusters.
-	Location string
-
-	// Configs about the mesh.
-	Mesh *Mesh
-
-	// Current active cluster.
-	Current *RestCluster
-
-	Clusters           map[string]*RestCluster
-	ClustersByLocation map[string][]*RestCluster
-
-	m sync.RWMutex
-
+// MeshSettings has common settings for all clients
+type MeshSettings struct {
 	// If TransportWrapper is set, the http clients will be wrapped
 	// This is intended for integration with OpenTelemetry or other transport wrappers.
 	TransportWrapper func(transport http.RoundTripper) http.RoundTripper
+
+	// Hub or user project ID. If set, will be used to lookup clusters.
+	ProjectId      string
+	Namespace      string
+	ServiceAccount string
+
+	// Location where the workload is running, to select local clusters.
+	Location string
 }
 
-type RestCluster struct {
+// URest is a micro REST client, modeled after k8s and GCP REST model, using only base http and a token source.
+// It can work with most REST APIs - but client is expected to know how to generate the raw payload and
+// parse the response.
+type URest struct {
+
+	// Client using system certificates, for external sites.
+	// The URestClient has a separate Client, configured to authenticate servers using a custom root CA.
+	Client *http.Client
+
+	// TokenProvider is the default source of tokens for this client.
+	// It is expected to return tokens with the given audience. Google OAuth2 provider for example
+	// works using 'default app credentials' or metadata server.
+	TokenProvider func(context.Context, string) (string, error)
+
+	// Configs and defaults for the client. It is assumed the client is using a project ID, and has k8s or equivalent
+	// 'namespace', 'service account' and location. This may also be populated automatically.
+	Mesh *MeshSettings
+
+	// Default cluster - each cluster has separate credentials and TLS certs.
+	// TODO: find better name, this can be any REST target that uses custom certs.
+	Current *URestClient
+
+	// Clients by name
+	Clusters map[string]*URestClient
+
+	// Clients by location
+	ClustersByLocation map[string][]*URestClient
+
+	m sync.RWMutex
+}
+
+// URestClient is a wrapper around a http client configured with specific certs and auth provider.
+// Based on K8S Cluster config.
+type URestClient struct {
+	URest *URest
 	// Base URL, including https://IP:port/v1
 	// Created from endpoint.
 	Base string
@@ -124,12 +135,13 @@ type RestCluster struct {
 	Client *http.Client
 }
 
-func (uK8S *UK8S) String() string {
+func (uK8S *URest) String() string {
 	return uK8S.Current.Id
 }
 
-// HttpClient returns a http.Client configured with the specified root CA.
-func (uK8S *UK8S) HttpClient(caCert []byte) *http.Client {
+// HttpClient returns a http.Client configured with the specified root CA, and reasonable settings.
+// The URest wrapper is added, for telemetry or other interceptors.
+func (uK8S *URest) HttpClient(caCert []byte) *http.Client {
 	// The 'max idle conns, idle con timeout, etc are shorter - this is meant for
 	// fast initial config, not as a general purpose client.
 	tr := &http.Transport{
@@ -156,8 +168,8 @@ func (uK8S *UK8S) HttpClient(caCert []byte) *http.Client {
 
 	var rt http.RoundTripper
 	rt = tr
-	if uK8S.TransportWrapper != nil {
-		rt = uK8S.TransportWrapper(rt)
+	if uK8S.Mesh.TransportWrapper != nil {
+		rt = uK8S.Mesh.TransportWrapper(rt)
 	}
 
 	return &http.Client{
@@ -166,12 +178,13 @@ func (uK8S *UK8S) HttpClient(caCert []byte) *http.Client {
 
 }
 
-var Debug = false
-
-func (uk8s *UK8S) Do(ctx context.Context, ns, kind, name string, postdata []byte) ([]byte, error) {
-
+func (uk8s *URest) DoNsKindName(ctx context.Context, ns, kind, name string, postdata []byte) ([]byte, error) {
 	resourceURL := uk8s.Current.Base + fmt.Sprintf("/api/v1/namespaces/%s/%ss/%s",
 		ns, kind, name)
+	return uk8s.Do(ctx, resourceURL, postdata)
+}
+
+func (uk8s *URest) Do(ctx context.Context, resourceURL string, postdata []byte) ([]byte, error) {
 
 	var resp *http.Response
 	var err error
@@ -212,22 +225,22 @@ func (uk8s *UK8S) Do(ctx context.Context, ns, kind, name string, postdata []byte
 	}
 
 	if resp.StatusCode >= 300 || resp.StatusCode < 200 {
-		return nil, errors.New(fmt.Sprintf("kconfig: unable to get %s.%s %s from Kubernetes status code %v",
-			ns, name, kind, resp.StatusCode))
+		return nil, errors.New(fmt.Sprintf("kconfig: unable to get %s, status code %v",
+			resourceURL, resp.StatusCode))
 	}
 
 	return data, nil
 }
 
-func New() *UK8S {
-	return &UK8S{
-		ClustersByLocation: map[string][]*RestCluster{},
-		Clusters:           map[string]*RestCluster{},
+func New() *URest {
+	return &URest{
+		ClustersByLocation: map[string][]*URestClient{},
+		Clusters:           map[string]*URestClient{},
 		Client:             http.DefaultClient,
 	}
 }
 
-func (uk *UK8S) InitDefaultTokenSource(ctx context.Context) error {
+func (uk *URest) InitDefaultTokenSource(ctx context.Context) error {
 	// Init GCP auth
 	// DefaultTokenSource will:
 	// - check GOOGLE_APPLICATION_CREDENTIALS
@@ -245,69 +258,4 @@ func (uk *UK8S) InitDefaultTokenSource(ctx context.Context) error {
 		return t.AccessToken, nil
 	}
 	return nil
-}
-
-// Init the K8S client:
-//
-// 1. Explicit KUBECONFIG
-// 2. GCP APIs, selecting a cluster.
-//
-func K8SClient(ctx context.Context, m *Mesh) (*UK8S, error) {
-	uk := New()
-	uk.Mesh = m
-	uk.TransportWrapper = m.TransportWrapper
-	//m.Cfg = uk
-	//m.TokenProvider = uk
-	uk.Client = http.DefaultClient
-	//uk.Client = uk.HttpClient(nil)
-
-	err := uk.InitDefaultTokenSource(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	kc := os.Getenv("KUBECONFIG")
-	if kc == "" {
-		kc = os.Getenv("HOME") + "/.kube/config"
-	}
-	if kc != "" {
-		if _, err := os.Stat(kc); err == nil {
-			// Explicit kube config, using it.
-			kcd, err := ioutil.ReadFile(kc)
-			if err != nil {
-				return nil, err
-			}
-			kc := &KubeConfig{}
-			err = yaml.Unmarshal(kcd, kc)
-			if err != nil {
-				return nil, err
-			}
-
-			def, cbyl, err := KubeConfig2RestCluster(uk, kc)
-			if err != nil {
-				return nil, err
-			}
-
-			uk.Current = def
-			uk.ClustersByLocation = cbyl
-		}
-	}
-
-	// Using GCP APIs
-	if m.ProjectId != "" {
-		accessToken, err := uk.TokenProvider(ctx, "")
-		if err != nil {
-			log.Println("Failed to load GKE clusters, no token", err)
-		}
-
-		_, err = GKE2RestCluster(ctx, uk, accessToken, m.ProjectId)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// TODO: select the config clusters
-	// TODO: function to update the 'active' cluster on failure, locate local one
-
-	return uk, nil
 }

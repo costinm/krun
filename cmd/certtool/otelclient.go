@@ -4,15 +4,19 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"time"
 
-	"github.com/costinm/krun/pkg/mesh"
-	"github.com/costinm/krun/pkg/sts"
+	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/mesh"
+	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/sts"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric/global"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/export/metric"
 	"go.opentelemetry.io/otel/sdk/metric/selector/simple"
 	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
@@ -21,10 +25,12 @@ import (
 	controller "go.opentelemetry.io/otel/sdk/metric/controller/basic"
 	processor "go.opentelemetry.io/otel/sdk/metric/processor/basic"
 
-	mexporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric"
+	//mexporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric"
 	cloudtrace "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace"
 
 	"go.opentelemetry.io/contrib/instrumentation/host"
+	"go.opentelemetry.io/contrib/instrumentation/runtime"
+	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 )
@@ -46,7 +52,6 @@ func initOTel(ctx context.Context, kr *mesh.KRun) (func(), error) {
 		tokenProvider, _ := sts.NewSTS(kr)
 		tokenProvider.MDPSA = true
 		tokenProvider.UseAccessToken = true
-
 
 		exp, err = cloudtrace.New(cloudtrace.WithProjectID(kr.ProjectId),
 			cloudtrace.WithTraceClientOptions([]option.ClientOption{
@@ -97,10 +102,10 @@ func initOTel(ctx context.Context, kr *mesh.KRun) (func(), error) {
 		tokenProvider.MDPSA = true
 		tokenProvider.UseAccessToken = true
 
-		exporter, err = mexporter.NewRawExporter(mexporter.WithProjectID(kr.ProjectId),
-			mexporter.WithMonitoringClientOptions(
-				option.WithGRPCDialOption(grpc.WithPerRPCCredentials(tokenProvider)),
-				option.WithQuotaProject(kr.ProjectId)))
+		//exporter, err = mexporter.NewRawExporter(mexporter.WithProjectID(kr.ProjectId),
+		//	mexporter.WithMonitoringClientOptions(
+		//		option.WithGRPCDialOption(grpc.WithPerRPCCredentials(tokenProvider)),
+		//		option.WithQuotaProject(kr.ProjectId)))
 
 	} else {
 		exporter, err = stdoutmetric.New(
@@ -148,12 +153,12 @@ func initOTel(ctx context.Context, kr *mesh.KRun) (func(), error) {
 		}
 	}, nil
 	/*
-	kr.TransportWrapper = func(transport http.RoundTripper) http.RoundTripper {
-		return otelhttp.NewTransport(transport)
-	}
-	// Host telemetry -
-	host.Start()
-       */
+		kr.TransportWrapper = func(transport http.RoundTripper) http.RoundTripper {
+			return otelhttp.NewTransport(transport)
+		}
+		// Host telemetry -
+		host.Start()
+	*/
 }
 
 func OTELGRPCClient() []grpc.DialOption {

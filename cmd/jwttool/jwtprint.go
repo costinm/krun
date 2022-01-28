@@ -18,7 +18,7 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/costinm/krun/pkg/mesh"
+	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/mesh"
 )
 
 var (
@@ -32,6 +32,5 @@ func main() {
 		fmt.Println(mesh.TokenPayload(*decode))
 		return
 	}
-
 
 }

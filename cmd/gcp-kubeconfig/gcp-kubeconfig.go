@@ -23,9 +23,9 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/mesh"
 	"github.com/costinm/krun/gcp"
 	gcp2 "github.com/costinm/krun/k8s/gcp"
-	"github.com/costinm/krun/pkg/mesh"
 	"k8s.io/client-go/tools/clientcmd"
 )
 

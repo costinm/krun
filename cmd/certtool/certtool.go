@@ -8,13 +8,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/k8s"
-	"github.com/costinm/krun/pkg/urest"
+	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/gcp"
+	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/mesh"
+	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/sts"
 	"google.golang.org/grpc"
 
 	"github.com/costinm/hbone"
-	"github.com/costinm/krun/pkg/mesh"
-	"github.com/costinm/krun/pkg/sts"
 	"github.com/costinm/krun/third_party/istio/cas"
 	"github.com/costinm/krun/third_party/istio/istioca"
 	"github.com/costinm/krun/third_party/istio/meshca"
@@ -35,29 +34,36 @@ func main() {
 	if *ns != "" {
 		kr.Namespace = *ns
 	}
+	ctx := context.Background()
 
 	// Using the micro or real k8s client.
 	if false {
-		_, err := urest.K8SClient(startCtx, kr)
-		err = kr.LoadConfig(startCtx)
-		if err != nil {
-			panic(err)
-		}
+		//_, err := urest.K8SClient(startCtx, kr)
+		//err = kr.LoadConfig(startCtx)
+		//if err != nil {
+		//	panic(err)
+		//}
 	} else {
-		k8s := &k8s.K8S{Mesh: kr}
-		k8s.VendorInit = gcp.InitGCP
-		kr.Cfg = k8s
-		kr.TokenProvider = k8s
-
-		// Init K8S client, using official API server.
-		// Will attempt to use GCP API to load metadata and populate the fields
-		k8s.K8SClient(startCtx)
-
-		// Load mesh-env and other configs from k8s.
-		err := kr.LoadConfig(startCtx)
+		err := gcp.InitGCP(ctx, kr)
+		if err != nil {
+			log.Fatal("Failed to find K8S ", time.Since(kr.StartTime), kr, os.Environ(), err)
+		}
+		err = kr.LoadConfig(context.Background())
 		if err != nil {
 			log.Fatal("Failed to connect to mesh ", time.Since(kr.StartTime), kr, os.Environ(), err)
 		}
+
+		//k8s := &k8s.K8S{Mesh: kr}
+		//k8s.VendorInit = gcp.InitGCP
+		//kr.Cfg = k8s
+		//kr.TokenProvider = k8s
+
+		// Init K8S client, using official API server.
+		// Will attempt to use GCP API to load metadata and populate the fields
+		//k8s.K8SClient(startCtx)
+
+		// Load mesh-env and other configs from k8s.
+
 	}
 
 	// Need the settings from mesh-env
@@ -103,8 +109,10 @@ func InitMeshCert(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte) {
 	if kr.CitadelRoot != "" && kr.MeshConnectorAddr != "" {
 		auth.AddRoots([]byte(kr.CitadelRoot))
 
+		grpccreds, _ := sts.NewSTS(kr)
+		// Audience: "istio-ca"
 		cca, err := istioca.NewCitadelClient(&istioca.Options{
-			TokenProvider: &sts.K8SCredentials{KRun: kr, Audience: "istio-ca"},
+			TokenProvider: grpccreds,
 			CAEndpoint:    kr.MeshConnectorAddr + ":15012",
 			TrustedRoots:  auth.TrustedCertPool,
 			CAEndpointSAN: "istiod.istio-system.svc",
