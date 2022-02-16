@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/costinm/krun/pkg/mesh"
-	"github.com/costinm/krun/pkg/sts"
-	"github.com/costinm/krun/pkg/uk8s"
+	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/mesh"
+	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/sts"
 )
 
 var (

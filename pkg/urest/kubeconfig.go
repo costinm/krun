@@ -118,15 +118,17 @@ type KubeUser struct {
 	Password string `json:"password,omitempty"`
 	// AuthProvider specifies a custom authentication plugin for the kubernetes cluster.
 	// +optional
-	AuthProvider *struct {
-		Name string `json:"name,omitempty"`
-	} `json:"auth-provider,omitempty"`
+	AuthProvider UserAuthProvider `json:"auth-provider,omitempty" yaml:"auth-provider,omitempty"`
 	// Exec specifies a custom exec-based authentication plugin for the kubernetes cluster.
 	// +optional
 	//Exec *ExecConfig `json:"exec,omitempty"`
 	// Extensions holds additional information. This is useful for extenders so that reads and writes don't clobber unknown fields
 	// +optional
 	//Extensions map[string]runtime.Object `json:"extensions,omitempty"`
+}
+
+type UserAuthProvider struct {
+	Name string `json:"name,omitempty"`
 }
 
 // Context is a tuple of references to a cluster (how do I communicate with a kubernetes cluster), a user (how do I identify myself), and a namespace (what subset of resources do I want to work with)
@@ -140,8 +142,8 @@ type Context struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
-func kubeconfig2Rest(uk *UK8S, name string, cluster *KubeCluster, user *KubeUser, ns string) (*RestCluster, error) {
-	rc := &RestCluster{
+func kubeconfig2Rest(uk *URest, name string, cluster *KubeCluster, user *KubeUser, ns string) (*URestClient, error) {
+	rc := &URestClient{
 		Base:      cluster.Server,
 		Token:     user.Token,
 		Namespace: ns,
@@ -157,7 +159,7 @@ func kubeconfig2Rest(uk *UK8S, name string, cluster *KubeCluster, user *KubeUser
 	rc.Id = name
 
 	// May be useful to add: strings.HasPrefix(name, "gke_") ||
-	if user.AuthProvider != nil && user.AuthProvider.Name == "gcp" {
+	if user.AuthProvider.Name == "gcp" {
 		rc.TokenProvider = uk.TokenProvider
 	}
 
@@ -175,12 +177,12 @@ func kubeconfig2Rest(uk *UK8S, name string, cluster *KubeCluster, user *KubeUser
 // KubeConfig2RestCluster extracts supported RestClusters from the kube config, returns the default and the list
 // of clusters by location.
 // GKE naming conventions are assumed for extracting the location.
-func KubeConfig2RestCluster(uk *UK8S, kc *KubeConfig) (*RestCluster, map[string][]*RestCluster, error) {
+func KubeConfig2RestCluster(uk *URest, kc *KubeConfig) (*URestClient, map[string][]*URestClient, error) {
 	var cluster *KubeCluster
 	var user *KubeUser
 
-	cByLoc := map[string][]*RestCluster{}
-	cByName := map[string]*RestCluster{}
+	cByLoc := map[string][]*URestClient{}
+	cByName := map[string]*URestClient{}
 
 	if len(kc.Contexts) == 0 || kc.CurrentContext == "" {
 		if len(kc.Clusters) == 0 || len(kc.Users) == 0 {

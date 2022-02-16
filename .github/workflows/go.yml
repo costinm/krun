@@ -7,44 +7,26 @@ env:
   #KRUN_IMAGE: ghcr.io/costinm/krun/krun:latest
 
 jobs:
-  build-ko:
-    name: Build with ko
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/setup-go@v2
-        with:
-          go-version: 1.16
-      - name: What
-        run:
-          echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
-      - uses: actions/checkout@v2
-      - uses: imjasonh/setup-ko@v0.4
-      - run: ko publish -t ${{ env.BRANCH }} -B ./
 
-#  build-docker:
-#    name: Build-in-docker
-#    runs-on: ubuntu-latest
-#    steps:
-#      -
-#        name: Checkout
-#        uses: actions/checkout@v2
-#      -
-#        name: Set up Docker Buildx
-#        uses: docker/setup-buildx-action@v1
-#      -
-#        name: Login to GitHub Container Registry
-#        uses: docker/login-action@v1
-#        with:
-#          registry: ghcr.io
-#          #registry: docker.pkg.github.com
-#          #username: ${{ github.actor }}
-#          username: ${{ github.repository_owner }}
-#          password: ${{ secrets.GITHUB_TOKEN }}
-#      -
-#        name: push
-#        uses: docker/build-push-action@v2
-#        with:
-#          push: true
-#          context: .
-#          tags: |
-#            ghcr.io/costinm/cert-ssh/sshd:latest
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Go 1.17
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.17
+        id: go
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+
+      - name: Get dependencies
+        run: |
+          go mod download
+
+      - name: Build
+        run: |
+          cd cmd/ugate && go build -o ../../ugate -v .
+

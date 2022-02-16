@@ -319,7 +319,7 @@ func TestURest(t *testing.T) {
 
 	//
 	uk.Current = ecl
-	uk.ProjectID = ecl.ProjectId
+	uk.Mesh.ProjectId = ecl.ProjectId
 
 	// Cluster must have mesh connector installed
 	t.Run("kubeconfig", func(t *testing.T) {
@@ -334,7 +334,7 @@ func TestURest(t *testing.T) {
 	tok, err := uk.TokenProvider(ctx, "")
 
 	t.Run("hublist", func(t *testing.T) {
-		cd, err := urest.Hub2RestClusters(ctx, uk, tok, uk.ProjectID)
+		cd, err := urest.Hub2RestClusters(ctx, uk, tok, uk.Mesh.ProjectId)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -346,7 +346,7 @@ func TestURest(t *testing.T) {
 	})
 
 	t.Run("gkelist", func(t *testing.T) {
-		cd, err := urest.GKE2RestCluster(ctx, uk, tok, uk.ProjectID)
+		cd, err := urest.GKE2RestCluster(ctx, uk, tok, uk.Mesh.ProjectId)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -356,7 +356,7 @@ func TestURest(t *testing.T) {
 	})
 
 	t.Run("secret", func(t *testing.T) {
-		cd, err := urest.GcpSecret(ctx, uk, tok, uk.ProjectID, "ca", "1")
+		cd, err := urest.GcpSecret(ctx, uk, tok, uk.Mesh.ProjectId, "ca", "1")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -364,13 +364,20 @@ func TestURest(t *testing.T) {
 	})
 
 	t.Run("init", func(t *testing.T) {
-		kr := &urest.Mesh{}
-		kr.ProjectId = uk.ProjectID
+		kr := &urest.MeshSettings{}
+		kr.ProjectId = uk.Mesh.ProjectId
 
 		uk1, err := urest.K8SClient(ctx, kr)
 		uk1.Client = http.DefaultClient
+		uk1.TokenProvider = func(ctx context.Context, s string) (string, error) {
+			t, err := ts.Token()
+			if err != nil {
+				return "", err
+			}
+			return t.AccessToken, nil
+		}
 
-		cd, err := urest.GKE2RestCluster(context.TODO(), uk1, uk.ProjectID, "")
+		cd, err := urest.GKE2RestCluster(context.TODO(), uk, "", uk1.Mesh.ProjectId)
 		if err != nil {
 			t.Fatal(err)
 		}

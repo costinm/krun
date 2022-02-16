@@ -21,8 +21,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/mesh"
 	"github.com/costinm/hbone"
-	"github.com/costinm/krun/pkg/mesh"
 	"github.com/costinm/krun/pkg/urest"
 )
 
@@ -34,9 +34,12 @@ func main() {
 
 	kr := mesh.New()
 
-
-
-	_, err := urest.K8SClient(ctx, kr)
+	_, err := urest.K8SClient(ctx, &urest.MeshSettings{
+		ProjectId:      kr.ProjectId,
+		Namespace:      kr.Namespace,
+		ServiceAccount: kr.KSA,
+		Location:       kr.ClusterLocation,
+	})
 
 	// Load mesh-env and other configs from k8s.
 	err = kr.LoadConfig(context.Background())
@@ -49,9 +52,9 @@ func main() {
 
 	// End initialization - start the app and istio
 
-	err = kr.WaitIstioAgent()
+	err = kr.WaitEnvoyReady("127.0.0.1:15000", 10*time.Second)
 	if err != nil {
-		log.Fatal("Mesh agent not ready ", err)
+		log.Fatal("MeshSettings agent not ready ", err)
 	}
 
 	kr.StartApp()
