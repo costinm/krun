@@ -1,21 +1,26 @@
-WIP: using the rest API directly to discover and fetch mesh-env and tokens.
+# uRest
 
-# Minimal REST client for k8s, GCP and other servers.
+This package includes a basic wrapper around http Client interface, to support common 'REST' API for GCP, K8S and 
+other similar APIs without a full dependency on the (rather large) client libraries.
 
-REST is pretty simple - authentication to the REST server is not.
-This package is based on mesh authentication - as used by Istio, which
-in turn is backed by K8S or OIDC tokens, including Google tokens.
+It is ONLY intended for bootstrap and 'light' usage - and optimized for code size instead of performance.
 
+uRest uses the basic HTTP protocol with an opaque payload which can be further interpreted as json, protobuf, 
+certificates or other formats. 
 
 # Background
 
-Originally based on a subset of kelseyhightower/konfig for k8s.
+This is using the k8s rest API directly to fetch config maps, secrets and tokens.
 
-All we really need is getting a config map with a GET request, and creating a token with a POST request - both using
+Originally based on a subset of kelseyhightower/konfig - a subset of the supported objects is defined as a json struct.
+
+For bootstrap, all we really need is getting a config map with a GET request, and creating a token with a POST request - both using
 JWTs from the default credentials source. We also don't need the full json - just few fields that are stable, so keeping
 a dependency to the full generated structs of all k8s APIs is overkill.
 
-The 'primary' auth mode is using google service account, using :
+This includes minimal code to parse kubeconfig, just enough for debugging and running in environments without a metadata server.
+
+The 'primary' auth mode is using google service account, using golang.org/x/oauth2/google:
 - metadata server
 - GOOGLE_APPLICATION_CREDENTIALS
 
@@ -55,8 +60,11 @@ TODO: document hub discovery
 
 #  Others
 
-https://github.com/ericchiang/k8s
-- k8s only
+kelseyhightower/konfig
+- base for this package 
+- specialized for a specific function
+
+K8S-only: https://github.com/ericchiang/k8s
 - archived
 - using the protobuf option instead of JSON - would be good for high-perf clients, we only need few configs
 - generated

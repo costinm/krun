@@ -8,7 +8,6 @@ require (
 	github.com/costinm/cert-ssh/ssh v0.0.0-20211012002824-b2c496cfd468
 	github.com/costinm/hbone v0.0.0-20211014182100-e32b869e6c4b
 	github.com/costinm/krun v0.0.0-00010101000000-000000000000
-	github.com/costinm/krun/k8s/gcp v0.0.0-00010101000000-000000000000
 	github.com/costinm/krun/k8s/k8s v0.0.0-00010101000000-000000000000
 )
 

@@ -171,9 +171,8 @@ func GetCluster(ctx context.Context, uk *UK8S, token, path string) (*RestCluster
 }
 
 func Hub2RestClusters(ctx context.Context, uk *UK8S, tok, p string) ([]*RestCluster, error) {
-	req, _ := http.NewRequest("GET",
+	req, _ := http.NewRequestWithContext(ctx, "GET",
 		"https://gkehub.googleapis.com/v1/projects/"+p+"/locations/-/memberships", nil)
-	req = req.WithContext(ctx)
 	req.Header.Add("authorization", "Bearer "+tok)
 
 	res, err := uk.Client.Do(req)
