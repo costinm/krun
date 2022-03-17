@@ -34,6 +34,10 @@ type GoogleCASClient struct {
 	caClient *privateca.CertificateAuthorityClient
 }
 
+// CAS is defined as grpc service in https://github.com/googleapis/go-genproto/blob/main/googleapis/cloud/security/privateca/v1/service.pb.go
+// google/cloud/security/privateca/v1/service.proto
+// go get google.golang.org/genproto/... - no extra deps besides protobuf (1.27.1)/grpc (1.40.0)
+
 // NewGoogleCASClient create a CA client for Google CAS.
 // capool is in format: projects/*/locations/*/caPools/*
 func NewGoogleCASClient(capool string, ol []grpc.DialOption) (*GoogleCASClient, error) {
@@ -41,7 +45,7 @@ func NewGoogleCASClient(capool string, ol []grpc.DialOption) (*GoogleCASClient, 
 	ctx := context.Background()
 	var err error
 
-	var ol1  []option.ClientOption
+	var ol1 []option.ClientOption
 	for _, v := range ol {
 		ol1 = append(ol1, option.WithGRPCDialOption(v))
 	}

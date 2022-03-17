@@ -168,7 +168,7 @@ func (uK8S *URest) HttpClient(caCert []byte) *http.Client {
 
 	var rt http.RoundTripper
 	rt = tr
-	if uK8S.Mesh.TransportWrapper != nil {
+	if uK8S.Mesh != nil && uK8S.Mesh.TransportWrapper != nil {
 		rt = uK8S.Mesh.TransportWrapper(rt)
 	}
 

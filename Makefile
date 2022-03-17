@@ -316,3 +316,9 @@ logs-mcp:
     	   --format "csv(textPayload,jsonPayload.message)" \
     		--freshness 1h \
      		'resource.type="istio_control_plane"'
+
+rbacview/install:
+	go install github.com/fairwindsops/rbac-lookup@latest
+
+rbacview:
+	rbac-lookup --gke
