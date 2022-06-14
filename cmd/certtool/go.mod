@@ -10,6 +10,8 @@ replace github.com/costinm/hbone => ../../../hbone
 
 replace github.com/costinm/hbone/otel => ../../../hbone/otel
 
+replace github.com/GoogleCloudPlatform/cloud-run-mesh => ../../../cloud-run-mesh
+
 require (
 	github.com/costinm/hbone v0.0.0-20211105170253-a27d86dc30cf
 	github.com/costinm/krun/third_party v0.0.0-20220127213137-ae2fe5bcc4b1

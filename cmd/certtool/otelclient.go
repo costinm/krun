@@ -49,7 +49,12 @@ func initOTel(ctx context.Context, kr *mesh.KRun) (func(), error) {
 	var err error
 	if true {
 		// k8s based GSA federated access and ID token provider
-		tokenProvider, _ := sts.NewSTS(kr)
+		tokenProvider, _ := sts.NewSTS(&sts.AuthConfig{
+			ProjectNumber:  kr.ProjectNumber,
+			TrustDomain:    kr.TrustDomain,
+			ClusterAddress: kr.ClusterAddress,
+			TokenSource:    kr,
+		})
 		tokenProvider.MDPSA = true
 		tokenProvider.UseAccessToken = true
 
@@ -98,7 +103,12 @@ func initOTel(ctx context.Context, kr *mesh.KRun) (func(), error) {
 	var exporter metric.Exporter
 	if true {
 		// k8s based GSA federated access and ID token provider
-		tokenProvider, _ := sts.NewSTS(kr)
+		tokenProvider, _ := sts.NewSTS(&sts.AuthConfig{
+			ProjectNumber:  kr.ProjectNumber,
+			TrustDomain:    kr.TrustDomain,
+			ClusterAddress: kr.ClusterAddress,
+			TokenSource:    kr,
+		})
 		tokenProvider.MDPSA = true
 		tokenProvider.UseAccessToken = true
 

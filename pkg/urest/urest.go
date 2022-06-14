@@ -111,9 +111,12 @@ type URest struct {
 // Based on K8S Cluster config.
 type URestClient struct {
 	URest *URest
+
 	// Base URL, including https://IP:port/v1
-	// Created from endpoint.
+	// Created from endpoint. Swagger Config uses BasePath, Host, Scheme
 	Base string
+
+	// TODO: UserAgent, DefaultHeader
 
 	// Token is set if the project is created from a k8s config using
 	// the long lived secret (for example Istio)
@@ -178,25 +181,26 @@ func (uK8S *URest) HttpClient(caCert []byte) *http.Client {
 
 }
 
-func (uk8s *URest) DoNsKindName(ctx context.Context, ns, kind, name string, postdata []byte) ([]byte, error) {
+func (uk8s *URest) K8SURL(ns, kind, name string) string {
 	resourceURL := uk8s.Current.Base + fmt.Sprintf("/api/v1/namespaces/%s/%ss/%s",
 		ns, kind, name)
-	return uk8s.Do(ctx, resourceURL, postdata)
+	return resourceURL
 }
 
 func (uk8s *URest) Do(ctx context.Context, resourceURL string, postdata []byte) ([]byte, error) {
+	return uk8s.DoCT(ctx, resourceURL, "application/json", postdata)
+}
 
+func (uk8s *URest) DoCT(ctx context.Context, resourceURL, ct string, postdata []byte) ([]byte, error) {
 	var resp *http.Response
 	var err error
 	var req *http.Request
 	if postdata == nil {
-		req, _ = http.NewRequest("GET", resourceURL, nil)
+		req, _ = http.NewRequestWithContext(ctx, "GET", resourceURL, nil)
 	} else {
-		req, _ = http.NewRequest("POST", resourceURL, bytes.NewReader(postdata))
-		req.Header.Add("content-type", "application/json")
+		req, _ = http.NewRequestWithContext(ctx, "POST", resourceURL, bytes.NewReader(postdata))
+		req.Header.Add("content-type", ct)
 	}
-
-	req = req.WithContext(ctx)
 
 	if uk8s.Current.Token != "" {
 		req.Header.Add("authorization", "bearer "+uk8s.Current.Token)
@@ -241,11 +245,6 @@ func New() *URest {
 }
 
 func (uk *URest) InitDefaultTokenSource(ctx context.Context) error {
-	// Init GCP auth
-	// DefaultTokenSource will:
-	// - check GOOGLE_APPLICATION_CREDENTIALS
-	// - ~/.config/gcloud/application_default_credentials.json"
-	// - use metadata
 	ts, err := google.DefaultTokenSource(ctx, "https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
 		return err

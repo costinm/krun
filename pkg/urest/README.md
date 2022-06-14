@@ -87,6 +87,14 @@ k8s.io/client-go/rest/client.go
 - includes rate limitter golang.org/x/time/rate
 - backoff
 
+## Accept encoding
+
+Same API can use multiple encoidings. JSON is the standard/most common.
+
+For proto:
+- application/grpc - has the extra envelope (tag + len4 )
+- application/com.github.proto-openapi.spec.v3@v1.0+protobuf - used in openapi
+- application/vnd.kubernetes.protobuf - used by k8s
 
 # TODO
 

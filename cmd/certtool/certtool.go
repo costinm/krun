@@ -22,13 +22,17 @@ import (
 var (
 	ns       = flag.String("n", "fortio", "Namespace")
 	aud      = flag.String("audience", "", "Audience to use in the CSR request")
-	provider = flag.String("addr", "", "Address. If empty will use the cluster default. meshca or cas can be used as shortcut")
+	provider = flag.String("addr", "meshca", "Address. If empty will use the cluster default. meshca or cas can be used as shortcut")
 )
 
 // CLI to get the mesh certificates, using MeshCA, CAS os Istio CA.
+// The resulting certificate is saved using workload certificate paths.
+//
+// This should be run periodically to refresh the certs in environments where
+// CSI or other native integration is missing.
 func main() {
 	flag.Parse()
-	startCtx := context.Background()
+	//startCtx := context.Background()
 
 	kr := mesh.New()
 	if *ns != "" {
@@ -36,43 +40,33 @@ func main() {
 	}
 	ctx := context.Background()
 
-	// Using the micro or real k8s client.
-	if false {
-		//_, err := urest.K8SClient(startCtx, kr)
-		//err = kr.LoadConfig(startCtx)
-		//if err != nil {
-		//	panic(err)
-		//}
-	} else {
-		err := gcp.InitGCP(ctx, kr)
-		if err != nil {
-			log.Fatal("Failed to find K8S ", time.Since(kr.StartTime), kr, os.Environ(), err)
-		}
-		err = kr.LoadConfig(context.Background())
-		if err != nil {
-			log.Fatal("Failed to connect to mesh ", time.Since(kr.StartTime), kr, os.Environ(), err)
-		}
-
-		//k8s := &k8s.K8S{Mesh: kr}
-		//k8s.VendorInit = gcp.InitGCP
-		//kr.Cfg = k8s
-		//kr.TokenProvider = k8s
-
-		// Init K8S client, using official API server.
-		// Will attempt to use GCP API to load metadata and populate the fields
-		//k8s.K8SClient(startCtx)
-
-		// Load mesh-env and other configs from k8s.
-
+	err := gcp.InitGCP(ctx, kr)
+	if err != nil {
+		log.Fatal("Failed to find K8S ", time.Since(kr.StartTime), kr, os.Environ(), err)
 	}
+	err = kr.LoadConfig(context.Background())
+	if err != nil {
+		log.Fatal("Failed to connect to mesh ", time.Since(kr.StartTime), kr, os.Environ(), err)
+	}
+
+	//k8s := &k8s.K8S{Mesh: kr}
+	//k8s.VendorInit = gcp.InitGCP
+	//kr.Cfg = k8s
+	//kr.TokenProvider = k8s
+
+	// Init K8S client, using official API server.
+	// Will attempt to use GCP API to load metadata and populate the fields
+	//k8s.K8SClient(startCtx)
+
+	// Load mesh-env and other configs from k8s.
 
 	// Need the settings from mesh-env
-	f, err := initOTel(startCtx, kr)
-	if err != nil {
-		log.Println("OTel init failed", err)
-	} else {
-		defer f()
-	}
+	//f, err := initOTel(startCtx, kr)
+	//if err != nil {
+	//	log.Println("OTel init failed", err)
+	//} else {
+	//	defer f()
+	//}
 
 	if kr.MeshConnectorAddr == "" {
 		log.Fatal("Failed to find in-cluster, missing 'hgate' service in mesh env")
@@ -109,7 +103,12 @@ func InitMeshCert(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte) {
 	if kr.CitadelRoot != "" && kr.MeshConnectorAddr != "" {
 		auth.AddRoots([]byte(kr.CitadelRoot))
 
-		grpccreds, _ := sts.NewSTS(kr)
+		grpccreds, _ := sts.NewSTS(&sts.AuthConfig{
+			ProjectNumber:  kr.ProjectNumber,
+			TrustDomain:    kr.TrustDomain,
+			ClusterAddress: kr.ClusterAddress,
+			TokenSource:    kr,
+		})
 		// Audience: "istio-ca"
 		cca, err := istioca.NewCitadelClient(&istioca.Options{
 			TokenProvider: grpccreds,
@@ -134,8 +133,13 @@ func InitMeshCert(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte) {
 }
 
 func InitMeshCA(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte) {
-	tokenProvider, err := sts.NewSTS(kr)
-	tokenProvider.UseAccessToken = true // even if audience is provided.
+	tokenProvider, err := sts.NewSTS(&sts.AuthConfig{
+		ProjectNumber:  kr.ProjectNumber,
+		TrustDomain:    kr.TrustDomain,
+		ClusterAddress: kr.ClusterAddress,
+		TokenSource:    kr,
+	})
+	tokenProvider.UseAccessToken = false // even if audience is provided.
 
 	// TODO: Use MeshCA if citadel is not in cluster
 	var ol []grpc.DialOption
@@ -144,7 +148,7 @@ func InitMeshCA(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte) {
 
 	mca, err := meshca.NewGoogleCAClient("meshca.googleapis.com:443",
 		ol)
-	chain, err := mca.CSRSign(csr, 24*3600)
+	chain, err := mca.CSRSign(csr, 1*3600)
 
 	if err != nil {
 		log.Fatal(err)
@@ -160,7 +164,12 @@ func InitMeshCA(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte) {
 // TODO
 func InitCAS(kr *mesh.KRun, auth *hbone.Auth, csr []byte, priv []byte) {
 	// TODO: Use MeshCA if citadel is not in cluster
-	tokenProvider, err := sts.NewSTS(kr)
+	tokenProvider, err := sts.NewSTS(&sts.AuthConfig{
+		ProjectNumber:  kr.ProjectNumber,
+		TrustDomain:    kr.TrustDomain,
+		ClusterAddress: kr.ClusterAddress,
+		TokenSource:    kr,
+	})
 
 	// This doesn't work
 	//  Could not use the REFLECTED_SPIFFE subject mode because the caller does not have a SPIFFE identity. Please visit the CA Service documentation to ensure that this is a supported use-case

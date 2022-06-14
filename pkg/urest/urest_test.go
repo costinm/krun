@@ -286,6 +286,12 @@ func TestURest(t *testing.T) {
 	defer cf()
 
 	uk := urest.New()
+
+	// Init GCP auth
+	// DefaultTokenSource will:
+	// - check GOOGLE_APPLICATION_CREDENTIALS
+	// - ~/.config/gcloud/application_default_credentials.json"
+	// - use metadata
 	ts, err := google.DefaultTokenSource(ctx, "https://www.googleapis.com/auth/cloud-platform")
 	if err != nil {
 		t.Fatal(err)
@@ -297,6 +303,7 @@ func TestURest(t *testing.T) {
 		}
 		return t.AccessToken, nil
 	}
+
 	kcd, err := ioutil.ReadFile(os.Getenv("HOME") + "/.kube/config")
 	if err != nil {
 		t.Skip("No k8s config", err)
@@ -309,7 +316,6 @@ func TestURest(t *testing.T) {
 	if kc.CurrentContext == "" {
 		t.Fatal("No default context", kc)
 	}
-	uk.InitDefaultTokenSource(ctx)
 	uk.Client = uk.HttpClient(nil)
 
 	ecl, _, err := urest.KubeConfig2RestCluster(uk, kc)
