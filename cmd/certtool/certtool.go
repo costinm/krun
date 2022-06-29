@@ -11,6 +11,7 @@ import (
 	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/gcp"
 	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/mesh"
 	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/sts"
+	"github.com/costinm/ugate/pkg/auth"
 	"google.golang.org/grpc"
 
 	"github.com/costinm/hbone"
@@ -75,8 +76,8 @@ func main() {
 	kr.XDSAddr = kr.MeshConnectorAddr + ":15012"
 
 	// Used to generate the CSR
-	auth := hbone.NewAuth()
-	priv, csr, err := auth.NewCSR("rsa", kr.TrustDomain, "spiffe://"+kr.TrustDomain+"/ns/"+kr.Namespace+"/sa/"+kr.KSA)
+	a := auth.NewCertAuth()
+	priv, csr, err := a.NewCSR("rsa", kr.TrustDomain, "spiffe://"+kr.TrustDomain+"/ns/"+kr.Namespace+"/sa/"+kr.KSA)
 	if err != nil {
 		log.Fatal("Failed to find mesh certificates ", err)
 	}

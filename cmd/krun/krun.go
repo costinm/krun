@@ -23,7 +23,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/cloud-run-mesh/pkg/mesh"
 	"github.com/costinm/hbone"
-	"github.com/costinm/krun/pkg/urest"
+	"github.com/costinm/ugate/urest"
 )
 
 var initDebug func(run *mesh.KRun)
